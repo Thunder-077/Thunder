@@ -1,14 +1,14 @@
 export interface VaultMetadata {
   id: string
-  version: number
   kdf: VaultKdfParams
   encryptedDataKey: string
+  passwordHint?: string | null
   createdAt: string
   updatedAt: string
 }
 
 export interface VaultKdfParams {
-  algorithm: "argon2id" | "pbkdf2"
+  algorithm: "argon2id"
   saltBase64: string
   memoryKiB: number
   iterations: number
@@ -21,16 +21,45 @@ export interface EncryptedPayload {
   ciphertextBase64: string
 }
 
+export interface VaultTag {
+  id: string
+  name: string
+  color: string
+}
+
+export type ExtraFieldType = "text" | "secret" | "url" | "email" | "totp" | "recovery-code" | "note"
+
+export interface VaultExtraField {
+  id: string
+  name: string
+  value: string
+  type: ExtraFieldType
+  sensitive: boolean
+}
+
+export type VaultItemType =
+  | "website"
+  | "secret"
+  | "totp"
+  | "server"
+  | "database"
+  | "note"
+
 export interface VaultItemPlain {
   id: string
   title: string
+  type: VaultItemType
   username: string
   password: string
   url: string
   notes: string
-  tags: string[]
+  tags: VaultTag[]
+  favorite: boolean
+  lastAccessedAt?: string | null
   createdAt: string
   updatedAt: string
+  iconUrl?: string | null
+  extraFields: VaultExtraField[]
 }
 
 export interface VaultItemRecord {
@@ -49,7 +78,6 @@ export interface VaultSession {
 
 export interface VaultBackup {
   type: "thunder-vault-backup"
-  version: number
   metadata: VaultMetadata
   items: VaultItemRecord[]
   exportedAt: string

@@ -1,34 +1,135 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { PageHeader } from "@/components/page-header"
+import { useRef, useState, useCallback } from "react"
 import { useVault } from "../state"
 import { useVaultSettings } from "../hooks/use-vault-settings"
 import { useClipboardProtection } from "../hooks/use-clipboard-protection"
-import type { VaultItemPlain } from "@thunder/vault"
+import type { VaultItemPlain, VaultTag } from "@thunder/vault"
 import { VaultToolbar } from "./vault-toolbar"
-import { VaultItemList } from "./vault-item-list"
-import { VaultItemForm } from "./vault-item-form"
+import { VaultListPanel } from "./vault-list-panel"
+import { VaultDetailPanel } from "./vault-detail-panel"
 import { VaultItemEditDialog } from "./vault-item-edit-dialog"
-import { Card, CardContent } from "@/components/ui/card"
-import { KeyRound } from "lucide-react"
+import { inferVaultItemType, VAULT_ITEM_TYPE_LABELS } from "../utils/vault-utils"
+
+const PAGE_SIZE = 8
 
 export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { items, selectedItem, selectItem, addItem, updateItem, deleteItem, error, exportBackup, importBackup } = useVault()
   const { settings } = useVaultSettings()
   const { copyWithProtection } = useClipboardProtection(settings.clipboardAutoClear, settings.clipboardClearSeconds)
-  const [searchQuery, setSearchQuery] = useState("")
+  
+  const [searchKeyword, setSearchKeyword] = useState("")
+  const [scopeFilter, setScopeFilter] = useState<"all" | "favorites" | "recent">("all")
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [typeFilter, setTypeFilter] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<VaultItemPlain | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const filteredItems = items.filter(
-    (item) =>
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
-  )
+  const filteredAndSortedItems = (() => {
+    let result = [...items]
+
+    if (scopeFilter === "favorites") {
+      result = result.filter((item) => item.favorite)
+    }
+
+    if (tagFilter) {
+      result = result.filter((item) =>
+        item.tags.some((t) => t.name.toLowerCase() === tagFilter.toLowerCase())
+      )
+    }
+
+    if (typeFilter) {
+      result = result.filter((item) => VAULT_ITEM_TYPE_LABELS[inferVaultItemType(item)] === typeFilter)
+    }
+
+    if (searchKeyword) {
+      const query = searchKeyword.toLowerCase()
+      result = result.filter((item) => {
+        const typeLabel = VAULT_ITEM_TYPE_LABELS[inferVaultItemType(item)]?.toLowerCase() || ""
+        return (
+          item.title.toLowerCase().includes(query) ||
+          item.username.toLowerCase().includes(query) ||
+          (item.url && item.url.toLowerCase().includes(query)) ||
+          (item.notes && item.notes.toLowerCase().includes(query)) ||
+          item.tags.some((t) => t.name.toLowerCase().includes(query)) ||
+          typeLabel.includes(query) ||
+          item.extraFields.some(
+            (f) =>
+              f.name.toLowerCase().includes(query) &&
+              (!f.sensitive || f.type === "text" || f.type === "url" || f.type === "email" || f.type === "note")
+          ) ||
+          item.extraFields.some(
+            (f) =>
+              !f.sensitive &&
+              f.type !== "secret" &&
+              f.type !== "totp" &&
+              f.type !== "recovery-code" &&
+              f.value.toLowerCase().includes(query)
+          )
+        )
+      })
+    }
+
+    if (scopeFilter === "recent") {
+      result.sort((a, b) => {
+        const timeA = a.lastAccessedAt ? new Date(a.lastAccessedAt).getTime() : 0
+        const timeB = b.lastAccessedAt ? new Date(b.lastAccessedAt).getTime() : 0
+        return timeB - timeA
+      })
+    } else {
+      result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    }
+
+    return result
+  })()
+
+  const visibleItems = filteredAndSortedItems.slice(0, visibleCount)
+  const hasMore = visibleCount < filteredAndSortedItems.length
+
+  const handleResetFilters = useCallback(() => {
+    setSearchKeyword("")
+    setScopeFilter("all")
+    setTagFilter(null)
+    setTypeFilter(null)
+    setVisibleCount(PAGE_SIZE)
+  }, [])
+
+  const handleLoadMore = useCallback(() => {
+    setVisibleCount((prev) => prev + PAGE_SIZE)
+  }, [])
+
+  const handleSearchChange = useCallback((keyword: string) => {
+    setSearchKeyword(keyword)
+    setVisibleCount(PAGE_SIZE)
+  }, [])
+
+  const handleScopeChange = useCallback((scope: "all" | "favorites" | "recent") => {
+    setScopeFilter(scope)
+    setVisibleCount(PAGE_SIZE)
+  }, [])
+
+  const handleTagChange = useCallback((tag: string | null) => {
+    setTagFilter(tag)
+    setVisibleCount(PAGE_SIZE)
+  }, [])
+
+  const handleTypeChange = useCallback((type: string | null) => {
+    setTypeFilter(type)
+    setVisibleCount(PAGE_SIZE)
+  }, [])
+
+  const handleSelectItem = useCallback(async (item: VaultItemPlain) => {
+    selectItem(item)
+
+    const now = new Date().toISOString()
+    if (!item.lastAccessedAt || new Date(now).getTime() - new Date(item.lastAccessedAt).getTime() > 60000) {
+      await updateItem({ ...item, lastAccessedAt: now })
+    }
+  }, [selectItem, updateItem])
 
   const handleAddItem = () => {
     setEditingItem(null)
@@ -42,17 +143,47 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
     setEditDialogOpen(true)
   }
 
-  const handleCopyUsername = (item: VaultItemPlain) => {
-    copyWithProtection(item.username, false)
+  const handleToggleFavorite = async (item: VaultItemPlain) => {
+    await updateItem({ ...item, favorite: !item.favorite })
   }
 
-  const handleCopyPassword = (item: VaultItemPlain) => {
-    copyWithProtection(item.password, true)
+  const handleCopyField = async (text: string, isSensitive: boolean = false) => {
+    copyWithProtection(text, isSensitive)
   }
 
   const handleDeleteItem = async (item: VaultItemPlain) => {
     if (!window.confirm(`确定要删除「${item.title}」吗？`)) return
     await deleteItem(item.id)
+  }
+
+  const handleAddTag = async (item: VaultItemPlain, tagName: string): Promise<VaultItemPlain> => {
+    const trimmedName = tagName.trim()
+    if (!trimmedName) throw new Error("标签名不能为空")
+
+    const existingTag = item.tags.find((t) => t.name.toLowerCase() === trimmedName.toLowerCase())
+    if (existingTag) throw new Error("标签已存在")
+
+    const newTag: VaultTag = {
+      id: `tag-${Date.now()}`,
+      name: trimmedName,
+      color: "",
+    }
+
+    const updatedItem = { ...item, tags: [...item.tags, newTag] }
+    await updateItem(updatedItem)
+    return updatedItem
+  }
+
+  const handleRemoveTag = async (item: VaultItemPlain, tagId: string): Promise<VaultItemPlain> => {
+    const updatedItem = { ...item, tags: item.tags.filter((t) => t.id !== tagId) }
+    await updateItem(updatedItem)
+    return updatedItem
+  }
+
+  const handleRemoveExtraField = async (item: VaultItemPlain, fieldId: string): Promise<VaultItemPlain> => {
+    const updatedItem = { ...item, extraFields: item.extraFields.filter((f) => f.id !== fieldId) }
+    await updateItem(updatedItem)
+    return updatedItem
   }
 
   const handleSaveItem = async (data: Omit<VaultItemPlain, "id" | "createdAt" | "updatedAt">) => {
@@ -99,60 +230,71 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
   }
 
   return (
-    <div>
-      <PageHeader title="密码保险箱" description="本地优先的加密密码管理模块" />
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-[1400px] px-8 py-6">
+          <div className="mb-5">
+            <h1 className="text-xl font-semibold tracking-tight">密码保险箱</h1>
+            <p className="mt-1 text-xs text-muted-foreground">安全管理你的账号、密码、令牌与备注</p>
+          </div>
 
-      {error && (
-        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-          {error}
-        </div>
-      )}
-
-      <VaultToolbar
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onAddItem={handleAddItem}
-        onExport={handleExport}
-        onImport={handleImport}
-        onOpenSettings={onOpenSettings}
-      />
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
-      <div className="mt-4 flex gap-4">
-        <div className="w-80 shrink-0">
-          <VaultItemList
-            items={filteredItems}
-            selectedId={selectedItem?.id ?? null}
-            onSelect={selectItem}
-            onCopyUsername={handleCopyUsername}
-            onCopyPassword={handleCopyPassword}
-            onEdit={handleEditItem}
-            onDelete={handleDeleteItem}
-          />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {selectedItem ? (
-            <Card>
-              <CardContent className="p-4">
-                <VaultItemForm item={selectedItem} onEdit={handleEditItem} onCopyPassword={handleCopyPassword} />
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                <KeyRound className="h-5 w-5" />
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">选择一个条目查看详情</p>
+          {error && (
+            <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {error}
             </div>
           )}
+
+          <VaultToolbar
+            searchKeyword={searchKeyword}
+            onSearchChange={handleSearchChange}
+            scopeFilter={scopeFilter}
+            onScopeChange={handleScopeChange}
+            tagFilter={tagFilter}
+            onTagChange={handleTagChange}
+            typeFilter={typeFilter}
+            onTypeChange={handleTypeChange}
+            onReset={handleResetFilters}
+            items={items}
+            onAddItem={handleAddItem}
+            onExport={handleExport}
+            onImport={handleImport}
+            onOpenSettings={onOpenSettings}
+          />
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
+          <div className="mt-5 grid gap-5" style={{ gridTemplateColumns: "minmax(0, 360px) minmax(0, 1fr)" }}>
+            <VaultListPanel
+              items={visibleItems}
+              totalItems={filteredAndSortedItems.length}
+              selectedId={selectedItem?.id ?? null}
+              filterType={scopeFilter}
+              onSelect={handleSelectItem}
+              onToggleFavorite={handleToggleFavorite}
+              onAddItem={handleAddItem}
+              onLoadMore={handleLoadMore}
+              hasMore={hasMore}
+              onResetFilters={handleResetFilters}
+              isEmpty={filteredAndSortedItems.length === 0 && items.length > 0}
+            />
+
+            <VaultDetailPanel
+              item={selectedItem}
+              onCopyField={handleCopyField}
+              onToggleFavorite={handleToggleFavorite}
+              onEdit={handleEditItem}
+              onDelete={handleDeleteItem}
+              onAddTag={handleAddTag}
+              onRemoveTag={handleRemoveTag}
+              onRemoveExtraField={handleRemoveExtraField}
+            />
+          </div>
         </div>
       </div>
 

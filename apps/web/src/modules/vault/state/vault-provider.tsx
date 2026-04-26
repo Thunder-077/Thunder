@@ -25,7 +25,7 @@ interface VaultContextValue {
   loading: boolean
   error: string | null
   selectItem: (item: VaultItemPlain | null) => void
-  createVault: (masterPassword: string) => Promise<void>
+  createVault: (masterPassword: string, passwordHint?: string) => Promise<void>
   unlockVault: (masterPassword: string) => Promise<void>
   lockVault: () => void
   addItem: (item: Omit<VaultItemPlain, "id" | "createdAt" | "updatedAt">) => Promise<void>
@@ -74,11 +74,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   useAutoLock(settings.autoLockMinutes, lockVault, status === "unlocked")
 
-  const createVault = useCallback(async (masterPassword: string) => {
+  const createVault = useCallback(async (masterPassword: string, passwordHint?: string) => {
     setLoading(true)
     setError(null)
     try {
-      const result = await vaultCrypto.createVault(masterPassword)
+      const result = await vaultCrypto.createVault(masterPassword, passwordHint)
       await vaultClient.saveMetadata(result.metadata)
       setMetadata(result.metadata)
       setDataKey(result.dataKey)

@@ -129,6 +129,9 @@ components:
           $ref: "#/components/schemas/VaultKdfParams"
         encryptedDataKey:
           type: string
+        passwordHint:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time

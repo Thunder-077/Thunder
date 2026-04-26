@@ -28,12 +28,12 @@ model AppSetting {
 }
 
 model VaultMetadata {
-  id                  String   @id
-  version             Int
-  kdfJson             String   @map("kdf_json")
-  encryptedDataKeyJson String  @map("encrypted_data_key_json")
-  createdAt           String   @map("created_at")
-  updatedAt           String   @map("updated_at")
+  id                   String   @id
+  kdfJson              String   @map("kdf_json")
+  encryptedDataKeyJson String   @map("encrypted_data_key_json")
+  passwordHint         String?  @map("password_hint")
+  createdAt            String   @map("created_at")
+  updatedAt            String   @map("updated_at")
 
   @@map("vault_metadata")
 }

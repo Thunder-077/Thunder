@@ -33,10 +33,10 @@ function Select({
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Positioner sideOffset={4}>
+        <SelectPrimitive.Positioner sideOffset={4} alignItemWithTrigger={false}>
           <SelectPrimitive.ScrollUpArrow className="flex h-4 items-center justify-center text-muted-foreground" />
           <SelectPrimitive.Popup
-            className="z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[side=bottom]:animate-in data-[side=bottom]:slide-in-from-top-2 data-[side=top]:animate-in data-[side=top]:slide-in-from-bottom-2"
+            className="z-[100] min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[side=bottom]:animate-in data-[side=bottom]:slide-in-from-top-2 data-[side=top]:animate-in data-[side=top]:slide-in-from-bottom-2"
           >
             {options.map((option) => (
               <SelectPrimitive.Item

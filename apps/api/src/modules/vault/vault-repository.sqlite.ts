@@ -8,9 +8,9 @@ export class VaultRepositorySQLite implements IVaultRepository {
     if (!row) return null
     return {
       id: row.id,
-      version: row.version,
       kdf: JSON.parse(row.kdfJson) as VaultKdfParams,
       encryptedDataKey: row.encryptedDataKeyJson,
+      passwordHint: row.passwordHint ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }
@@ -20,16 +20,16 @@ export class VaultRepositorySQLite implements IVaultRepository {
     await prisma.vaultMetadata.upsert({
       where: { id: metadata.id },
       update: {
-        version: metadata.version,
         kdfJson: JSON.stringify(metadata.kdf),
         encryptedDataKeyJson: metadata.encryptedDataKey,
+        passwordHint: metadata.passwordHint ?? null,
         updatedAt: metadata.updatedAt,
       },
       create: {
         id: metadata.id,
-        version: metadata.version,
         kdfJson: JSON.stringify(metadata.kdf),
         encryptedDataKeyJson: metadata.encryptedDataKey,
+        passwordHint: metadata.passwordHint ?? null,
         createdAt: metadata.createdAt,
         updatedAt: metadata.updatedAt,
       },

@@ -15,6 +15,24 @@ const nextConfig: NextConfig = {
       },
     ]
   },
+  webpack: (config) => {
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      syncWebAssembly: true,
+    }
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "asset/resource",
+    })
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
+    }
+    return config
+  },
 }
 
 export default nextConfig

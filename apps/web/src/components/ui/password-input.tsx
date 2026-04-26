@@ -14,6 +14,7 @@ function PasswordInput({ className, ...props }: React.ComponentProps<"input">) {
       <Input
         type={showPassword ? "text" : "password"}
         className={cn("pr-10", className)}
+        autoComplete="new-password"
         {...props}
       />
       <Button

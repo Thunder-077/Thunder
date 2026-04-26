@@ -27,11 +27,10 @@ function generateId(): string {
 }
 
 export class VaultCryptoDev implements IVaultCrypto {
-  async createVault(_masterPassword: string): Promise<CreateVaultResult> {
+  async createVault(_masterPassword: string, passwordHint?: string): Promise<CreateVaultResult> {
     const dataKey = `dev-data-key-${generateId()}`
     const metadata: VaultMetadata = {
       id: generateId(),
-      version: 1,
       kdf: {
         algorithm: "argon2id",
         saltBase64: toBase64("dev-salt-not-secure"),
@@ -40,6 +39,7 @@ export class VaultCryptoDev implements IVaultCrypto {
         parallelism: 4,
       },
       encryptedDataKey: toBase64(dataKey),
+      passwordHint: passwordHint ? passwordHint.trim() || null : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -102,7 +102,6 @@ export class VaultCryptoDev implements IVaultCrypto {
   ): Promise<VaultBackup> {
     return {
       type: "thunder-vault-backup",
-      version: 1,
       metadata,
       items,
       exportedAt: new Date().toISOString(),

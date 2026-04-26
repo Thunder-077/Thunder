@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import { hash, ArgonType } from "argon2-browser"
 import type { IVaultCrypto } from "./interface"
 import type {
   VaultMetadata,
@@ -22,26 +23,21 @@ import {
 
 async function deriveKEK(
   masterPassword: string,
-  salt: Uint8Array,
-  iterations: number
+  salt: Uint8Array
 ): Promise<CryptoKey> {
-  const encoder = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey(
+  const result = await hash({
+    pass: masterPassword,
+    salt,
+    type: ArgonType.Argon2id,
+    mem: CRYPTO_CONSTANTS.ARGON2_MEMORY,
+    time: CRYPTO_CONSTANTS.ARGON2_ITERATIONS,
+    parallelism: CRYPTO_CONSTANTS.ARGON2_PARALLELISM,
+    hashLen: CRYPTO_CONSTANTS.ARGON2_HASH_LENGTH,
+  })
+  const hashBytes = new Uint8Array(result.hash)
+  return crypto.subtle.importKey(
     "raw",
-    toBufferSource(encoder.encode(masterPassword)),
-    "PBKDF2",
-    false,
-    ["deriveKey"]
-  )
-
-  return crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt: toBufferSource(salt),
-      iterations,
-      hash: CRYPTO_CONSTANTS.HASH_ALGORITHM,
-    },
-    keyMaterial,
+    toBufferSource(hashBytes),
     { name: CRYPTO_CONSTANTS.ENCRYPTION_ALGORITHM, length: CRYPTO_CONSTANTS.KEY_LENGTH },
     false,
     ["wrapKey", "unwrapKey"]
@@ -74,12 +70,11 @@ async function decryptAesGcm(
 }
 
 export class VaultCryptoWeb implements IVaultCrypto {
-  async createVault(masterPassword: string): Promise<CreateVaultResult> {
+  async createVault(masterPassword: string, passwordHint?: string): Promise<CreateVaultResult> {
     const salt = generateSalt()
     const dekBytes = generateDek()
-    const iterations = CRYPTO_CONSTANTS.PBKDF2_ITERATIONS
 
-    const kek = await deriveKEK(masterPassword, salt, iterations)
+    const kek = await deriveKEK(masterPassword, salt)
 
     const dek = await crypto.subtle.importKey(
       "raw",
@@ -101,15 +96,15 @@ export class VaultCryptoWeb implements IVaultCrypto {
 
     const metadata: VaultMetadata = {
       id: crypto.randomUUID(),
-      version: 1,
       kdf: {
-        algorithm: "pbkdf2",
+        algorithm: "argon2id",
         saltBase64: arrayBufferToBase64(toBufferSource(salt)),
-        memoryKiB: 0,
-        iterations,
-        parallelism: 1,
+        memoryKiB: CRYPTO_CONSTANTS.ARGON2_MEMORY,
+        iterations: CRYPTO_CONSTANTS.ARGON2_ITERATIONS,
+        parallelism: CRYPTO_CONSTANTS.ARGON2_PARALLELISM,
       },
       encryptedDataKey: arrayBufferToBase64(toBufferSource(combinedWrapped)),
+      passwordHint: passwordHint ? passwordHint.trim() || null : null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -125,7 +120,7 @@ export class VaultCryptoWeb implements IVaultCrypto {
   ): Promise<UnlockVaultResult> {
     try {
       const salt = new Uint8Array(base64ToArrayBuffer(metadata.kdf.saltBase64))
-      const kek = await deriveKEK(masterPassword, salt, metadata.kdf.iterations)
+      const kek = await deriveKEK(masterPassword, salt)
 
       const combinedWrapped = new Uint8Array(base64ToArrayBuffer(metadata.encryptedDataKey))
       const nonce = combinedWrapped.slice(0, 12)
@@ -223,7 +218,7 @@ export class VaultCryptoWeb implements IVaultCrypto {
     metadata: VaultMetadata
   ): Promise<VaultMetadata> {
     const salt = new Uint8Array(base64ToArrayBuffer(metadata.kdf.saltBase64))
-    const oldKek = await deriveKEK(oldPassword, salt, metadata.kdf.iterations)
+    const oldKek = await deriveKEK(oldPassword, salt)
 
     const combinedWrapped = new Uint8Array(base64ToArrayBuffer(metadata.encryptedDataKey))
     const oldNonce = combinedWrapped.slice(0, 12)
@@ -240,7 +235,7 @@ export class VaultCryptoWeb implements IVaultCrypto {
     )
 
     const newSalt = generateSalt()
-    const newKek = await deriveKEK(newPassword, newSalt, CRYPTO_CONSTANTS.PBKDF2_ITERATIONS)
+    const newKek = await deriveKEK(newPassword, newSalt)
 
     const newNonce = generateNonce()
     const newWrappedDEK = await crypto.subtle.wrapKey("raw", dekRaw, newKek, {
@@ -255,9 +250,11 @@ export class VaultCryptoWeb implements IVaultCrypto {
     return {
       ...metadata,
       kdf: {
-        ...metadata.kdf,
+        algorithm: "argon2id",
         saltBase64: arrayBufferToBase64(toBufferSource(newSalt)),
-        iterations: CRYPTO_CONSTANTS.PBKDF2_ITERATIONS,
+        memoryKiB: CRYPTO_CONSTANTS.ARGON2_MEMORY,
+        iterations: CRYPTO_CONSTANTS.ARGON2_ITERATIONS,
+        parallelism: CRYPTO_CONSTANTS.ARGON2_PARALLELISM,
       },
       encryptedDataKey: arrayBufferToBase64(toBufferSource(newCombined)),
       updatedAt: new Date().toISOString(),
@@ -270,7 +267,6 @@ export class VaultCryptoWeb implements IVaultCrypto {
   ): Promise<VaultBackup> {
     return {
       type: "thunder-vault-backup",
-      version: 1,
       metadata,
       items,
       exportedAt: new Date().toISOString(),

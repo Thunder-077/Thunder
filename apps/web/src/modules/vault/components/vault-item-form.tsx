@@ -104,8 +104,8 @@ export function VaultItemForm({ item, onEdit, onCopyPassword }: VaultItemFormPro
         {item.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {item.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                {tag}
+              <Badge key={tag.id} variant="secondary" className="text-xs">
+                {tag.name}
               </Badge>
             ))}
           </div>

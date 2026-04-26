@@ -43,7 +43,21 @@ export function VaultSetupPage() {
       return
     }
 
-    await createVault(masterPassword)
+    const hint = passwordHint.trim()
+    if (hint.length > 120) {
+      setValidationError("密码提示不能超过 120 个字符")
+      return
+    }
+    if (hint && hint === masterPassword) {
+      setValidationError("密码提示不能与主密码相同")
+      return
+    }
+    if (hint && masterPassword.includes(hint)) {
+      setValidationError("密码提示不能包含主密码")
+      return
+    }
+
+    await createVault(masterPassword, hint || undefined)
   }
 
   const displayError = validationError || contextError

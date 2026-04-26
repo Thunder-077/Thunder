@@ -3,6 +3,7 @@ export interface VaultMetadata {
   version: number
   kdf: VaultKdfParams
   encryptedDataKey: string
+  passwordHint?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -21,14 +22,43 @@ export interface EncryptedPayload {
   ciphertextBase64: string
 }
 
+export type VaultItemType =
+  | "website"
+  | "secret"
+  | "totp"
+  | "server"
+  | "database"
+  | "note"
+
+export type ExtraFieldType = "text" | "secret" | "url" | "email" | "totp" | "recovery-code" | "note"
+
+export interface VaultTag {
+  id: string
+  name: string
+  color: string
+}
+
+export interface VaultExtraField {
+  id: string
+  name: string
+  value: string
+  type: ExtraFieldType
+  sensitive: boolean
+}
+
 export interface VaultItemPlain {
   id: string
   title: string
+  type: VaultItemType
   username: string
   password: string
   url: string
   notes: string
-  tags: string[]
+  tags: VaultTag[]
+  favorite: boolean
+  lastAccessedAt?: string | null
+  iconUrl?: string | null
+  extraFields: VaultExtraField[]
   createdAt: string
   updatedAt: string
 }

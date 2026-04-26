@@ -8,7 +8,7 @@ import type {
 } from "../types"
 
 export interface IVaultCrypto {
-  createVault(masterPassword: string): Promise<CreateVaultResult>
+  createVault(masterPassword: string, passwordHint?: string): Promise<CreateVaultResult>
   unlockVault(
     masterPassword: string,
     metadata: VaultMetadata
