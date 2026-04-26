@@ -26,20 +26,102 @@
 - 模块通过 Manifest 注册的机制已经实现了逻辑解耦
 - 如果未来需要，可以从模块独立包逐步演进到微前端
 
-## ADR-003：暂时不上复杂后端
+## ADR-003：采用 TypeScript-first 原则
 
-**背景**：应用需要数据持久化和可能的跨设备同步。
+**背景**：项目需要确定长期技术路线，前后端语言选择影响深远。
 
-**决策**：当前阶段使用浏览器本地存储（localStorage / IndexedDB），不搭建后端服务。
+**决策**：所有代码默认使用 TypeScript，包括前端和后端。
 
 **理由**：
-- 个人应用的数据量有限，本地存储完全够用
-- 避免后端运维成本（服务器、数据库、部署）
-- 本地优先（Local-first）是更好的隐私保护方案
-- PWA 可以提供离线能力，不依赖后端
-- 未来如果需要同步，可以采用端到端加密 + 云存储的方案
+- TypeScript 提供端到端类型安全，前后端共享类型定义减少不一致
+- 项目已有完整的 TypeScript 前端代码，后端也使用 TypeScript 可以最大化代码复用
+- TypeScript 生态成熟，Node.js 后端框架（Hono、Fastify、Express）均有良好支持
+- 共享类型包（modules/*）可以同时被前端和后端引用
+- 统一语言降低心智负担，个人项目不需要维护多语言构建链
+- 只有在 TypeScript 明显不适合时（AI/ML、企业 Java SDK、系统级能力）才引入其他语言
 
-## ADR-004：先做模块壳而不是直接做具体功能
+**影响**：
+- 后端使用 Hono（TypeScript 轻量框架）而非 Spring Boot 或 Django
+- 所有 API 契约、类型定义、工具函数默认 TypeScript
+- 非 TypeScript 服务放在 services/ 目录，通过 apps/api 编排
+
+## ADR-004：新增 apps/api 作为独立后端
+
+**背景**：之前 API 路由嵌入在 Next.js 的 app/api 目录中，前后端耦合。
+
+**决策**：新增 apps/api 作为独立后端 API 服务，使用 Hono 框架。
+
+**理由**：
+- 前后端分离：apps/web 只负责 UI，apps/api 只负责 API 和数据访问
+- 独立部署：apps/api 可以独立扩展、独立部署
+- 技术选型灵活：后端可以独立选择框架、中间件、部署方式
+- 数据库隔离：SQLite/Prisma 只在 apps/api 中使用，前端不接触数据库
+- 多语言服务接入：未来 Python/Java/Rust 服务只能通过 apps/api 编排
+- Hono 轻量高效：TypeScript 原生、Edge-first、中间件生态丰富
+- Next.js rewrites 代理：前端通过 /api/v1/* 代理到 apps/api，开发体验一致
+
+**影响**：
+- 本地开发需要同时启动 apps/api（端口 3001）和 apps/web（端口 3000）
+- API 路径统一使用 /api/v1 前缀
+- 所有 API 响应统一使用 ApiResponse<T> 格式
+- 前端通过 @thunder/api-client 调用后端
+
+## ADR-005：前端不能直接访问数据库
+
+**背景**：之前前端代码可以直接导入 @thunder/database 访问 Prisma Client。
+
+**决策**：前端不得直接访问 SQLite / Prisma / 数据库连接，必须通过 API Client 调用 apps/api。
+
+**理由**：
+- 安全性：数据库连接字符串、SQL 查询不应暴露给浏览器
+- 架构清晰：前端只关心 UI 和 API 调用，后端只关心数据访问和业务逻辑
+- 可维护性：数据库 schema 变更只影响 apps/api，前端无感知
+- 可替换性：未来切换 PostgreSQL / MySQL 时，前端代码无需修改
+- 多端适配：未来 Tauri 桌面端、移动端都可以通过 API 访问数据
+- Vault 安全：确保明文密码不会通过数据库连接泄漏到前端
+
+**影响**：
+- apps/web 不再依赖 @thunder/database
+- 所有数据库操作通过 apps/api 的 API 路由暴露
+- 前端通过 @thunder/api-client 调用 API
+
+## ADR-006：多语言服务暂不提前引入
+
+**背景**：项目未来可能需要 Python（AI/ML）、Java（企业 SDK）、Rust（系统级能力）等服务。
+
+**决策**：当前不实际创建任何非 TypeScript 服务，只在 services/ 目录保留 README.md 说明规则。
+
+**理由**：
+- YAGNI 原则：不要为"可能以后需要"而提前引入复杂度
+- 当前所有功能都可以用 TypeScript 实现
+- 提前引入多语言服务会增加构建、部署、维护成本
+- 多语言服务需要独立的运行时、依赖管理、CI/CD 流程
+- 通过 apps/api 编排的架构已经预留了多语言服务接入路径
+
+**未来引入条件**：
+- 用户明确指定该模块使用某种语言
+- TypeScript 明显不适合该功能
+- 该功能强依赖 Python / Java / Rust 等生态
+
+**典型场景**：
+- AI/机器学习 → Python（PyTorch、TensorFlow 生态）
+- OCR → Python（Tesseract、PaddleOCR 生态）
+- 企业系统集成 → Java（Spring、企业 SDK 生态）
+- 系统级能力 → Rust（性能、内存安全）
+
+**接入边界**：
+- 非 TypeScript 服务必须位于 services/ 目录
+- 非 TypeScript 服务只能通过 HTTP API / RPC / 消息队列接入 apps/api
+- 前端不得直接调用这些服务
+- modules 和 packages 不得依赖这些服务的内部实现
+- 每次新增非 TypeScript 服务，必须在本文件中记录决策
+
+**替代方案**：
+- AI 功能：可以先用 TypeScript + HTTP API 调用外部 AI 服务（OpenAI API 等），不需要自建 Python 服务
+- 数据分析：可以先用 TypeScript + SQL 实现，复杂分析再引入 Python
+- 企业集成：可以先用 TypeScript + HTTP API 对接，Java SDK 需求明确后再引入
+
+## ADR-007：先做模块壳而不是直接做具体功能
 
 **背景**：应用规划了多个功能模块（待办、密码管理、AI 管理等）。
 
@@ -52,20 +134,22 @@
 - Mock 模块足以验证导航和页面结构
 - 具体功能可以在稳定的框架上逐步添加
 
-## ADR-005：使用 pnpm Monorepo
+## ADR-008：使用 pnpm Workspace + Turborepo
 
 **背景**：项目需要管理多个包（主应用、核心库、UI 组件等）。
 
-**决策**：使用 pnpm workspace 管理 monorepo 结构。
+**决策**：使用 pnpm workspace 管理 monorepo 结构，Turborepo 管理构建编排和缓存。
 
 **理由**：
 - pnpm 的 workspace 协议天然支持 monorepo
 - 符号链接机制比 npm/yarn 的文件复制更高效
 - 严格的依赖隔离避免幽灵依赖
 - 与 Next.js 的 transpilePackages 配合良好
-- 未来可以轻松迁移到 Turborepo 等构建工具
+- Turborepo 提供任务编排（依赖感知的并行执行）和本地缓存
+- Turborepo 配置简单，零侵入，只需 turbo.json + 根脚本委托
+- 未来可接入远程缓存（Vercel Remote Cache）进一步加速 CI
 
-## ADR-006：使用 Tailwind CSS v4 + shadcn/ui
+## ADR-009：使用 Tailwind CSS v4 + shadcn/ui
 
 **背景**：需要选择 UI 样式方案。
 
@@ -77,3 +161,42 @@
 - base-nova 风格更简洁，符合极简设计目标
 - 组件代码完全可控，不依赖第三方运行时
 - 与 lucide-react 图标库天然集成
+
+## ADR-010：API 契约优先
+
+**背景**：前后端分离后，需要确保 API 接口一致性。
+
+**决策**：API 契约先于实现定义，使用 OpenAPI 描述 REST API。
+
+**理由**：
+- 契约优先确保前后端对 API 接口的理解一致
+- OpenAPI 是 REST API 的行业标准，工具链成熟
+- 可以从 OpenAPI 规范生成文档、类型、Mock 服务
+- 统一响应格式（ApiResponse<T>）和错误码减少前后端沟通成本
+- packages/contracts 作为单一事实来源，前后端都依赖它
+
+**影响**：
+- 新增 API 时先写 OpenAPI 规范，再实现
+- 所有 API 响应使用 ApiResponse<T> 格式
+- 错误码统一管理在 packages/contracts 中
+- API 路径统一使用 /api/v1 前缀
+
+## ADR-011：使用 Hono 作为后端框架
+
+**背景**：apps/api 需要选择后端框架。
+
+**决策**：使用 Hono 作为 apps/api 的后端框架。
+
+**理由**：
+- TypeScript 原生支持，类型安全
+- 轻量高效，启动快，适合个人项目
+- 中间件生态丰富（CORS、Logger、JWT 等）
+- 支持 Node.js / Bun / Deno / Edge Runtime 多运行时
+- 与 @hono/node-server 配合，可以运行在标准 Node.js 环境
+- API 风格简洁，学习成本低
+
+**替代方案**：
+- Express：老牌稳定，但类型安全不如 Hono
+- Fastify：性能好，但配置较重
+- Nest.js：功能全面，但对个人项目过于复杂
+- tRPC：端到端类型安全，但与 OpenAPI 契约优先理念冲突

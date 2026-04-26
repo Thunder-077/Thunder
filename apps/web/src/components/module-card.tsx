@@ -2,14 +2,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import type { ModuleManifest } from "@thunder/core"
 import {
   CheckSquare,
-  Shield,
+  Lock,
   Brain,
   Puzzle,
 } from "lucide-react"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   CheckSquare,
-  Shield,
+  Lock,
   Brain,
 }
 

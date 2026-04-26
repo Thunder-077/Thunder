@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: Thunder API
+  description: Thunder 个人模块化应用 API
+  version: 1.0.0
+
+servers:
+  - url: /api/v1
+    description: Local development
+
+paths:
+  /vault/metadata:
+    get:
+      summary: 获取保险箱元信息
+      operationId: getVaultMetadata
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      metadata:
+                        $ref: "#/components/schemas/VaultMetadata"
+    put:
+      summary: 保存保险箱元信息
+      operationId: saveVaultMetadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  $ref: "#/components/schemas/VaultMetadata"
+      responses:
+        "200":
+          description: 成功
+
+  /vault/items:
+    get:
+      summary: 获取条目列表
+      operationId: listVaultItems
+      parameters:
+        - name: vaultId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+
+  /vault/items/{id}:
+    get:
+      summary: 获取单个条目
+      operationId: getVaultItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+        "404":
+          description: 条目不存在
+    put:
+      summary: 保存条目
+      operationId: saveVaultItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                record:
+                  $ref: "#/components/schemas/VaultItemRecord"
+      responses:
+        "200":
+          description: 成功
+    delete:
+      summary: 删除条目（软删除）
+      operationId: deleteVaultItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+
+  /vault/clear:
+    post:
+      summary: 清空保险箱
+      operationId: clearVault
+      responses:
+        "200":
+          description: 成功
+
+components:
+  schemas:
+    VaultMetadata:
+      type: object
+      required: [id, version, kdf, encryptedDataKey, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        version:
+          type: integer
+        kdf:
+          $ref: "#/components/schemas/VaultKdfParams"
+        encryptedDataKey:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    VaultKdfParams:
+      type: object
+      required: [algorithm, saltBase64, memoryKiB, iterations, parallelism]
+      properties:
+        algorithm:
+          type: string
+          enum: [argon2id, pbkdf2]
+        saltBase64:
+          type: string
+        memoryKiB:
+          type: integer
+        iterations:
+          type: integer
+        parallelism:
+          type: integer
+
+    EncryptedPayload:
+      type: object
+      required: [algorithm, nonceBase64, ciphertextBase64]
+      properties:
+        algorithm:
+          type: string
+          enum: [aes-256-gcm]
+        nonceBase64:
+          type: string
+        ciphertextBase64:
+          type: string
+
+    VaultItemRecord:
+      type: object
+      required: [id, vaultId, encryptedPayload, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        vaultId:
+          type: string
+        encryptedPayload:
+          $ref: "#/components/schemas/EncryptedPayload"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time

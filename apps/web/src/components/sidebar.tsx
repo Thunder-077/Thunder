@@ -7,7 +7,7 @@ import {
   Puzzle,
   Settings,
   CheckSquare,
-  Shield,
+  Lock,
   Brain,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -19,7 +19,7 @@ import { CommandButton } from "@/components/command-button"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   CheckSquare,
-  Shield,
+  Lock,
   Brain,
 }
 
@@ -84,7 +84,7 @@ export function AppSidebar({ className }: SidebarProps) {
             <nav className="flex flex-col gap-1">
               {modules.map((mod) => {
                 const Icon = iconMap[mod.icon]
-                const isActive = pathname === mod.route
+                const isActive = pathname === mod.route || pathname.startsWith(mod.route + "/")
                 return (
                   <Link
                     key={mod.id}

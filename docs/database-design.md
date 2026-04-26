@@ -1,0 +1,152 @@
+# Thunder 数据库设计
+
+## 概述
+
+Thunder 当前使用 SQLite 作为过渡数据库，通过 Prisma ORM 访问，后续可以平滑替换为 PostgreSQL / MySQL。
+
+## 当前方案：SQLite + Prisma
+
+### 为什么选择 SQLite 作为过渡
+
+1. **零配置**：无需安装数据库服务，文件即数据库
+2. **本地开发友好**：`file:./data/app.db` 即可使用
+3. **平滑迁移**：通过 Prisma 切换 `provider` 和 `DATABASE_URL` 即可迁移到 PostgreSQL/MySQL
+4. **Tauri 兼容**：未来桌面端可通过 Tauri 后端访问 SQLite
+
+### 数据库文件位置
+
+- **本地开发**：`data/app.db`（项目根目录下）
+- **生产部署**：通过 `DATABASE_URL` 环境变量配置
+- **Tauri 桌面端**：通过 Tauri 后端或本地服务访问 SQLite
+
+### 数据库访问架构
+
+```
+前端组件 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → SQLite
+```
+
+- 前端不得直接访问 SQLite / Prisma / 数据库连接
+- 数据库访问只能发生在 apps/api 和 Repository 层
+- packages/database 提供 Prisma Client 单例，供 apps/api 使用
+
+## 数据库 Schema
+
+### app_modules
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT PRIMARY KEY | 模块 ID |
+| name | TEXT NOT NULL | 模块名称 |
+| enabled | BOOLEAN DEFAULT TRUE | 是否启用 |
+| settings_json | TEXT | 模块设置 JSON |
+| created_at | TEXT NOT NULL | 创建时间 |
+| updated_at | TEXT NOT NULL | 更新时间 |
+
+### app_settings
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| key | TEXT PRIMARY KEY | 设置键 |
+| value_json | TEXT NOT NULL | 设置值 JSON |
+| created_at | TEXT NOT NULL | 创建时间 |
+| updated_at | TEXT NOT NULL | 更新时间 |
+
+### vault_metadata
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT PRIMARY KEY | 保险箱 ID |
+| version | INTEGER NOT NULL | 版本号 |
+| kdf_json | TEXT NOT NULL | KDF 参数 JSON（VaultKdfParams） |
+| encrypted_data_key_json | TEXT NOT NULL | 加密的 DEK |
+| created_at | TEXT NOT NULL | 创建时间 |
+| updated_at | TEXT NOT NULL | 更新时间 |
+
+### vault_items
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT PRIMARY KEY | 条目 ID |
+| vault_id | TEXT NOT NULL | 所属保险箱 ID |
+| encrypted_payload_json | TEXT NOT NULL | 加密载荷 JSON（EncryptedPayload） |
+| created_at | TEXT NOT NULL | 创建时间 |
+| updated_at | TEXT NOT NULL | 更新时间 |
+
+## Vault 安全约束
+
+- vault_items 中只保存加密后的 VaultItemRecord
+- 不允许保存 VaultItemPlain
+- 不允许保存明文 title、username、password、url、notes、tags
+- encrypted_payload_json 保存密文结构（algorithm、nonceBase64、ciphertextBase64）
+- kdf_json 保存 VaultKdfParams 结构
+- encrypted_data_key_json 保存加密的 DEK
+- dataKey / DEK 不能持久化到任何存储
+- 主密码不能保存
+
+## 删除策略
+
+- 删除条目使用物理删除
+- clearVault 使用物理删除（DELETE ALL）
+
+## 数据库切换路径
+
+### SQLite → PostgreSQL / MySQL
+
+```
+当前：SQLite (file:./data/app.db)
+  ↓ 修改 prisma/schema.prisma provider + DATABASE_URL
+后续：PostgreSQL / MySQL
+```
+
+切换步骤：
+1. 修改 `packages/database/prisma/schema.prisma` 中的 `provider`
+2. 修改 `DATABASE_URL` 环境变量
+3. 运行 `prisma migrate dev` 生成新迁移
+4. 页面和业务代码无需修改
+
+### 兼容性注意事项
+
+- 新增表时避免使用 SQLite 特有语法
+- 时间字段使用 TEXT（ISO 8601）而非 SQLite 的 datetime 函数
+- JSON 字段使用 TEXT 存储，应用层解析
+- 不使用 SQLite 特有的全文搜索语法
+- Prisma 的抽象层已经屏蔽了大部分数据库差异
+
+## Prisma 配置
+
+### Schema 位置
+
+`packages/database/prisma/schema.prisma`
+
+### Client 单例
+
+`packages/database/src/client.ts` — 使用全局单例模式，避免开发环境热更新时创建多个连接。
+
+### 环境变量
+
+- `DATABASE_URL`：数据库连接字符串
+- SQLite 示例：`file:./data/app.db`
+- PostgreSQL 示例：`postgresql://user:password@localhost:5432/thunder`
+
+## 数据访问规则
+
+| 层级 | 能否访问数据库 | 说明 |
+|------|--------------|------|
+| apps/web（前端页面） | ❌ 不能 | 必须通过 API Client |
+| packages/api-client | ❌ 不能 | 只负责 HTTP 调用 |
+| packages/contracts | ❌ 不能 | 只定义类型 |
+| modules/*（共享类型） | ❌ 不能 | 只定义接口 |
+| apps/api（后端路由） | ✅ 可以 | 通过 Repository |
+| apps/api Repository | ✅ 可以 | 通过 Prisma Client |
+| packages/database | ✅ 可以 | 提供 Prisma Client |
+
+## 新增模块数据库指南
+
+1. 在 `packages/database/prisma/schema.prisma` 中新增表
+2. 考虑未来 PostgreSQL / MySQL 兼容
+3. 在 `modules/` 中定义 Repository 接口
+4. 在 `apps/api/src/modules/` 中实现 Repository
+5. 在 `apps/api/src/modules/` 中实现 API 路由
+6. 在 `packages/api-client/src/modules/` 中实现 API Client
+7. 运行 `prisma db push` 同步 schema
+8. 更新文档

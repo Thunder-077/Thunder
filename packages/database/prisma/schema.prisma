@@ -1,0 +1,50 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model AppModule {
+  id          String   @id
+  name        String
+  enabled     Boolean  @default(true)
+  settingsJson String?
+  createdAt   String   @map("created_at")
+  updatedAt   String   @map("updated_at")
+
+  @@map("app_modules")
+}
+
+model AppSetting {
+  key        String   @id
+  valueJson  String   @map("value_json")
+  createdAt  String   @map("created_at")
+  updatedAt  String   @map("updated_at")
+
+  @@map("app_settings")
+}
+
+model VaultMetadata {
+  id                  String   @id
+  version             Int
+  kdfJson             String   @map("kdf_json")
+  encryptedDataKeyJson String  @map("encrypted_data_key_json")
+  createdAt           String   @map("created_at")
+  updatedAt           String   @map("updated_at")
+
+  @@map("vault_metadata")
+}
+
+model VaultItem {
+  id                   String   @id
+  vaultId              String   @map("vault_id")
+  encryptedPayloadJson String   @map("encrypted_payload_json")
+  createdAt            String   @map("created_at")
+  updatedAt            String   @map("updated_at")
+
+  @@index([vaultId])
+  @@map("vault_items")
+}
