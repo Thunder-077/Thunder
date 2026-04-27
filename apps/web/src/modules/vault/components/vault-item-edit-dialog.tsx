@@ -711,7 +711,7 @@ function EditForm({
             onChange={(e) => setNotes(e.target.value)}
             placeholder="可选备注信息..."
             rows={3}
-            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring resize-none"
+            className="flex w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground shadow-none transition-[border-color,box-shadow,background-color] outline-none placeholder:text-muted-foreground/80 hover:border-muted-foreground/30 focus-visible:border-muted-foreground/50 focus-visible:ring-[3px] focus-visible:ring-black/5 resize-none dark:focus-visible:ring-white/10"
           />
         </div>
 

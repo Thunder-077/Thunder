@@ -29,6 +29,7 @@ interface VaultListPanelProps {
   totalItems: number
   selectedId: string | null
   filterType: "all" | "favorites" | "recent"
+  onFilterTypeChange: (type: "all" | "favorites" | "recent") => void
   onSelect: (item: VaultItemPlain) => void
   onToggleFavorite: (item: VaultItemPlain) => Promise<void>
   onAddItem: () => void
@@ -160,6 +161,7 @@ export function VaultListPanel({
   totalItems,
   selectedId,
   filterType,
+  onFilterTypeChange,
   onSelect,
   onToggleFavorite,
   onAddItem,
@@ -223,6 +225,8 @@ export function VaultListPanel({
       <div className="border-b border-border/30 px-4 py-2.5">
         <div className="flex items-center gap-3 text-xs">
           <button
+            type="button"
+            onClick={() => onFilterTypeChange("all")}
             className={cn(
               "font-medium transition-colors",
               filterType === "all"
@@ -234,12 +238,30 @@ export function VaultListPanel({
           </button>
           <span className="text-muted-foreground text-[11px]">{totalItems}</span>
 
-          <button className="text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            type="button"
+            onClick={() => onFilterTypeChange("favorites")}
+            className={cn(
+              "font-medium transition-colors",
+              filterType === "favorites"
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
             收藏
           </button>
           <span className="text-muted-foreground text-[11px]">{favoriteCount}</span>
 
-          <button className="text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            type="button"
+            onClick={() => onFilterTypeChange("recent")}
+            className={cn(
+              "font-medium transition-colors",
+              filterType === "recent"
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
             最近访问
           </button>
         </div>

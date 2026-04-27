@@ -165,7 +165,7 @@ export function AppSidebar({
 
       {/* Navigation Content - Scrollable */}
       <ScrollArea className="flex-1 px-2 py-3">
-        <nav className="flex flex-col gap-1.5">
+        <nav className="flex flex-col gap-0">
           {navItems.map((item) => {
             const isActive = pathname === item.href
             return (

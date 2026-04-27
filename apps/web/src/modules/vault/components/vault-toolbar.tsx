@@ -93,9 +93,12 @@ export function VaultToolbar({
             <button
               key={tab.value}
               type="button"
-              onClick={() => onScopeChange(tab.value)}
+              onClick={() => {
+                console.log("Tab clicked:", tab.value)
+                onScopeChange(tab.value)
+              }}
               className={cn(
-                "h-8 px-3 text-xs rounded-md transition-colors",
+                "h-8 px-3 text-xs rounded-md transition-colors cursor-pointer",
                 scopeFilter === tab.value
                   ? "bg-[#F2F4F7] text-[#111827] font-medium"
                   : "text-muted-foreground hover:bg-[#F7F7F8] hover:text-foreground"

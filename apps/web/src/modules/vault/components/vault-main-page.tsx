@@ -305,6 +305,7 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
               totalItems={filteredAndSortedItems.length}
               selectedId={selectedItem?.id ?? null}
               filterType={scopeFilter}
+              onFilterTypeChange={handleScopeChange}
               onSelect={handleSelectItem}
               onToggleFavorite={handleToggleFavorite}
               onAddItem={handleAddItem}
