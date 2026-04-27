@@ -113,9 +113,28 @@
 
 ### 输入框
 
-- 圆角 radius-md
-- 1px 边框 border-input
-- focus 时 ring-1 ring-ring
+- 默认使用通用 `Input` 组件（`apps/web/src/components/ui/input.tsx`）
+- 尺寸：`h-11`（约 44px）、`rounded-xl`、`px-4`
+- 默认态：`bg-background` + `border-input`，不使用明显阴影
+- 悬停态：边框轻微加深（`hover:border-muted-foreground/30`）
+- 聚焦态：轻量 focus ring（`focus-visible:ring-[3px] focus-visible:ring-black/5`），禁止粗黑边和原生 outline
+- 禁用态：`disabled:bg-muted` + `disabled:text-muted-foreground` + `disabled:cursor-not-allowed`
+- 错误态：通过 `aria-invalid` 触发低饱和红色边框与浅红 ring
+
+### 密码输入框
+
+- 默认使用通用 `PasswordInput` 组件（`apps/web/src/components/ui/password-input.tsx`）
+- 基于 `Input` 同款视觉规范，保证密码输入框与普通输入框一致
+- 右侧眼睛图标垂直居中，点击切换 `password / text`
+- 图标按钮使用低对比灰色，不挤压文本区域，不改变输入框高度
+- 图标按钮使用统一 `focus-visible` 样式，避免出现难看的原生 outline
+- 需要复制时可使用 `copyable`，显示复制按钮并复用同一交互样式
+
+### 输入框使用规则
+
+- 项目中普通文本输入默认复用通用 `Input`
+- 项目中密码输入默认复用通用 `PasswordInput`
+- 页面内禁止随意写原生 input 的 focus 样式；有特殊场景需在组件层扩展
 
 ## 图标
 
@@ -131,3 +150,9 @@
 - 过渡时间：duration-200
 - 仅使用颜色过渡和阴影变化
 - 侧边栏展开/收起使用 transition-all
+
+## Select / Dropdown
+
+- 项目中所有下拉框，如无特别指定，默认使用通用 `Select` 组件
+- 交互、状态、尺寸、视觉和 API 规范见 `docs/select-dropdown.md`
+- 操作菜单（如“更多操作”）使用 `DropdownMenu`，不与表单选择组件混用

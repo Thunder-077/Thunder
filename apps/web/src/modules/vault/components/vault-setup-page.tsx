@@ -90,7 +90,6 @@ export function VaultSetupPage() {
                 value={masterPassword}
                 onChange={(e) => setMasterPassword(e.target.value)}
                 placeholder="请输入主密码"
-                className="h-10"
               />
             </div>
 
@@ -103,7 +102,6 @@ export function VaultSetupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="请再次输入主密码"
-                className="h-10"
               />
             </div>
 
@@ -117,7 +115,6 @@ export function VaultSetupPage() {
                 value={passwordHint}
                 onChange={(e) => setPasswordHint(e.target.value)}
                 placeholder="例如：与某个只有你知道的短语有关"
-                className="h-10"
               />
             </div>
 

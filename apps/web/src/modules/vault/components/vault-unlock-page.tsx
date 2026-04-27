@@ -62,7 +62,6 @@ export function VaultUnlockPage() {
                 value={masterPassword}
                 onChange={(e) => setMasterPassword(e.target.value)}
                 placeholder="输入主密码"
-                className="h-10"
               />
             </div>
 
@@ -119,24 +118,21 @@ export function VaultUnlockPage() {
           </CardContent>
         </Card>
       </form>
-
-      <div className="mt-5">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="h-3.5 w-3.5 text-destructive/70" />
-          <span className="text-xs font-medium text-destructive/70">重置保险箱</span>
+      <div className="mt-5 flex flex-col gap-2">
+        <div className="flex items-start gap-2 rounded-md border border-border/60 px-3 py-2.5 bg-muted/10">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
+          <p className="text-xs text-muted-foreground leading-5">
+            如果忘记主密码，只能
+            <button
+              type="button"
+              onClick={handleReset}
+              className="mx-1 font-bold text-destructive underline decoration-destructive/30 underline-offset-4 text-xs hover:text-destructive/80 focus:outline-none focus:ring-1 focus:ring-destructive/50 rounded-sm transition-colors"
+            >
+              重置保险箱
+            </button>
+            ，所有数据将被清除且无法恢复。
+          </p>
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          如果忘记主密码，只能重置保险箱，所有数据将被清除且无法恢复。
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mt-3 h-8 text-xs text-destructive/80 hover:text-destructive border-destructive/20 hover:border-destructive/40"
-          onClick={handleReset}
-        >
-          重置保险箱
-        </Button>
       </div>
     </div>
   )

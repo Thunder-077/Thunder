@@ -13,7 +13,8 @@ vault.get("/metadata", async (c) => {
   try {
     const metadata = await repository.getMetadata()
     return c.json(apiSuccess({ metadata }))
-  } catch {
+  } catch (error) {
+    console.error("[vault-api] GET /metadata failed", error)
     return c.json(apiError("INTERNAL_ERROR", "获取保险箱元信息失败"), 500)
   }
 })
@@ -23,7 +24,8 @@ vault.put("/metadata", async (c) => {
     const body = await c.req.json<{ metadata: VaultMetadata }>()
     await repository.saveMetadata(body.metadata)
     return c.json(apiSuccess(null))
-  } catch {
+  } catch (error) {
+    console.error("[vault-api] PUT /metadata failed", error)
     return c.json(apiError("INTERNAL_ERROR", "保存保险箱元信息失败"), 500)
   }
 })
@@ -36,7 +38,8 @@ vault.get("/items", async (c) => {
     }
     const items = await repository.listItems(vaultId)
     return c.json(apiSuccess({ items }))
-  } catch {
+  } catch (error) {
+    console.error("[vault-api] GET /items failed", error)
     return c.json(apiError("INTERNAL_ERROR", "获取条目列表失败"), 500)
   }
 })
@@ -49,7 +52,8 @@ vault.get("/items/:id", async (c) => {
       return c.json(apiError("VAULT_ITEM_NOT_FOUND", "条目不存在"), 404)
     }
     return c.json(apiSuccess({ item }))
-  } catch {
+  } catch (error) {
+    console.error("[vault-api] GET /items/:id failed", error)
     return c.json(apiError("INTERNAL_ERROR", "获取条目失败"), 500)
   }
 })
@@ -60,7 +64,8 @@ vault.put("/items/:id", async (c) => {
     const body = await c.req.json<{ record: VaultItemRecord }>()
     await repository.saveItem({ ...body.record, id })
     return c.json(apiSuccess(null))
-  } catch {
+  } catch (error) {
+    console.error("[vault-api] PUT /items/:id failed", error)
     return c.json(apiError("INTERNAL_ERROR", "保存条目失败"), 500)
   }
 })
@@ -70,7 +75,8 @@ vault.delete("/items/:id", async (c) => {
     const id = c.req.param("id")
     await repository.deleteItem(id)
     return c.json(apiSuccess(null))
-  } catch {
+  } catch (error) {
+    console.error("[vault-api] DELETE /items/:id failed", error)
     return c.json(apiError("INTERNAL_ERROR", "删除条目失败"), 500)
   }
 })
@@ -79,7 +85,8 @@ vault.post("/clear", async (c) => {
   try {
     await repository.clearVault()
     return c.json(apiSuccess(null))
-  } catch {
+  } catch (error) {
+    console.error("[vault-api] POST /clear failed", error)
     return c.json(apiError("INTERNAL_ERROR", "清空保险箱失败"), 500)
   }
 })

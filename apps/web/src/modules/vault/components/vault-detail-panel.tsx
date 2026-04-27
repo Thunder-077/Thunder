@@ -5,6 +5,7 @@ import { Lock, Eye, EyeOff, Copy, Check, MoreHorizontal, ExternalLink, Star, Shi
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,7 +54,7 @@ function DetailField({
   const displayValue = isPassword && !showValue ? "••••••••" : value
 
   return (
-    <div className="grid grid-cols-[120px_1fr] gap-4 items-center py-4 border-b border-gray-100/50 last:border-b-0">
+    <div className="grid grid-cols-[120px_1fr] gap-4 items-center py-2 border-b border-gray-200 last:border-b-0">
       <span className="text-sm text-gray-500">{label}</span>
       <div className="flex items-center gap-2 min-w-0">
         <div className="flex-1 min-w-0">
@@ -62,10 +63,10 @@ function DetailField({
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline truncate inline-flex items-center gap-1"
+              className="text-sm text-blue-600 hover:underline truncate inline-flex items-center gap-3"
             >
               {displayValue}
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="h-3.5 w-3.5 text-primary" />
             </a>
           ) : (
             <span className={cn("text-sm text-gray-700 truncate block", isPassword && !showValue && "font-mono tracking-wider")}>
@@ -224,12 +225,12 @@ export function VaultDetailPanel({
         <div className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground overflow-hidden">
+              <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground overflow-hidden">
                 {faviconUrl && !imgError ? (
                   <img
                     src={faviconUrl}
                     alt=""
-                    className="h-8 w-8 object-contain"
+                    className="h-9 w-9 object-contain"
                     onError={() => setImgError(true)}
                   />
                 ) : (
@@ -238,32 +239,11 @@ export function VaultDetailPanel({
               </div>
 
               <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <h2 className="text-base font-semibold truncate">{item.title}</h2>
-                  <button onClick={() => onToggleFavorite(item)}>
-                    <Star
-                      className={cn(
-                        "h-3.5 w-3.5",
-                        item.favorite ? "fill-yellow-400 text-yellow-400" : "text-gray-300 hover:text-yellow-400"
-                      )}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2 mt-0.5">
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-normal bg-purple-50 text-purple-600">
                     {VAULT_ITEM_TYPE_LABELS[inferVaultItemType(item)]}
                   </span>
-                  {item.url && (
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-                    >
-                      <ExternalLink className="h-2.5 w-2.5" />
-                    </a>
-                  )}
                 </div>
 
                 <p className="mt-1 text-xs text-gray-500">
@@ -291,13 +271,13 @@ export function VaultDetailPanel({
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="min-w-[100px]">
                   <DropdownMenuItem
-                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                    className="flex items-center justify-center gap-1.5 text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
                     onClick={() => onDelete(item)}
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    删除条目
+                    <Trash2 className="h-4 w-4" />
+                    删除
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -389,11 +369,11 @@ export function VaultDetailPanel({
             
             {showTagInput ? (
               <div className="flex items-center gap-1">
-                <input
+                <Input
                   value={newTagName}
                   onChange={(e) => setNewTagName(e.target.value)}
                   placeholder="标签名"
-                  className="h-7 text-xs w-24 px-2 border border-gray-200 rounded-md outline-none focus:border-primary/50"
+                  className="h-7 w-24 rounded-md px-2 text-xs"
                   onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
                   autoFocus
                   onBlur={() => {

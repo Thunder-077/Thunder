@@ -96,9 +96,6 @@ function VaultListItem({
             <h4 className="text-base font-medium truncate text-foreground">
               {item.title}
             </h4>
-            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-normal bg-muted text-muted-foreground">
-              {typeLabel}
-            </span>
           </div>
           <span className="text-xs text-gray-400 shrink-0 ml-2">
             {new Date(item.updatedAt)
@@ -111,13 +108,13 @@ function VaultListItem({
           </span>
         </div>
 
-        <div className="flex justify-between items-center mt-1">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="flex justify-between items-center mt-1 gap-4">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <span className="text-sm text-gray-500 truncate">
               {item.username}
             </span>
             {item.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1 shrink-0">
+              <div className="flex flex-wrap gap-2 shrink-0">
                 {item.tags.slice(0, 2).map((tag, index) => {
                   const color = getTagColor(tag.name) || "#94a3b8"
                   return (
@@ -141,7 +138,7 @@ function VaultListItem({
               e.stopPropagation()
               onToggleFavorite(item)
             }}
-            className="shrink-0 ml-2"
+            className="shrink-0"
           >
             <Star
               className={cn(

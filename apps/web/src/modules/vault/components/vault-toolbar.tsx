@@ -1,14 +1,9 @@
 "use client"
 
-import { Lock, Plus, Download, Upload, Settings, Search, ChevronDown, RotateCcw } from "lucide-react"
+import { Lock, Plus, Download, Upload, Settings, Search, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Select, type SelectOption } from "@/components/ui/select"
 import { useVault } from "../state"
 import type { VaultItemPlain } from "@thunder/vault"
 import { inferVaultItemType, VAULT_ITEM_TYPE_LABELS } from "../utils/vault-utils"
@@ -48,30 +43,16 @@ export function VaultToolbar({
 }: VaultToolbarProps) {
   const { lockVault } = useVault()
 
-  const scopeLabel = (() => {
-    switch (scopeFilter) {
-      case "all":
-        return "全部"
-      case "favorites":
-        return "收藏"
-      case "recent":
-        return "最近访问"
-    }
-  })()
-
-  const tagLabel = tagFilter || "标签"
-  const typeLabel = typeFilter || "类型"
-
   const allTags = Array.from(new Set(items.flatMap((item) => item.tags.map((t) => t.name))))
 
-  const scopeOptions = [
+  const scopeOptions: SelectOption[] = [
     { value: "all", label: "全部" },
     { value: "favorites", label: "收藏" },
     { value: "recent", label: "最近访问" },
   ]
 
-  const typeOptions = [
-    { value: null, label: "全部类型" },
+  const typeOptions: SelectOption[] = [
+    { value: "__all", label: "类型" },
     { value: VAULT_ITEM_TYPE_LABELS.website, label: VAULT_ITEM_TYPE_LABELS.website },
     { value: VAULT_ITEM_TYPE_LABELS.secret, label: VAULT_ITEM_TYPE_LABELS.secret },
     { value: VAULT_ITEM_TYPE_LABELS.totp, label: VAULT_ITEM_TYPE_LABELS.totp },
@@ -84,6 +65,11 @@ export function VaultToolbar({
   const availableTypes = Array.from(
     new Set(items.map((item) => VAULT_ITEM_TYPE_LABELS[inferVaultItemType(item)]))
   )
+
+  const tagOptions: SelectOption[] = [
+    { value: "__all", label: "标签" },
+    ...allTags.map((tag) => ({ value: tag, label: tag })),
+  ]
 
   return (
     <div className="flex items-center justify-between">
@@ -100,64 +86,36 @@ export function VaultToolbar({
 
         <div className="h-5 w-px bg-border/30" />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex items-center justify-center gap-1 h-8 px-2.5 text-xs border border-border/50 rounded-md bg-background hover:bg-muted/50 transition-colors outline-none">
-            {scopeLabel}
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-28">
-            {scopeOptions.map((option) => (
-              <DropdownMenuItem
-                key={option.value}
-                onClick={() => onScopeChange(option.value as "all" | "favorites" | "recent")}
-                className={scopeFilter === option.value ? "bg-muted" : ""}
-              >
-                {option.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Select
+          value={scopeFilter}
+          onChange={(next) => onScopeChange(next as "all" | "favorites" | "recent")}
+          options={scopeOptions}
+          size="compact"
+          showDescription={false}
+          className="w-20"
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className="inline-flex items-center justify-center gap-1 h-8 px-2.5 text-xs border border-border/50 rounded-md bg-background hover:bg-muted/50 transition-colors outline-none disabled:opacity-50 disabled:pointer-events-none"
-            disabled={allTags.length === 0}
-          >
-            {tagLabel}
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-32">
-            <DropdownMenuItem onClick={() => onTagChange(null)} className={!tagFilter ? "bg-muted" : ""}>
-              全部标签
-            </DropdownMenuItem>
-            {allTags.map((tag) => (
-              <DropdownMenuItem key={tag} onClick={() => onTagChange(tag)} className={tagFilter === tag ? "bg-muted" : ""}>
-                {tag}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Select
+          value={tagFilter ?? "__all"}
+          onChange={(next) => onTagChange(next === "__all" ? null : next)}
+          options={tagOptions}
+          size="compact"
+          showDescription={false}
+          className="w-20"
+          disabled={allTags.length === 0}
+          placeholder="标签"
+        />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className="inline-flex items-center justify-center gap-1 h-8 px-2.5 text-xs border border-border/50 rounded-md bg-background hover:bg-muted/50 transition-colors outline-none disabled:opacity-50 disabled:pointer-events-none"
-            disabled={items.length === 0}
-          >
-            {typeLabel}
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-32">
-            {typeOptions.map((option) => (
-              <DropdownMenuItem
-                key={option.value || "all"}
-                onClick={() => onTypeChange(option.value)}
-                className={(!typeFilter && option.value === null) || typeFilter === option.value ? "bg-muted" : ""}
-              >
-                {option.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Select
+          value={typeFilter ?? "__all"}
+          onChange={(next) => onTypeChange(next === "__all" ? null : next)}
+          options={typeOptions}
+          size="compact"
+          showDescription={false}
+          className="w-20"
+          disabled={items.length === 0}
+          placeholder="类型"
+        />
 
         <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2" onClick={onReset}>
           <RotateCcw className="h-3 w-3" />
@@ -173,22 +131,18 @@ export function VaultToolbar({
 
         <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2" onClick={onOpenSettings}>
           <Settings className="h-3.5 w-3.5" />
-          设置
         </Button>
 
         <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2" onClick={lockVault}>
           <Lock className="h-3.5 w-3.5" />
-          锁定
         </Button>
 
         <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2" onClick={onImport}>
           <Download className="h-3.5 w-3.5" />
-          导入
         </Button>
 
         <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2" onClick={onExport}>
           <Upload className="h-3.5 w-3.5" />
-          导出
         </Button>
       </div>
     </div>

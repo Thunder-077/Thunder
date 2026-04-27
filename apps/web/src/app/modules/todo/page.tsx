@@ -5,6 +5,7 @@ import { CheckSquare, Plus, Trash2 } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { EmptyState } from "@/components/empty-state"
 
 interface TodoItem {
@@ -44,13 +45,13 @@ export default function TodoModulePage() {
       <Card>
         <CardContent className="p-4">
           <div className="flex gap-2">
-            <input
+            <Input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addTodo()}
               placeholder="添加新任务..."
-              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+              className="h-9 flex-1 rounded-md px-3"
             />
             <Button size="sm" onClick={addTodo} className="gap-1">
               <Plus className="h-3.5 w-3.5" />

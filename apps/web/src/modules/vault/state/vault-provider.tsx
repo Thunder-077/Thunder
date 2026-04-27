@@ -84,7 +84,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setDataKey(result.dataKey)
       setItems([])
       setStatus("unlocked")
-    } catch {
+    } catch (error) {
+      console.error("[vault] createVault failed", error)
       setError("创建保险箱失败")
     } finally {
       setLoading(false)
@@ -105,6 +106,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setItems(decrypted)
       setStatus("unlocked")
     } catch (e) {
+      console.error("[vault] unlockVault failed", e)
       if (e instanceof VaultCryptoError) {
         setError(e.message)
       } else {
@@ -127,7 +129,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         await vaultClient.saveItem(record)
         setItems((prev) => [...prev, plain])
         setSelectedItem(plain)
-      } catch {
+      } catch (error) {
+        console.error("[vault] addItem failed", error)
         setError("新增条目失败")
       } finally {
         setLoading(false)
@@ -147,7 +150,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         await vaultClient.saveItem(record)
         setItems((prev) => prev.map((i) => (i.id === item.id ? updated : i)))
         if (selectedItem?.id === item.id) setSelectedItem(updated)
-      } catch {
+      } catch (error) {
+        console.error("[vault] updateItem failed", error)
         setError("更新条目失败")
       } finally {
         setLoading(false)
@@ -164,7 +168,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         await vaultClient.deleteItem(id)
         setItems((prev) => prev.filter((i) => i.id !== id))
         if (selectedItem?.id === id) setSelectedItem(null)
-      } catch {
+      } catch (error) {
+        console.error("[vault] deleteItem failed", error)
         setError("删除条目失败")
       } finally {
         setLoading(false)
@@ -183,7 +188,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setItems([])
       setSelectedItem(null)
       setStatus("setup")
-    } catch {
+    } catch (error) {
+      console.error("[vault] clearVault failed", error)
       setError("重置保险箱失败")
     } finally {
       setLoading(false)

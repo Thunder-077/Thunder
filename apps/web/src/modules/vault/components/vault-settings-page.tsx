@@ -92,13 +92,15 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
                 <span className="text-sm">锁定时间</span>
               </div>
               <Select
-                value={settings.autoLockMinutes}
-                onValueChange={(v) => { if (v !== null) updateSettings({ autoLockMinutes: Number(v) }) }}
+                value={String(settings.autoLockMinutes)}
+                onChange={(v) => updateSettings({ autoLockMinutes: Number(v) })}
                 options={AUTO_LOCK_OPTIONS.map((o) => ({
                   label: o.label,
-                  value: o.value,
+                  value: String(o.value),
                 }))}
                 className="w-28"
+                size="compact"
+                showDescription={false}
               />
             </div>
           </SettingSection>
@@ -184,15 +186,15 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
               <div className="flex items-center justify-between">
                 <span className="text-sm pl-6">清理时间</span>
                 <Select
-                  value={settings.clipboardClearSeconds}
-                  onValueChange={(v) =>
-                    { if (v !== null) updateSettings({ clipboardClearSeconds: Number(v) }) }
-                  }
+                  value={String(settings.clipboardClearSeconds)}
+                  onChange={(v) => updateSettings({ clipboardClearSeconds: Number(v) })}
                   options={CLIPBOARD_CLEAR_OPTIONS.map((o) => ({
                     label: o.label,
-                    value: o.value,
+                    value: String(o.value),
                   }))}
                   className="w-28"
+                  size="compact"
+                  showDescription={false}
                 />
               </div>
             )}

@@ -21,10 +21,45 @@ import {
   CRYPTO_CONSTANTS,
 } from "./crypto-utils"
 
+type Argon2Global = typeof globalThis & {
+  loadArgon2WasmBinary?: () => Promise<Uint8Array>
+}
+
+function resolveWasmUrl(moduleValue: unknown): string {
+  if (typeof moduleValue === "string") return moduleValue
+  if (
+    typeof moduleValue === "object" &&
+    moduleValue !== null &&
+    "default" in moduleValue &&
+    typeof (moduleValue as { default: unknown }).default === "string"
+  ) {
+    return (moduleValue as { default: string }).default
+  }
+  throw new Error("无法解析 argon2 wasm 资源地址")
+}
+
+function ensureArgon2WasmLoader() {
+  const g = globalThis as Argon2Global
+  if (g.loadArgon2WasmBinary) return
+
+  g.loadArgon2WasmBinary = async () => {
+    // In Next/Webpack, requiring argon2.wasm may return an asset URL.
+    // Provide the binary loader explicitly to avoid base64 decode errors.
+    const wasmModule = await import("argon2-browser/dist/argon2.wasm")
+    const wasmUrl = resolveWasmUrl(wasmModule)
+    const response = await fetch(wasmUrl)
+    if (!response.ok) {
+      throw new Error(`加载 argon2 wasm 失败: ${response.status}`)
+    }
+    return new Uint8Array(await response.arrayBuffer())
+  }
+}
+
 async function deriveKEK(
   masterPassword: string,
   salt: Uint8Array
 ): Promise<CryptoKey> {
+  ensureArgon2WasmLoader()
   const result = await hash({
     pass: masterPassword,
     salt,

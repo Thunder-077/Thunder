@@ -148,6 +148,9 @@
 - 使用 shadcn/ui 组件，不要引入其他 UI 库
 - 使用 lucide-react 图标，不要引入其他图标库
 - 遵循 docs/ui-design.md 中的设计规范
+- 项目中所有下拉框，如无特别指定，默认使用通用 Select / Dropdown 组件（详见 docs/select-dropdown.md）
+- 新增输入框必须复用通用 Input / PasswordInput 组件
+- 不要在页面内写一套新的 input focus 样式（如黑色粗边或原生 outline）
 - 修改 UI 时同步更新 docs/ui-design.md
 - 保持极简风格：大量留白、低饱和配色、轻边框、柔和阴影、圆角卡片
 

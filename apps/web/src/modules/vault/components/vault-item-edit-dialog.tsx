@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -15,7 +16,6 @@ import {
   Eye,
   EyeOff,
   Copy,
-  Check,
   Shield,
   ListPlus,
   X,
@@ -23,7 +23,12 @@ import {
   Trash2,
   RefreshCw,
   ExternalLink,
-  ChevronDown,
+  CircleAlert,
+  Globe,
+  KeyRound,
+  Terminal,
+  Database,
+  FileText,
 } from "lucide-react"
 import type {
   VaultItemPlain,
@@ -36,6 +41,7 @@ import { generatePassword } from "../utils/generate-password"
 import { getPasswordStrength } from "./password-strength-meter"
 import { getTagColor } from "../utils/vault-utils"
 import { cn } from "@/lib/utils"
+import { Select, type SelectOption } from "@/components/ui/select"
 
 interface VaultItemEditDialogProps {
   open: boolean
@@ -45,16 +51,46 @@ interface VaultItemEditDialogProps {
   onSave: (data: Omit<VaultItemPlain, "id" | "createdAt" | "updatedAt">) => Promise<void>
 }
 
-const ITEM_TYPE_OPTIONS: { value: VaultItemType; label: string }[] = [
-  { value: "website", label: "网站账号" },
-  { value: "secret", label: "密钥 / 令牌" },
-  { value: "totp", label: "双重验证" },
-  { value: "server", label: "服务器 / SSH" },
-  { value: "database", label: "数据库" },
-  { value: "note", label: "普通条目" },
+const ITEM_TYPE_OPTIONS: SelectOption[] = [
+  {
+    value: "website",
+    label: "网站账号",
+    description: "用于网站、应用或在线服务登录",
+    icon: <Globe className="h-4 w-4" />,
+  },
+  {
+    value: "secret",
+    label: "密钥 / 令牌",
+    description: "用于 API Key、Token、密钥等",
+    icon: <KeyRound className="h-4 w-4" />,
+  },
+  {
+    value: "totp",
+    label: "双重验证",
+    description: "TOTP 密钥、恢复码与二次验证信息",
+    icon: <Shield className="h-4 w-4" />,
+  },
+  {
+    value: "server",
+    label: "服务器 / SSH",
+    description: "服务端、SSH 连接与主机信息",
+    icon: <Terminal className="h-4 w-4" />,
+  },
+  {
+    value: "database",
+    label: "数据库",
+    description: "数据库连接信息、账号与密码等",
+    icon: <Database className="h-4 w-4" />,
+  },
+  {
+    value: "note",
+    label: "普通条目",
+    description: "其他类型的账号信息或备注",
+    icon: <FileText className="h-4 w-4" />,
+  },
 ]
 
-const EXTRA_FIELD_TYPE_OPTIONS: { value: ExtraFieldType; label: string }[] = [
+const EXTRA_FIELD_TYPE_OPTIONS: SelectOption[] = [
   { value: "text", label: "普通文本" },
   { value: "secret", label: "密钥 / 令牌" },
   { value: "url", label: "URL" },
@@ -75,48 +111,15 @@ function TypeSelect({
   value: VaultItemType
   onChange: (v: VaultItemType) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const selected = ITEM_TYPE_OPTIONS.find((o) => o.value === value)
-
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
-        )}
-      >
-        <span>{selected?.label ?? "选择类型"}</span>
-        <ChevronDown className={cn("h-3.5 w-3.5 opacity-50 transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full z-50 mt-1 min-w-full overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
-            {ITEM_TYPE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={cn(
-                  "relative flex w-full cursor-pointer select-none items-center px-3 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                  value === option.value && "bg-accent"
-                )}
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
-                }}
-              >
-                {value === option.value && (
-                  <Check className="absolute left-2 h-3.5 w-3.5" />
-                )}
-                <span className="pl-6">{option.label}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <Select
+      value={value}
+      onChange={(next) => onChange(next as VaultItemType)}
+      options={ITEM_TYPE_OPTIONS}
+      size="default"
+      showDescription
+      placeholder="选择条目类型"
+    />
   )
 }
 
@@ -127,48 +130,15 @@ function ExtraFieldTypeSelect({
   value: ExtraFieldType
   onChange: (v: ExtraFieldType) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const selected = EXTRA_FIELD_TYPE_OPTIONS.find((o) => o.value === value)
-
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "flex h-8 w-full items-center justify-between gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
-        )}
-      >
-        <span className="truncate">{selected?.label ?? "类型"}</span>
-        <ChevronDown className={cn("h-3 w-3 opacity-50 shrink-0 transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full z-50 mt-1 min-w-[140px] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
-            {EXTRA_FIELD_TYPE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={cn(
-                  "relative flex w-full cursor-pointer select-none items-center px-2 py-1.5 text-xs outline-none hover:bg-accent hover:text-accent-foreground",
-                  value === option.value && "bg-accent"
-                )}
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
-                }}
-              >
-                {value === option.value && (
-                  <Check className="absolute left-1.5 h-3 w-3" />
-                )}
-                <span className="pl-5">{option.label}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <Select
+      value={value}
+      onChange={(next) => onChange(next as ExtraFieldType)}
+      options={EXTRA_FIELD_TYPE_OPTIONS}
+      size="compact"
+      showDescription={false}
+      className="h-8"
+    />
   )
 }
 
@@ -185,56 +155,21 @@ function SensitiveInput({
   className?: string
   onCopy?: () => void
 }) {
-  const [show, setShow] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async () => {
-    if (!onCopy) return
-    onCopy()
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
   return (
-    <div className="relative">
-      <Input
-        type={show ? "text" : "password"}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={cn("pr-20", className)}
-      />
-      <div className="absolute right-0 top-0 h-full flex items-center pr-1 gap-0.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => setShow(!show)}
-        >
-          {show ? (
-            <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-          ) : (
-            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-          )}
-        </Button>
-        {onCopy && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleCopy}
-          >
-            {copied ? (
-              <Check className="h-3.5 w-3.5 text-green-600" />
-            ) : (
-              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-            )}
-          </Button>
-        )}
-      </div>
-    </div>
+    <PasswordInput
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={className}
+      copyable={Boolean(onCopy)}
+      onCopyValue={async (nextValue) => {
+        if (onCopy) {
+          await onCopy()
+          return
+        }
+        await navigator.clipboard.writeText(nextValue)
+      }}
+    />
   )
 }
 
@@ -448,9 +383,7 @@ function EditForm({
     item?.extraFields?.filter((f) => f.type !== "totp" && f.type !== "recovery-code") ?? []
   )
   const [saving, setSaving] = useState(false)
-
-  const [showPassword, setShowPassword] = useState(false)
-  const [passwordCopied, setPasswordCopied] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   const strength = getPasswordStrength(password)
 
@@ -465,13 +398,8 @@ function EditForm({
     setPassword(pwd)
   }
 
-  const handleCopyPassword = async () => {
-    await navigator.clipboard.writeText(password)
-    setPasswordCopied(true)
-    setTimeout(() => setPasswordCopied(false), 2000)
-  }
-
   const addExtraField = () => {
+    setFormError(null)
     const newField: VaultExtraField = {
       id: `field-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: "",
@@ -494,17 +422,49 @@ function EditForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim()) return
+    setFormError(null)
+
+    if (!type) {
+      setFormError("条目类型不能为空。")
+      return
+    }
+
+    if (!title.trim()) {
+      setFormError("标题不能为空。")
+      return
+    }
 
     setSaving(true)
     try {
-      const filteredExtraFields = extraFields.filter(
-        (f) => f.name.trim() !== "" || f.value.trim() !== ""
-      )
+      const normalizedTags = tags
+        .map((tag) => ({
+          ...tag,
+          name: tag.name.trim(),
+        }))
+        .filter((tag) => tag.name !== "")
+        .filter(
+          (tag, index, arr) =>
+            arr.findIndex((other) => other.name.toLowerCase() === tag.name.toLowerCase()) === index
+        )
 
-      const finalExtraFields: VaultExtraField[] = [
-        ...filteredExtraFields,
-      ]
+      const normalizedExtraFields = extraFields
+        .map((field) => ({
+          ...field,
+          name: field.name.trim(),
+          value: field.value.trim(),
+        }))
+        .filter((field) => field.name !== "" || field.value !== "")
+
+      const invalidExtraField = normalizedExtraFields.find(
+        (field) => field.name === ""
+      )
+      if (invalidExtraField) {
+        setFormError("附加字段中存在未填写字段名的条目，请补充后再保存。")
+        setSaving(false)
+        return
+      }
+
+      const finalExtraFields: VaultExtraField[] = [...normalizedExtraFields]
 
       if (totpKey.trim()) {
         const existingTotp = item?.extraFields?.find((f) => f.type === "totp")
@@ -532,10 +492,10 @@ function EditForm({
         title: title.trim(),
         type,
         username: username.trim(),
-        password,
+        password: password.trim(),
         url: url.trim(),
         notes: notes.trim(),
-        tags,
+        tags: normalizedTags,
         favorite: item?.favorite ?? false,
         lastAccessedAt: item?.lastAccessedAt ?? null,
         iconUrl: item?.iconUrl ?? null,
@@ -548,15 +508,19 @@ function EditForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
-      <div className="flex-1 overflow-y-auto pr-1 space-y-5 min-h-0">
-        <div className="space-y-1.5">
-          <label className="text-xs text-muted-foreground">
-            条目类型 <span className="text-destructive">*</span>
-          </label>
-          <TypeSelect value={type} onChange={setType} />
-        </div>
+      <div className="flex-1 overflow-y-auto px-1 -mx-1 space-y-5 min-h-0">
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">
+              条目类型 <span className="text-destructive">*</span>
+            </label>
+            <TypeSelect value={type} onChange={setType} />
+          </div>
+          
+          <div className="hidden md:block"></div>
+
+          
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground" htmlFor="item-title">
               标题 <span className="text-destructive">*</span>
@@ -607,48 +571,22 @@ function EditForm({
             />
           </div>
 
+          <div className="hidden md:block"></div>
+
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground" htmlFor="item-password">
               密码
             </label>
-            <div className="relative">
-              <Input
-                id="item-password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="输入密码"
-                className="pr-20"
-              />
-              <div className="absolute right-0 top-0 h-full flex items-center pr-1 gap-0.5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-                  ) : (
-                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={handleCopyPassword}
-                >
-                  {passwordCopied ? (
-                    <Check className="h-3.5 w-3.5 text-green-600" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                </Button>
-              </div>
-            </div>
+            <PasswordInput
+              id="item-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="输入密码"
+              copyable
+              onCopyValue={async (value) => {
+                await navigator.clipboard.writeText(value)
+              }}
+            />
             <div className="flex items-center gap-3 pt-0.5">
               <Button
                 type="button"
@@ -662,6 +600,9 @@ function EditForm({
               </Button>
               {password && (
                 <div className="flex items-center gap-2 flex-1">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    密码强度：{strength.label || "--"}
+                  </span>
                   <div className="flex flex-1 gap-1">
                     {Array.from({ length: 4 }).map((_, i) => (
                       <div
@@ -673,18 +614,15 @@ function EditForm({
                       />
                     ))}
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    密码强度：{strength.label || "--"}
-                  </span>
                 </div>
               )}
             </div>
           </div>
-        </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs text-muted-foreground">标签</label>
-          <TagInput tags={tags} onChange={setTags} />
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">标签（逗号分隔）</label>
+            <TagInput tags={tags} onChange={setTags} />
+          </div>
         </div>
 
         <div className="rounded-xl border border-border/50 p-4 space-y-4">
@@ -776,6 +714,13 @@ function EditForm({
             className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring resize-none"
           />
         </div>
+
+        {formError && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive flex items-center gap-1.5">
+            <CircleAlert className="h-3.5 w-3.5" />
+            {formError}
+          </div>
+        )}
       </div>
 
       <div className="shrink-0 pt-4 mt-2 border-t border-border/30 flex justify-end gap-2">
@@ -806,7 +751,7 @@ export function VaultItemEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="w-[95vw] sm:max-w-3xl h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
           <DialogTitle>{isCreating ? "新增条目" : "编辑条目"}</DialogTitle>
         </DialogHeader>
