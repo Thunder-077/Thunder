@@ -620,7 +620,7 @@ function EditForm({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground">标签（逗号分隔）</label>
+            <label className="text-xs text-muted-foreground">标签</label>
             <TagInput tags={tags} onChange={setTags} />
           </div>
         </div>

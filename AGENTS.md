@@ -150,8 +150,14 @@
 - 遵循 docs/ui-design.md 中的设计规范
 - 项目中所有下拉框，如无特别指定，默认使用通用 Select / Dropdown 组件（详见 docs/select-dropdown.md）
 - 新增输入框必须复用通用 Input / PasswordInput 组件
+- 项目中所有弹窗默认使用通用 AppDialog / useDialog
+- 禁止新增 window.alert / window.confirm / window.prompt
+- Sidebar 中不要硬编码业务模块，模块导航必须来自 Module Manifest / ModuleRegistry
+- **Sidebar 固定展开，不支持收起/展开切换**：Sidebar 默认且唯一形态是固定展开态（宽度 240px）
+- **Sidebar 底部禁止显示用户区域**：底部只保留全局命令、主题切换、设置三个工具按钮，禁止显示用户头像、用户名、角色、用户菜单
 - 不要在页面内写一套新的 input focus 样式（如黑色粗边或原生 outline）
 - 修改 UI 时同步更新 docs/ui-design.md
+- 修改 Sidebar 结构或交互规范时必须同步更新 docs/ui-design.md
 - 保持极简风格：大量留白、低饱和配色、轻边框、柔和阴影、圆角卡片
 
 ## 模块系统

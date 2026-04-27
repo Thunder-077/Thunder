@@ -93,60 +93,62 @@ function Select({
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
-      <SelectPrimitive.Portal>
-        <SelectPrimitive.Positioner sideOffset={6} alignItemWithTrigger={false}>
-          <SelectPrimitive.ScrollUpArrow className="flex h-4 items-center justify-center text-muted-foreground" />
-          <SelectPrimitive.Popup
-            className={cn(
-              "z-[9999] pointer-events-auto min-w-[var(--anchor-width)] overflow-hidden rounded-xl border border-border/70 bg-background p-1 shadow-lg shadow-black/[0.08]",
-              "data-[side=bottom]:animate-in data-[side=bottom]:slide-in-from-top-1.5 data-[side=top]:animate-in data-[side=top]:slide-in-from-bottom-1.5",
-              contentClassName
-            )}
-          >
-            {options.map((option) => (
-              <SelectPrimitive.Item
-                key={String(option.value)}
-                value={String(option.value)}
-                disabled={option.disabled}
-                className={cn(
-                  "relative flex cursor-pointer select-none items-center rounded-lg pr-8 text-foreground outline-none transition-colors",
-                  "hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted",
-                  "data-[selected]:bg-muted/80",
-                  "data-[disabled]:pointer-events-none data-[disabled]:opacity-45",
-                  option.icon ? "pl-2.5" : "pl-3",
-                  itemBaseClass
-                )}
-              >
-                {renderOption ? (
-                  renderOption(option, { selected: option.value === value, active: false })
-                ) : (
-                  <>
-                    <div className={cn("flex min-w-0 flex-1 items-start", option.icon ? itemGapClass : "")}>
-                      {option.icon && (
-                        <span className="mt-[1px] shrink-0 text-muted-foreground">
-                          {option.icon}
-                        </span>
+      <SelectPrimitive.Positioner
+        sideOffset={6}
+        alignItemWithTrigger={false}
+        className="z-[10000]"
+      >
+        <SelectPrimitive.ScrollUpArrow className="flex h-4 items-center justify-center text-muted-foreground" />
+        <SelectPrimitive.Popup
+          className={cn(
+            "relative z-[10001] pointer-events-auto min-w-[var(--anchor-width)] overflow-hidden rounded-xl border border-border/70 bg-background p-1 shadow-lg shadow-black/[0.08]",
+            "data-[side=bottom]:animate-in data-[side=bottom]:slide-in-from-top-1.5 data-[side=top]:animate-in data-[side=top]:slide-in-from-bottom-1.5",
+            contentClassName
+          )}
+        >
+          {options.map((option) => (
+            <SelectPrimitive.Item
+              key={String(option.value)}
+              value={String(option.value)}
+              disabled={option.disabled}
+              className={cn(
+                "relative flex cursor-pointer select-none items-center rounded-lg pr-8 text-foreground outline-none transition-colors",
+                "hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted",
+                "data-[selected]:bg-muted/80",
+                "data-[disabled]:pointer-events-none data-[disabled]:opacity-45",
+                option.icon ? "pl-2.5" : "pl-3",
+                itemBaseClass
+              )}
+            >
+              {renderOption ? (
+                renderOption(option, { selected: option.value === value, active: false })
+              ) : (
+                <>
+                  <div className={cn("flex min-w-0 flex-1 items-start", option.icon ? itemGapClass : "")}>
+                    {option.icon && (
+                      <span className="mt-[1px] shrink-0 text-muted-foreground">
+                        {option.icon}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <div className="truncate text-foreground">{option.label}</div>
+                      {resolvedShowDescription && option.description && (
+                        <div className={cn("mt-0.5 text-muted-foreground", descriptionClass)}>
+                          {option.description}
+                        </div>
                       )}
-                      <div className="min-w-0">
-                        <div className="truncate text-foreground">{option.label}</div>
-                        {resolvedShowDescription && option.description && (
-                          <div className={cn("mt-0.5 text-muted-foreground", descriptionClass)}>
-                            {option.description}
-                          </div>
-                        )}
-                      </div>
                     </div>
-                    <SelectPrimitive.ItemIndicator className="absolute right-2.5 top-1/2 -translate-y-1/2 text-foreground">
-                      <Check className="h-3.5 w-3.5" />
-                    </SelectPrimitive.ItemIndicator>
-                  </>
-                )}
-              </SelectPrimitive.Item>
-            ))}
-          </SelectPrimitive.Popup>
-          <SelectPrimitive.ScrollDownArrow className="flex h-4 items-center justify-center text-muted-foreground" />
-        </SelectPrimitive.Positioner>
-      </SelectPrimitive.Portal>
+                  </div>
+                  <SelectPrimitive.ItemIndicator className="absolute right-2.5 top-1/2 -translate-y-1/2 text-foreground">
+                    <Check className="h-3.5 w-3.5" />
+                  </SelectPrimitive.ItemIndicator>
+                </>
+              )}
+            </SelectPrimitive.Item>
+          ))}
+        </SelectPrimitive.Popup>
+        <SelectPrimitive.ScrollDownArrow className="flex h-4 items-center justify-center text-muted-foreground" />
+      </SelectPrimitive.Positioner>
     </SelectPrimitive.Root>
   )
 }

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { useDialog } from "@/hooks/use-dialog"
 import { useVault } from "../state"
 import { useVaultSettings } from "../hooks/use-vault-settings"
 import { AUTO_LOCK_OPTIONS, CLIPBOARD_CLEAR_OPTIONS } from "@thunder/vault"
@@ -24,10 +25,19 @@ import { AUTO_LOCK_OPTIONS, CLIPBOARD_CLEAR_OPTIONS } from "@thunder/vault"
 export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
   const { settings, updateSettings } = useVaultSettings()
   const { exportBackup, importBackup, clearVault } = useVault()
+  const dialog = useDialog()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleExport = async () => {
-    if (!window.confirm("导出加密备份？备份文件仍需主密码才能恢复，请妥善保存。")) return
+    const ok = await dialog.confirm({
+      type: "info",
+      title: "导出加密备份？",
+      description: "备份文件仍需主密码才能恢复，请妥善保存。",
+      confirmText: "确认导出",
+      cancelText: "取消",
+      allowOverlayClose: true,
+    })
+    if (!ok) return
     try {
       const json = await exportBackup()
       const date = new Date().toISOString().slice(0, 10)
@@ -39,17 +49,22 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      alert(e instanceof Error ? e.message : "导出失败")
+      await dialog.error({
+        title: "导出失败",
+        description: e instanceof Error ? e.message : "导出加密备份时发生未知错误。",
+      })
     }
   }
 
-  const handleImport = () => {
-    if (
-      !window.confirm(
-        "导入加密备份将覆盖当前本地保险箱的所有数据，此操作不可撤销。确定要继续吗？"
-      )
-    )
-      return
+  const handleImport = async () => {
+    const ok = await dialog.confirm({
+      type: "danger",
+      title: "导入并覆盖当前保险箱？",
+      description: "导入加密备份将覆盖当前本地保险箱的所有数据，此操作不可撤销。",
+      confirmText: "确认导入",
+      cancelText: "取消",
+    })
+    if (!ok) return
     fileInputRef.current?.click()
   }
 
@@ -60,17 +75,24 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
       const text = await file.text()
       await importBackup(text)
     } catch (err) {
-      alert(err instanceof Error ? err.message : "导入失败")
+      await dialog.error({
+        title: "导入失败",
+        description: err instanceof Error ? err.message : "导入加密备份时发生未知错误。",
+      })
     }
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   const handleClearVault = async () => {
-    if (
-      !window.confirm(
-        "清空本地保险箱将删除所有本地数据，包括所有密码条目和保险箱元信息。此操作不可撤销。确定要继续吗？"
-      )
-    ) {
+    const ok = await dialog.confirm({
+      type: "danger",
+      title: "清空本地保险箱？",
+      description:
+        "清空本地保险箱将删除所有本地数据，包括所有密码条目和保险箱元信息。此操作不可撤销。",
+      confirmText: "确认清空",
+      cancelText: "取消",
+    })
+    if (!ok) {
       return
     }
     await clearVault()
@@ -233,7 +255,7 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground">
-                      清空本地保险箱将删除所有本地数据，包括所有密码条目和保险箱元信息。此操作不可撤销。
+                      清空保险箱将删除所有数据，包括所有密码条目和保险箱元信息。此操作不可撤销。
                     </p>
                     <Button
                       variant="destructive"
@@ -241,7 +263,7 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
                       className="mt-2 gap-1"
                       onClick={handleClearVault}
                     >
-                      清空本地保险箱
+                      清空保险箱
                     </Button>
                   </div>
                 </div>

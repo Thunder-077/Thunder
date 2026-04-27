@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { CommandPaletteProvider } from "@/components/command-palette"
+import { DialogProvider } from "@/components/dialog-provider"
 import { AppShell } from "@/components/app-shell"
 import "./globals.css"
 
@@ -30,11 +31,13 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <ThemeProvider>
-          <CommandPaletteProvider>
-            <TooltipProvider>
-              <AppShell>{children}</AppShell>
-            </TooltipProvider>
-          </CommandPaletteProvider>
+          <DialogProvider>
+            <CommandPaletteProvider>
+              <TooltipProvider>
+                <AppShell>{children}</AppShell>
+              </TooltipProvider>
+            </CommandPaletteProvider>
+          </DialogProvider>
         </ThemeProvider>
       </body>
     </html>

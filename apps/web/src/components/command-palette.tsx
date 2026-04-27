@@ -187,7 +187,7 @@ function CommandPaletteDialog() {
   return (
     <Dialog open onOpenChange={setOpen}>
       <DialogContent
-        showCloseButton={false}
+        hideClose
         className="sm:max-w-md p-0 gap-0 overflow-hidden"
         onKeyDown={handleKeyDown}
       >

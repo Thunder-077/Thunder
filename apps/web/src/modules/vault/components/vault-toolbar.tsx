@@ -7,6 +7,7 @@ import { Select, type SelectOption } from "@/components/ui/select"
 import { useVault } from "../state"
 import type { VaultItemPlain } from "@thunder/vault"
 import { inferVaultItemType, VAULT_ITEM_TYPE_LABELS } from "../utils/vault-utils"
+import { cn } from "@/lib/utils"
 
 interface VaultToolbarProps {
   searchKeyword: string
@@ -24,6 +25,12 @@ interface VaultToolbarProps {
   onImport: () => void
   onOpenSettings: () => void
 }
+
+const scopeTabs = [
+  { value: "all", label: "全部" },
+  { value: "favorites", label: "收藏" },
+  { value: "recent", label: "最近访问" },
+] as const
 
 export function VaultToolbar({
   searchKeyword,
@@ -44,12 +51,6 @@ export function VaultToolbar({
   const { lockVault } = useVault()
 
   const allTags = Array.from(new Set(items.flatMap((item) => item.tags.map((t) => t.name))))
-
-  const scopeOptions: SelectOption[] = [
-    { value: "all", label: "全部" },
-    { value: "favorites", label: "收藏" },
-    { value: "recent", label: "最近访问" },
-  ]
 
   const typeOptions: SelectOption[] = [
     { value: "__all", label: "类型" },
@@ -86,14 +87,26 @@ export function VaultToolbar({
 
         <div className="h-5 w-px bg-border/30" />
 
-        <Select
-          value={scopeFilter}
-          onChange={(next) => onScopeChange(next as "all" | "favorites" | "recent")}
-          options={scopeOptions}
-          size="compact"
-          showDescription={false}
-          className="w-20"
-        />
+        {/* Scope Tabs */}
+        <div className="flex items-center gap-1">
+          {scopeTabs.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => onScopeChange(tab.value)}
+              className={cn(
+                "h-8 px-3 text-xs rounded-md transition-colors",
+                scopeFilter === tab.value
+                  ? "bg-[#F2F4F7] text-[#111827] font-medium"
+                  : "text-muted-foreground hover:bg-[#F7F7F8] hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="h-5 w-px bg-border/30" />
 
         <Select
           value={tagFilter ?? "__all"}

@@ -1,128 +1,269 @@
 "use client"
 
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  LayoutDashboard,
-  Puzzle,
+  House,
+  LayoutGrid,
   Settings,
   CheckSquare,
   Lock,
   Brain,
+  Timer,
+  Command,
+  ChevronDown,
+  ChevronRight,
+  Sun,
+  Moon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { CommandButton } from "@/components/command-button"
+import { useTheme } from "@/components/theme-provider"
+import { useCommandPalette } from "@/components/command-palette"
+import type { ModuleCategory } from "@thunder/core"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   CheckSquare,
   Lock,
   Brain,
+  Timer,
+}
+
+const categoryLabels: Record<ModuleCategory, string> = {
+  productivity: "效率",
+  security: "安全",
+  ai: "AI",
+  notes: "笔记",
+  tools: "工具",
+  dashboard: "看板",
+  other: "其他",
+}
+
+const categoryOrder: ModuleCategory[] = [
+  "productivity",
+  "security",
+  "ai",
+  "tools",
+  "other",
+  "notes",
+  "dashboard",
+]
+
+const categoryDotClassMap: Record<ModuleCategory, string> = {
+  productivity: "bg-violet-400",
+  security: "bg-emerald-400",
+  ai: "bg-sky-400",
+  tools: "bg-amber-400",
+  other: "bg-pink-400",
+  notes: "bg-slate-400",
+  dashboard: "bg-indigo-400",
 }
 
 interface SidebarProps {
   className?: string
+  onNavigate?: () => void
 }
 
-export function AppSidebar({ className }: SidebarProps) {
+function SidebarNavItem({
+  href,
+  icon: Icon,
+  label,
+  active,
+  onNavigate,
+}: {
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  active: boolean
+  onNavigate?: () => void
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className={cn(
+        "flex h-12 items-center gap-2.5 rounded-[10px] px-3 text-sm transition-colors",
+        active
+          ? "bg-[#F2F4F7] text-[#111827]"
+          : "text-muted-foreground hover:bg-[#F7F7F8] hover:text-foreground"
+      )}
+    >
+      <Icon className="h-[18px] w-[18px] shrink-0" />
+      <span className={cn(
+        "flex-1 truncate text-[14px]",
+        active ? "font-medium" : "font-normal"
+      )}>
+        {label}
+      </span>
+    </Link>
+  )
+}
+
+export function AppSidebar({
+  className,
+  onNavigate,
+}: SidebarProps) {
   const pathname = usePathname()
   const registry = useModuleRegistry()
   const modules = registry.getEnabled()
+  const { resolvedTheme, setTheme } = useTheme()
+  const { setOpen: setCommandPaletteOpen } = useCommandPalette()
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    productivity: true,
+    security: true,
+    ai: true,
+    tools: true,
+    other: true,
+    notes: true,
+    dashboard: true,
+  })
 
   const navItems = [
-    { label: "首页", href: "/", icon: LayoutDashboard },
-    { label: "模块中心", href: "/modules", icon: Puzzle },
+    { label: "首页", href: "/", icon: House },
+    { label: "模块中心", href: "/modules", icon: LayoutGrid },
   ]
+
+  const groupedModules = useMemo(() => {
+    const grouped = new Map<ModuleCategory, typeof modules>()
+    for (const mod of modules) {
+      const list = grouped.get(mod.category) ?? []
+      list.push(mod)
+      grouped.set(mod.category, list)
+    }
+    return categoryOrder.filter((cat) => (grouped.get(cat)?.length ?? 0) > 0).map((cat) => ({
+      category: cat,
+      modules: grouped.get(cat) ?? [],
+    }))
+  }, [modules])
+
+  const toggleGroup = (category: ModuleCategory) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [category]: !prev[category],
+    }))
+  }
+
+  const isDark = resolvedTheme === "dark"
 
   return (
     <aside
       className={cn(
-        "flex h-full w-56 flex-col border-r border-border bg-sidebar",
+        "flex h-full w-[240px] flex-col border-r border-sidebar-border bg-white",
         className
       )}
     >
-      <div className="flex h-12 items-center gap-2 px-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-semibold">
+      {/* Top Logo Area */}
+      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black text-sm font-semibold text-white dark:bg-white dark:text-black">
           T
         </div>
-        <span className="text-sm font-medium">Thunder</span>
+        <span className="flex-1 text-[15px] font-semibold">Thunder</span>
       </div>
 
-      <Separator />
-
-      <ScrollArea className="flex-1 px-2 py-2">
-        <nav className="flex flex-col gap-1">
+      {/* Navigation Content - Scrollable */}
+      <ScrollArea className="flex-1 px-2 py-3">
+        <nav className="flex flex-col gap-1.5">
           {navItems.map((item) => {
             const isActive = pathname === item.href
             return (
-              <Link
+              <SidebarNavItem
                 key={item.href}
                 href={item.href}
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                  isActive
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
+                icon={item.icon}
+                label={item.label}
+                active={isActive}
+                onNavigate={onNavigate}
+              />
             )
           })}
         </nav>
 
-        {modules.length > 0 && (
+        {groupedModules.length > 0 && (
           <>
-            <Separator className="my-2" />
-            <p className="px-2 py-1 text-xs font-medium text-muted-foreground">
-              模块
-            </p>
-            <nav className="flex flex-col gap-1">
-              {modules.map((mod) => {
-                const Icon = iconMap[mod.icon]
-                const isActive = pathname === mod.route || pathname.startsWith(mod.route + "/")
+            <Separator className="my-3" />
+            <div className="space-y-2">
+              {groupedModules.map(({ category, modules: categoryModules }) => {
+                const expanded = expandedGroups[category] ?? true
                 return (
-                  <Link
-                    key={mod.id}
-                    href={mod.route}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                      isActive
-                        ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  <div key={category}>
+                    <button
+                      type="button"
+                      className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted/40"
+                      onClick={() => toggleGroup(category)}
+                    >
+                      <div className={cn("h-1.5 w-1.5 shrink-0 rounded-full", categoryDotClassMap[category])} />
+                      <span className="flex-1 text-left text-[12px] font-semibold tracking-wider text-muted-foreground/80">
+                        {categoryLabels[category]}
+                      </span>
+                      {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                    </button>
+                    {expanded && (
+                      <nav className="flex flex-col gap-[2px]">
+                        {categoryModules.map((mod) => {
+                          const Icon = iconMap[mod.icon] ?? LayoutGrid
+                          const isActive = pathname === mod.route || pathname.startsWith(mod.route + "/")
+                          return (
+                            <SidebarNavItem
+                              key={mod.id}
+                              href={mod.route}
+                              icon={Icon}
+                              label={mod.name}
+                              active={isActive}
+                              onNavigate={onNavigate}
+                            />
+                          )
+                        })}
+                      </nav>
                     )}
-                  >
-                    {Icon ? <Icon className="h-4 w-4" /> : <Puzzle className="h-4 w-4" />}
-                    {mod.name}
-                  </Link>
+                  </div>
                 )
               })}
-            </nav>
+            </div>
           </>
         )}
       </ScrollArea>
 
-      <Separator />
+      {/* Bottom Toolbar - Fixed */}
+      <div className="h-16 border-t border-sidebar-border p-2">
+        <div className="flex h-full items-center justify-between gap-1">
+          {/* Command Palette Button */}
+          <button
+            type="button"
+            onClick={() => setCommandPaletteOpen(true)}
+            className="flex h-12 flex-1 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-[#F7F7F8]"
+            aria-label="全局命令"
+          >
+            <Command className="h-[18px] w-[18px]" />
+          </button>
 
-      <div className="flex items-center gap-1 px-2 py-2">
-        <CommandButton />
-        <ThemeToggle />
-        <Link
-          href="/settings"
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
-            pathname === "/settings"
-              ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          )}
-          aria-label="设置"
-        >
-          <Settings className="h-4 w-4" />
-        </Link>
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className="flex h-12 flex-1 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-[#F7F7F8]"
+            aria-label="切换主题"
+          >
+            {isDark ? <Moon className="h-[18px] w-[18px]" /> : <Sun className="h-[18px] w-[18px]" />}
+          </button>
+
+          {/* Settings Button */}
+          <Link
+            href="/settings"
+            onClick={onNavigate}
+            className={cn(
+              "flex h-12 flex-1 items-center justify-center rounded-[10px] transition-colors",
+              pathname === "/settings"
+                ? "bg-[#F2F4F7] text-[#111827]"
+                : "text-muted-foreground hover:bg-[#F7F7F8]"
+            )}
+            aria-label="设置"
+          >
+            <Settings className="h-[18px] w-[18px]" />
+          </Link>
+        </div>
       </div>
     </aside>
   )

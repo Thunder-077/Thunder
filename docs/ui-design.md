@@ -14,7 +14,7 @@
 
 ```
 ┌──────────────────────────────────────────┐
-│ Sidebar (w-56) │ Topbar (h-12)          │
+│ Sidebar (展开 240 / 收起 64) │ Topbar (h-12) │
 │                ├─────────────────────────│
 │                │                         │
 │   Navigation   │     Main Content        │
@@ -32,6 +32,25 @@
 - 区块间距：`mb-6` / `mb-8`（24px / 32px）
 - 组件间距：`gap-2` / `gap-3`（8px / 12px）
 - 内部间距：`p-3` / `p-4`（12px / 16px）
+
+### Sidebar 规范
+
+- **固定展开态**：Sidebar 不再支持收起/展开，永远固定展开
+- 宽度固定：`240px`
+- 侧栏背景：白底（或暗色主题对应 token），右侧 1px 弱边框
+- 顶部结构：`T Logo + Thunder`，高度约 `56px`，**不显示收起按钮**
+- 顶部**不显示搜索框**，搜索入口移至底部工具栏
+- 导航分组：固定导航（首页、模块中心）+ 模块按 `manifest.category` 分组
+- 分组规则：分组标题小号浅灰文案，支持展开/收起，分组前使用低饱和色点
+- 导航项样式：高度 `40px`、圆角 `10px`、图标 `18px`、hover 背景 `#F7F7F8`、active 背景 `#F2F4F7`
+- active 规范：使用低对比背景与正文色 `#111827`，不使用高饱和蓝色高亮
+- 模块多时，导航内容区域内部滚动，顶部 Logo 区和底部工具栏固定不滚动
+- **底部工具栏**：固定在 Sidebar 底部，只保留三个工具按钮
+  - 全局命令（Search 图标，显示 `⌘K` 提示）
+  - 主题切换（Sun/Moon 图标）
+  - 设置（Settings 图标）
+- **底部禁止显示**：用户头像、用户名、角色、用户菜单、用户下拉箭头
+- 移动端规则：使用 Drawer 打开侧栏，顶部显示 Logo 与关闭按钮，点击导航项后自动关闭 Drawer
 
 ## 颜色规范
 
@@ -135,6 +154,17 @@
 - 项目中普通文本输入默认复用通用 `Input`
 - 项目中密码输入默认复用通用 `PasswordInput`
 - 页面内禁止随意写原生 input 的 focus 样式；有特殊场景需在组件层扩展
+
+### 通用弹窗 (AppDialog / useDialog)
+
+- 项目级弹窗统一使用 `AppDialog` 组件和 `useDialog` Hook
+- 禁止新增 `window.alert` / `window.confirm` / `window.prompt`
+- 常规交互优先使用 `dialog.confirm()`、`dialog.alert()`、`dialog.info()`、`dialog.success()`、`dialog.warning()`、`dialog.error()`
+- 危险操作统一使用 `type="danger"`，默认禁止点击蒙层关闭；可按场景显式配置
+- loading 场景使用 `type="loading"`，显示旋转图标并默认禁用关闭
+- 图标默认使用 `lucide-react` 语义图标，可通过 `icon` 覆盖；`hideIcon=true` 可隐藏
+- 视觉规范：居中弹窗、弱蒙层 + 轻 blur、约 420-480px 宽、圆角约 20px、低饱和色块图标容器
+- 按钮规范：底部右对齐，默认确认按钮黑色，危险确认按钮使用低饱和红色
 
 ## 图标
 

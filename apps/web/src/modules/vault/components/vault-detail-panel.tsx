@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { VaultItemPlain, VaultExtraField } from "@thunder/vault"
 import { cn } from "@/lib/utils"
+import { useDialog } from "@/hooks/use-dialog"
 import { getFaviconUrl, getTagColor, formatDateTime, inferVaultItemType, VAULT_ITEM_TYPE_LABELS } from "../utils/vault-utils"
 
 interface VaultDetailPanelProps {
@@ -178,6 +179,7 @@ export function VaultDetailPanel({
   onRemoveTag,
   onRemoveExtraField,
 }: VaultDetailPanelProps) {
+  const dialog = useDialog()
   const [newTagName, setNewTagName] = useState("")
   const [showTagInput, setShowTagInput] = useState(false)
   const [imgError, setImgError] = useState(false)
@@ -214,7 +216,10 @@ export function VaultDetailPanel({
       setNewTagName("")
       setShowTagInput(false)
     } catch (err) {
-      alert(err instanceof Error ? err.message : "添加标签失败")
+      await dialog.warning({
+        title: "添加标签失败",
+        description: err instanceof Error ? err.message : "标签保存失败，请稍后重试。",
+      })
     }
   }
 

@@ -12,13 +12,23 @@ export const mockModules: ModuleManifest[] = [
     enabled: true,
   },
   {
+    id: "pomodoro",
+    name: "番茄钟",
+    description: "专注计时器，提升工作效率",
+    icon: "Timer",
+    route: "/modules/pomodoro",
+    category: "productivity",
+    order: 2,
+    enabled: true,
+  },
+  {
     id: "vault",
     name: "密码保险箱",
     description: "本地优先的加密密码管理模块",
     icon: "Lock",
     route: "/vault",
     category: "security",
-    order: 2,
+    order: 3,
     enabled: true,
   },
   {
@@ -28,7 +38,7 @@ export const mockModules: ModuleManifest[] = [
     icon: "Brain",
     route: "/modules/ai-hub",
     category: "ai",
-    order: 3,
+    order: 4,
     enabled: true,
   },
 ]

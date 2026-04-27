@@ -5,10 +5,12 @@ import { Lock, Lightbulb, ChevronDown, ChevronUp, AlertTriangle } from "lucide-r
 import { Button } from "@/components/ui/button"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Card, CardContent } from "@/components/ui/card"
+import { useDialog } from "@/hooks/use-dialog"
 import { useVault } from "../state"
 
 export function VaultUnlockPage() {
   const { unlockVault, clearVault, metadata, loading, error: contextError } = useVault()
+  const dialog = useDialog()
   const [masterPassword, setMasterPassword] = useState("")
   const [validationError, setValidationError] = useState("")
   const [showPasswordHint, setShowPasswordHint] = useState(false)
@@ -26,7 +28,15 @@ export function VaultUnlockPage() {
   }
 
   const handleReset = async () => {
-    if (!window.confirm("重置将删除本地保险箱中的所有数据，此操作不可撤销。确定要继续吗？")) {
+    const ok = await dialog.confirm({
+      type: "danger",
+      title: "重置密码保险箱？",
+      description:
+        "这将清除当前设备上的所有保险箱数据，此操作不可撤销。请确认你已无法找回主密码后再继续。",
+      confirmText: "确认重置",
+      cancelText: "取消",
+    })
+    if (!ok) {
       return
     }
     await clearVault()

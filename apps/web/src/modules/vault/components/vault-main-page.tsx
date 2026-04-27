@@ -4,6 +4,7 @@ import { useRef, useState, useCallback } from "react"
 import { useVault } from "../state"
 import { useVaultSettings } from "../hooks/use-vault-settings"
 import { useClipboardProtection } from "../hooks/use-clipboard-protection"
+import { useDialog } from "@/hooks/use-dialog"
 import type { VaultItemPlain, VaultTag } from "@thunder/vault"
 import { VaultToolbar } from "./vault-toolbar"
 import { VaultListPanel } from "./vault-list-panel"
@@ -17,6 +18,7 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
   const { items, selectedItem, selectItem, addItem, updateItem, deleteItem, error, exportBackup, importBackup } = useVault()
   const { settings } = useVaultSettings()
   const { copyWithProtection } = useClipboardProtection(settings.clipboardAutoClear, settings.clipboardClearSeconds)
+  const dialog = useDialog()
   
   const [searchKeyword, setSearchKeyword] = useState("")
   const [scopeFilter, setScopeFilter] = useState<"all" | "favorites" | "recent">("all")
@@ -152,7 +154,14 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
   }
 
   const handleDeleteItem = async (item: VaultItemPlain) => {
-    if (!window.confirm(`确定要删除「${item.title}」吗？`)) return
+    const ok = await dialog.confirm({
+      type: "danger",
+      title: `删除「${item.title}」？`,
+      description: "删除后无法恢复，请确认是否继续。",
+      confirmText: "确认删除",
+      cancelText: "取消",
+    })
+    if (!ok) return
     await deleteItem(item.id)
   }
 
@@ -196,7 +205,15 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
   }
 
   const handleExport = async () => {
-    if (!window.confirm("导出加密备份？备份文件仍需主密码才能恢复，请妥善保存。")) return
+    const ok = await dialog.confirm({
+      type: "info",
+      title: "导出加密备份？",
+      description: "备份文件仍需主密码才能恢复，请妥善保存。",
+      confirmText: "确认导出",
+      cancelText: "取消",
+      allowOverlayClose: true,
+    })
+    if (!ok) return
     try {
       const json = await exportBackup()
       const date = new Date().toISOString().slice(0, 10)
@@ -208,12 +225,22 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      alert(e instanceof Error ? e.message : "导出失败")
+      await dialog.error({
+        title: "导出失败",
+        description: e instanceof Error ? e.message : "导出加密备份时发生未知错误。",
+      })
     }
   }
 
-  const handleImport = () => {
-    if (!window.confirm("导入加密备份将覆盖当前本地保险箱的所有数据，此操作不可撤销。确定要继续吗？")) return
+  const handleImport = async () => {
+    const ok = await dialog.confirm({
+      type: "danger",
+      title: "导入并覆盖当前保险箱？",
+      description: "导入加密备份将覆盖当前本地保险箱的所有数据，此操作不可撤销。",
+      confirmText: "确认导入",
+      cancelText: "取消",
+    })
+    if (!ok) return
     fileInputRef.current?.click()
   }
 
@@ -224,7 +251,10 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
       const text = await file.text()
       await importBackup(text)
     } catch (err) {
-      alert(err instanceof Error ? err.message : "导入失败")
+      await dialog.error({
+        title: "导入失败",
+        description: err instanceof Error ? err.message : "导入加密备份时发生未知错误。",
+      })
     }
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
