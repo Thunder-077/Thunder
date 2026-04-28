@@ -85,9 +85,9 @@ function SidebarNavItem({
       href={href}
       onClick={onNavigate}
       className={cn(
-        "flex h-12 items-center gap-2.5 rounded-[10px] px-3 text-sm transition-colors",
+        "flex h-12 items-center gap-2.5 rounded-[10px] px-3 text-sm font-medium transition-all duration-normal ease-default",
         active
-          ? "bg-sidebar-accent text-sidebar-foreground"
+          ? "bg-sidebar-accent text-sidebar-foreground shadow-xs"
           : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
       )}
     >

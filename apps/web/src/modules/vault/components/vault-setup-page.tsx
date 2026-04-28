@@ -64,22 +64,19 @@ export function VaultSetupPage() {
 
   return (
     <div className="mx-auto max-w-[640px]">
-      <div className="mb-8 pt-2">
-        <h1 className="text-xl font-semibold tracking-tight text-center">创建密码保险箱</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground text-center">
-          设置一个主密码，用于加密保护你的账号、密钥和备注。
-        </p>
+      <div className="flex flex-col items-center gap-6 mb-8 pt-2">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-subtle to-brand/10 text-brand shadow-sm">
+          <Shield size={32} />
+        </div>
+        <div className="text-center">
+          <h1 className="text-xl font-semibold tracking-tight">创建密码保险箱</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">设置主密码后，所有数据将仅在你的设备上加密存储</p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit}>
         <Card className="rounded-2xl border-border/80">
           <CardContent className="space-y-6 p-7">
-            <div className="flex items-center justify-center pt-1">
-              <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-muted/80 text-muted-foreground">
-                <Shield className="h-8.5 w-8.5" />
-                <Lock className="absolute h-4 w-4" />
-              </div>
-            </div>
 
             <div className="space-y-2.5">
               <label className="text-sm font-medium" htmlFor="master-password">

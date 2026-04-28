@@ -67,10 +67,10 @@ function VaultListItem({
   return (
     <div
       className={cn(
-        "relative flex items-center gap-3 p-3 cursor-pointer transition-colors rounded-xl",
+        "group flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-all duration-normal ease-default",
         selected
-          ? "bg-muted border-l-4 border-l-primary pl-[9px]"
-          : "hover:bg-muted/40 border-l-4 border-l-transparent"
+          ? "border-brand/30 bg-brand-subtle shadow-sm"
+          : "border-transparent bg-card hover:border-border hover:bg-accent/50"
       )}
       onClick={() => onSelect(item)}
     >

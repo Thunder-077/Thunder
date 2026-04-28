@@ -1,6 +1,8 @@
 "use client"
 
 import { useRef, useState, useCallback } from "react"
+import { Shield, Plus } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useVault } from "../state"
 import { useVaultSettings } from "../hooks/use-vault-settings"
 import { useClipboardProtection } from "../hooks/use-clipboard-protection"
@@ -264,67 +266,96 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1400px] px-8 py-6">
           <div className="mb-5">
-            <h1 className="text-xl font-semibold tracking-tight">密码保险箱</h1>
-            <p className="mt-1 text-xs text-muted-foreground">安全管理你的账号、密码、令牌与备注</p>
-          </div>
-
-          {error && (
-            <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {error}
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-subtle text-brand">
+                <Shield size={18} />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold tracking-tight">密码保险箱</h1>
+                <p className="mt-0.5 text-xs text-muted-foreground">安全管理你的账号、密码、令牌与备注</p>
+              </div>
             </div>
-          )}
-
-          <VaultToolbar
-            searchKeyword={searchKeyword}
-            onSearchChange={handleSearchChange}
-            scopeFilter={scopeFilter}
-            onScopeChange={handleScopeChange}
-            tagFilter={tagFilter}
-            onTagChange={handleTagChange}
-            typeFilter={typeFilter}
-            onTypeChange={handleTypeChange}
-            onReset={handleResetFilters}
-            items={items}
-            onAddItem={handleAddItem}
-            onExport={handleExport}
-            onImport={handleImport}
-            onOpenSettings={onOpenSettings}
-          />
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-
-          <div className="mt-5 grid gap-5" style={{ gridTemplateColumns: "minmax(0, 360px) minmax(0, 1fr)" }}>
-            <VaultListPanel
-              items={visibleItems}
-              totalItems={filteredAndSortedItems.length}
-              selectedId={selectedItem?.id ?? null}
-              filterType={scopeFilter}
-              onFilterTypeChange={handleScopeChange}
-              onSelect={handleSelectItem}
-              onToggleFavorite={handleToggleFavorite}
-              onAddItem={handleAddItem}
-              onLoadMore={handleLoadMore}
-              hasMore={hasMore}
-              onResetFilters={handleResetFilters}
-              isEmpty={filteredAndSortedItems.length === 0 && items.length > 0}
-            />
-
-            <VaultDetailPanel
-              item={selectedItem}
-              onCopyField={handleCopyField}
-              onEdit={handleEditItem}
-              onDelete={handleDeleteItem}
-              onAddTag={handleAddTag}
-              onRemoveTag={handleRemoveTag}
-              onRemoveExtraField={handleRemoveExtraField}
-            />
           </div>
+
+          {items.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center py-24">
+              <div className="flex max-w-sm flex-col items-center gap-5 text-center">
+                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-subtle text-brand">
+                  <Shield size={36} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-lg font-semibold text-foreground">暂无密码条目</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    点击下方按钮开始创建你的第一个密码条目，安全存储账号与密码。
+                  </p>
+                </div>
+                <Button variant="default" size="default" className="mt-2 gap-2" onClick={handleAddItem}>
+                  <Plus className="h-4 w-4" />
+                  创建第一个条目
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {error && (
+                <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              <VaultToolbar
+                searchKeyword={searchKeyword}
+                onSearchChange={handleSearchChange}
+                scopeFilter={scopeFilter}
+                onScopeChange={handleScopeChange}
+                tagFilter={tagFilter}
+                onTagChange={handleTagChange}
+                typeFilter={typeFilter}
+                onTypeChange={handleTypeChange}
+                onReset={handleResetFilters}
+                items={items}
+                onAddItem={handleAddItem}
+                onExport={handleExport}
+                onImport={handleImport}
+                onOpenSettings={onOpenSettings}
+              />
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+
+              <div className="mt-5 grid gap-5" style={{ gridTemplateColumns: "minmax(0, 360px) minmax(0, 1fr)" }}>
+                <VaultListPanel
+                  items={visibleItems}
+                  totalItems={filteredAndSortedItems.length}
+                  selectedId={selectedItem?.id ?? null}
+                  filterType={scopeFilter}
+                  onFilterTypeChange={handleScopeChange}
+                  onSelect={handleSelectItem}
+                  onToggleFavorite={handleToggleFavorite}
+                  onAddItem={handleAddItem}
+                  onLoadMore={handleLoadMore}
+                  hasMore={hasMore}
+                  onResetFilters={handleResetFilters}
+                  isEmpty={filteredAndSortedItems.length === 0 && items.length > 0}
+                />
+
+                <VaultDetailPanel
+                  item={selectedItem}
+                  onCopyField={handleCopyField}
+                  onEdit={handleEditItem}
+                  onDelete={handleDeleteItem}
+                  onAddTag={handleAddTag}
+                  onRemoveTag={handleRemoveTag}
+                  onRemoveExtraField={handleRemoveExtraField}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
 

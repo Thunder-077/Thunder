@@ -3,11 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from "react"
 
 type Theme = "light" | "dark" | "system"
+type BrandTheme = "violet" | "blue"
 
 interface ThemeContextValue {
   theme: Theme
   resolvedTheme: "light" | "dark"
   setTheme: (theme: Theme) => void
+  brandTheme: BrandTheme
+  setBrandTheme: (brand: BrandTheme) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
@@ -31,6 +34,14 @@ try {
   }
 } catch {}
 
+let currentBrand: BrandTheme = "violet"
+try {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("thunder-brand") as BrandTheme | null
+    if (stored === "blue") currentBrand = stored
+  }
+} catch {}
+
 function persistTheme(theme: Theme) {
   currentTheme = theme
   try {
@@ -39,16 +50,38 @@ function persistTheme(theme: Theme) {
   subscribers.forEach((cb) => cb())
 }
 
-function getSnapshot(): Theme {
-  return currentTheme
+function persistBrand(brand: BrandTheme) {
+  currentBrand = brand
+  try {
+    localStorage.setItem("thunder-brand", brand)
+  } catch {}
+  subscribers.forEach((cb) => cb())
 }
 
-function getServerSnapshot(): Theme {
-  return "system"
+const SERVER_SNAPSHOT: [Theme, BrandTheme] = ["system", "violet"]
+
+let cachedSnapshot: [Theme, BrandTheme] | null = null
+let cachedTheme: Theme | null = null
+let cachedBrand: BrandTheme | null = null
+
+function getSnapshot(): [Theme, BrandTheme] {
+  if (cachedSnapshot && cachedTheme === currentTheme && cachedBrand === currentBrand) {
+    return cachedSnapshot
+  }
+  cachedTheme = currentTheme
+  cachedBrand = currentBrand
+  cachedSnapshot = [currentTheme, currentBrand]
+  return cachedSnapshot
+}
+
+function getServerSnapshot(): [Theme, BrandTheme] {
+  return SERVER_SNAPSHOT
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+  const theme = snapshot[0]
+  const brandTheme = snapshot[1]
 
   const resolvedTheme = useMemo(() => {
     if (typeof window === "undefined") return "light"
@@ -58,6 +91,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", resolvedTheme === "dark")
   }, [resolvedTheme])
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-brand", brandTheme)
+  }, [brandTheme])
 
   useEffect(() => {
     if (theme !== "system") return
@@ -73,8 +110,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     persistTheme(t)
   }, [])
 
+  const setBrandTheme = useCallback((b: BrandTheme) => {
+    persistBrand(b)
+  }, [])
+
   return (
-    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, brandTheme, setBrandTheme }}>
       {children}
     </ThemeContext.Provider>
   )

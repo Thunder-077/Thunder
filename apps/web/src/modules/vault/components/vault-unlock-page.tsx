@@ -47,21 +47,21 @@ export function VaultUnlockPage() {
 
   return (
     <div className="mx-auto max-w-md">
-      <div className="mb-8 pt-2">
-        <h1 className="text-xl font-semibold tracking-tight text-center">解锁密码保险箱</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground text-center">
-          输入主密码来访问你的账号、密钥和备注
-        </p>
+      <div className="mb-8 pt-2 flex flex-col items-center gap-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-subtle text-brand shadow-sm">
+          <Lock className="h-8 w-8" />
+        </div>
+        <div className="text-center">
+          <h1 className="text-xl font-semibold tracking-tight">解锁密码保险箱</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            输入主密码来访问你的账号、密钥和备注
+          </p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit}>
         <Card className="rounded-2xl border-border/80">
           <CardContent className="space-y-6 p-7">
-            <div className="flex items-center justify-center pt-1">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/80 text-muted-foreground">
-                <Lock className="h-7 w-7" />
-              </div>
-            </div>
 
             <div className="space-y-2.5">
               <label className="text-sm font-medium" htmlFor="unlock-password">

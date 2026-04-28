@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Lock, Eye, EyeOff, Copy, Check, MoreHorizontal, ExternalLink, ShieldCheck, Trash2, X, Plus, Pencil } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
@@ -229,7 +229,7 @@ export function VaultDetailPanel({
         <div className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0">
-              <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground overflow-hidden">
+              <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-xl bg-brand-subtle text-brand overflow-hidden">
                 {faviconUrl && !imgError ? (
                   <img
                     src={faviconUrl}
@@ -270,10 +270,8 @@ export function VaultDetailPanel({
                 编辑
               </Button>
               <DropdownMenu>
-                <DropdownMenuTrigger>
-                  <Button variant="outline" size="icon" className="h-8 w-8">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
+                <DropdownMenuTrigger className={buttonVariants({ variant: "outline", size: "icon", className: "h-8 w-8" })}>
+                  <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[100px]">
                   <DropdownMenuItem
