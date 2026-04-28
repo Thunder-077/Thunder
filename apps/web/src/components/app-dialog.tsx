@@ -98,7 +98,7 @@ export function AppDialog({
   const loading = confirmLoading || submitting || type === "loading"
   const canClose = !loading
   const showIcon = !hideIcon
-  const confirmVariant = type === "danger" || type === "error" ? "destructive" : "default"
+  const confirmVariant = type === "danger" || type === "error" ? "destructive" : "primary"
 
   const resolvedIcon = useMemo(() => {
     if (!showIcon) return null

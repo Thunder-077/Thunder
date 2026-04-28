@@ -289,7 +289,7 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
                     点击下方按钮开始创建你的第一个密码条目，安全存储账号与密码。
                   </p>
                 </div>
-                <Button variant="default" size="default" className="mt-2 gap-2" onClick={handleAddItem}>
+                <Button variant="primary" size="default" className="mt-2 gap-2" onClick={handleAddItem}>
                   <Plus className="h-4 w-4" />
                   创建第一个条目
                 </Button>
