@@ -1,0 +1,54 @@
+{
+  "extends": [
+    "stylelint-config-standard"
+  ],
+  "rules": {
+    "color-no-hex": true,
+    "color-named": "never",
+    "declaration-property-value-disallowed-list": {
+      "color": ["/^#/"],
+      "background-color": ["/^#/"],
+      "border-color": ["/^#/"]
+    },
+    "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla"],
+    "at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": [
+          "tailwind",
+          "apply",
+          "variants",
+          "responsive",
+          "screen",
+          "layer",
+          "import",
+          "theme",
+          "custom-variant"
+        ]
+      }
+    ],
+    "function-no-unknown": [
+      true,
+      {
+        "ignoreFunctions": [
+          "theme",
+          "var",
+          "calc",
+          "oklch",
+          "min",
+          "max",
+          "clamp"
+        ]
+      }
+    ]
+  },
+  "ignoreFiles": [
+    "node_modules/**/*",
+    ".next/**/*",
+    "dist/**/*",
+    "**/*.js",
+    "**/*.jsx",
+    "**/*.ts",
+    "**/*.tsx"
+  ]
+}

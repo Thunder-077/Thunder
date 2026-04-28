@@ -46,10 +46,10 @@ function Select({
 }: SelectProps) {
   const resolvedShowDescription = showDescription ?? size === "default"
   const selectedOption = options.find((option) => option.value === value) ?? null
-  const triggerSizeClass = size === "compact" ? "h-8 px-3 text-xs rounded-[10px]" : "h-10 px-3.5 text-sm rounded-[11px]"
+  const triggerSizeClass = size === "compact" ? "h-8 px-3 text-xs rounded-lg" : "h-10 px-3.5 text-sm rounded-xl"
   const itemBaseClass = size === "compact" ? "min-h-8 px-2.5 py-1.5 text-xs" : "min-h-10 px-3 py-2 text-sm"
   const itemGapClass = size === "compact" ? "gap-2" : "gap-2.5"
-  const descriptionClass = size === "compact" ? "text-[10px] leading-4" : "text-xs leading-4"
+  const descriptionClass = size === "compact" ? "text-xs leading-4" : "text-xs leading-4"
 
   return (
     <SelectPrimitive.Root
