@@ -55,8 +55,8 @@ function DetailField({
   const displayValue = isPassword && !showValue ? "••••••••" : value
 
   return (
-    <div className="grid grid-cols-[120px_1fr] gap-4 items-center py-2 border-b border-gray-200 last:border-b-0">
-      <span className="text-sm text-gray-500">{label}</span>
+    <div className="grid grid-cols-[120px_1fr] gap-4 items-center py-2 border-b border-border last:border-b-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
       <div className="flex items-center gap-2 min-w-0">
         <div className="flex-1 min-w-0">
           {href ? (
@@ -70,7 +70,7 @@ function DetailField({
               <ExternalLink className="h-3.5 w-3.5 text-primary" />
             </a>
           ) : (
-            <span className={cn("text-sm text-gray-700 truncate block", isPassword && !showValue && "font-mono tracking-wider")}>
+            <span className={cn("text-sm text-foreground truncate block", isPassword && !showValue && "font-mono tracking-wider")}>
               {displayValue}
             </span>
           )}
@@ -80,19 +80,19 @@ function DetailField({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-gray-400 hover:text-gray-600"
+              className="h-7 w-7 text-muted-foreground/60 hover:text-muted-foreground"
               onClick={() => setShowValue(!showValue)}
               aria-label={showValue ? "隐藏" : "显示"}
             >
               {showValue ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
             </Button>
           )}
-          
+
           {onCopy && (
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-gray-400 hover:text-gray-600"
+              className="h-7 w-7 text-muted-foreground/60 hover:text-muted-foreground"
               onClick={handleCopy}
               aria-label="复制"
             >
@@ -126,11 +126,11 @@ function ExtraFieldComponent({
   const displayValue = field.sensitive && !showValue ? "••••••••" : field.value
 
   return (
-    <div className="grid grid-cols-[120px_1fr] gap-4 items-center py-4 border-b border-gray-100/50 last:border-b-0">
-      <span className="text-sm text-gray-500">{field.name}</span>
+    <div className="grid grid-cols-[120px_1fr] gap-4 items-center py-4 border-b border-border/50 last:border-b-0">
+      <span className="text-sm text-muted-foreground">{field.name}</span>
       <div className="flex items-center gap-2 min-w-0">
         <div className="flex-1 min-w-0">
-          <span className={cn("text-sm text-gray-700 truncate block", field.sensitive && !showValue && "font-mono tracking-wider")}>
+          <span className={cn("text-sm text-foreground truncate block", field.sensitive && !showValue && "font-mono tracking-wider")}>
             {displayValue}
           </span>
         </div>
@@ -139,7 +139,7 @@ function ExtraFieldComponent({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-gray-400 hover:text-gray-600"
+              className="h-7 w-7 text-muted-foreground/60 hover:text-muted-foreground"
               onClick={() => setShowValue(!showValue)}
             >
               {showValue ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -149,7 +149,7 @@ function ExtraFieldComponent({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-gray-400 hover:text-gray-600"
+            className="h-7 w-7 text-muted-foreground/60 hover:text-muted-foreground"
             onClick={handleCopy}
           >
             {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
@@ -158,7 +158,7 @@ function ExtraFieldComponent({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-gray-400 hover:text-destructive"
+            className="h-7 w-7 text-muted-foreground/60 hover:text-destructive"
             onClick={onRemove}
           >
             <X className="h-3.5 w-3.5" />
@@ -250,7 +250,7 @@ export function VaultDetailPanel({
                   </span>
                 </div>
 
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   最后更新：{formatDateTime(item.updatedAt)}
                 </p>
               </div>
@@ -293,7 +293,7 @@ export function VaultDetailPanel({
 
         {/* 基本信息 */}
         <div className="px-5 py-2">
-          <h4 className="text-sm font-semibold text-gray-700 mb-1">基本信息</h4>
+          <h4 className="text-sm font-semibold text-foreground mb-1">基本信息</h4>
           
           {item.url && (
             <DetailField label="网站地址" value={item.url} href={item.url} onCopy={() => onCopyField(item.url)} />
@@ -308,7 +308,7 @@ export function VaultDetailPanel({
           <>
             <Separator />
             <div className="px-5 py-2">
-              <h4 className="text-sm font-semibold text-gray-700 mb-1">双重验证 / 附加字段</h4>
+              <h4 className="text-sm font-semibold text-foreground mb-1">双重验证 / 附加字段</h4>
 
               {totpFields.map((field) => (
                 <ExtraFieldComponent
@@ -344,7 +344,7 @@ export function VaultDetailPanel({
 
         {/* 标签 */}
         <div className="px-5 py-3">
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">标签</h4>
+          <h4 className="text-sm font-semibold text-foreground mb-2">标签</h4>
           <div className="flex flex-wrap items-center gap-2">
             {item.tags.map((tag, index) => {
               const color = getTagColor(tag.name) || "#94a3b8"
@@ -385,7 +385,7 @@ export function VaultDetailPanel({
                   }}
                 />
                 <button
-                  className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors"
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors"
                   onClick={handleAddTag}
                   disabled={!newTagName.trim()}
                 >
@@ -394,7 +394,7 @@ export function VaultDetailPanel({
               </div>
             ) : (
               <button
-                className="h-7 w-7 flex items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors"
+                className="h-7 w-7 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors"
                 onClick={() => setShowTagInput(true)}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -408,8 +408,8 @@ export function VaultDetailPanel({
           <>
             <Separator />
             <div className="px-5 py-3">
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">备注</h4>
-              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+              <h4 className="text-sm font-semibold text-foreground mb-2">备注</h4>
+              <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
                 {item.notes}
               </p>
             </div>
@@ -417,10 +417,10 @@ export function VaultDetailPanel({
         )}
 
         {/* 底部安全提示 */}
-        <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3">
+        <div className="border-t border-border/50 bg-muted/30 px-5 py-3">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-            <p className="text-xs text-gray-500">
+            <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+            <p className="text-xs text-muted-foreground">
               敏感信息默认加密显示，复制后请注意剪贴板安全。
             </p>
           </div>

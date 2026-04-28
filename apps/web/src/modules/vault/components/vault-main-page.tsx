@@ -318,7 +318,6 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
             <VaultDetailPanel
               item={selectedItem}
               onCopyField={handleCopyField}
-              onToggleFavorite={handleToggleFavorite}
               onEdit={handleEditItem}
               onDelete={handleDeleteItem}
               onAddTag={handleAddTag}

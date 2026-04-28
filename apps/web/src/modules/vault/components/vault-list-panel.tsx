@@ -69,7 +69,7 @@ function VaultListItem({
       className={cn(
         "relative flex items-center gap-3 p-3 cursor-pointer transition-colors rounded-xl",
         selected
-          ? "bg-gray-100 border-l-4 border-l-black pl-[9px]"
+          ? "bg-muted border-l-4 border-l-primary pl-[9px]"
           : "hover:bg-muted/40 border-l-4 border-l-transparent"
       )}
       onClick={() => onSelect(item)}
@@ -96,7 +96,7 @@ function VaultListItem({
               {item.title}
             </h4>
           </div>
-          <span className="text-xs text-gray-400 shrink-0 ml-2">
+          <span className="text-xs text-muted-foreground/60 shrink-0 ml-2">
             {new Date(item.updatedAt)
               .toLocaleDateString("zh-CN", {
                 year: "numeric",
@@ -109,7 +109,7 @@ function VaultListItem({
 
         <div className="flex justify-between items-center mt-1 gap-4">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <span className="text-sm text-gray-500 truncate">
+            <span className="text-sm text-muted-foreground truncate">
               {item.username}
             </span>
             {item.tags.length > 0 && (
@@ -144,7 +144,7 @@ function VaultListItem({
                 "h-4 w-4",
                 item.favorite
                   ? "fill-yellow-400 text-yellow-400"
-                  : "text-gray-300 hover:text-gray-400"
+                  : "text-muted-foreground/40 hover:text-muted-foreground/60"
               )}
             />
           </button>
