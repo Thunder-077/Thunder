@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     },
     rules: {
       "thunder/no-tailwind-hardcoded-colors": "error",
+      // Allow native img for favicon icons (small external images)
+      "@next/next/no-img-element": "off",
     },
   },
   // Override default ignores of eslint-config-next.

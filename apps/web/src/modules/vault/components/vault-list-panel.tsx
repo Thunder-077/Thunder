@@ -21,7 +21,6 @@ import {
   getFaviconUrl,
   getTagColor,
   inferVaultItemType,
-  VAULT_ITEM_TYPE_LABELS,
 } from "../utils/vault-utils"
 
 interface VaultListPanelProps {
@@ -62,7 +61,6 @@ function VaultListItem({
   const [imgError, setImgError] = useState(false)
   const faviconUrl = item.url ? getFaviconUrl(item.url) : ""
   const itemType = inferVaultItemType(item)
-  const typeLabel = VAULT_ITEM_TYPE_LABELS[itemType]
 
   const showFavicon = itemType === "website" && faviconUrl && !imgError
 

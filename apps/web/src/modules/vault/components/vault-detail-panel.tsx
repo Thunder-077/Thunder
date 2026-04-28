@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Lock, Eye, EyeOff, Copy, Check, MoreHorizontal, ExternalLink, Star, ShieldCheck, Trash2, X, Plus, Pencil } from "lucide-react"
+import { Lock, Eye, EyeOff, Copy, Check, MoreHorizontal, ExternalLink, ShieldCheck, Trash2, X, Plus, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -172,13 +172,12 @@ function ExtraFieldComponent({
 export function VaultDetailPanel({
   item,
   onCopyField,
-  onToggleFavorite,
   onEdit,
   onDelete,
   onAddTag,
   onRemoveTag,
   onRemoveExtraField,
-}: VaultDetailPanelProps) {
+}: Omit<VaultDetailPanelProps, 'onToggleFavorite'>) {
   const dialog = useDialog()
   const [newTagName, setNewTagName] = useState("")
   const [showTagInput, setShowTagInput] = useState(false)
