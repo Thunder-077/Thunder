@@ -508,7 +508,7 @@ function EditForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
-      <div className="flex-1 overflow-y-auto px-1 -mx-1 space-y-5 min-h-0">
+      <div className="flex-1 overflow-y-auto px-1 py-1 space-y-5 min-h-0">
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
