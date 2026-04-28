@@ -6,8 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Select, type SelectOption } from "@/components/ui/select"
 import { useVault } from "../state"
 import type { VaultItemPlain } from "@thunder/vault"
-import { inferVaultItemType, VAULT_ITEM_TYPE_LABELS } from "../utils/vault-utils"
-import { cn } from "@/lib/utils"
+import { VAULT_ITEM_TYPE_LABELS } from "../utils/vault-utils"
 
 interface VaultToolbarProps {
   searchKeyword: string
@@ -26,28 +25,21 @@ interface VaultToolbarProps {
   onOpenSettings: () => void
 }
 
-const scopeTabs = [
-  { value: "all", label: "全部" },
-  { value: "favorites", label: "收藏" },
-  { value: "recent", label: "最近访问" },
-] as const
-
-export function VaultToolbar({
-  searchKeyword,
-  onSearchChange,
-  scopeFilter,
-  onScopeChange,
-  tagFilter,
-  onTagChange,
-  typeFilter,
-  onTypeChange,
-  onReset,
-  items,
-  onAddItem,
-  onExport,
-  onImport,
-  onOpenSettings,
-}: VaultToolbarProps) {
+export function VaultToolbar(props: VaultToolbarProps) {
+  const {
+    searchKeyword,
+    onSearchChange,
+    tagFilter,
+    onTagChange,
+    typeFilter,
+    onTypeChange,
+    onReset,
+    items,
+    onAddItem,
+    onExport,
+    onImport,
+    onOpenSettings,
+  } = props
   const { lockVault } = useVault()
 
   const allTags = Array.from(new Set(items.flatMap((item) => item.tags.map((t) => t.name))))
@@ -61,11 +53,6 @@ export function VaultToolbar({
     { value: VAULT_ITEM_TYPE_LABELS.database, label: VAULT_ITEM_TYPE_LABELS.database },
     { value: VAULT_ITEM_TYPE_LABELS.note, label: VAULT_ITEM_TYPE_LABELS.note },
   ]
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const availableTypes = Array.from(
-    new Set(items.map((item) => VAULT_ITEM_TYPE_LABELS[inferVaultItemType(item)]))
-  )
 
   const tagOptions: SelectOption[] = [
     { value: "__all", label: "标签" },
@@ -116,7 +103,7 @@ export function VaultToolbar({
       </div>
 
       <div className="flex items-center gap-1.5">
-        <Button size="sm" className="h-8 gap-1 text-xs bg-black text-white hover:bg-black/90 px-3" onClick={onAddItem}>
+        <Button size="sm" className="h-8 gap-1 px-3 text-xs" onClick={onAddItem}>
           <Plus className="h-3.5 w-3.5" />
           新建条目
         </Button>

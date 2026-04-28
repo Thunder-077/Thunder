@@ -727,7 +727,7 @@ function EditForm({
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
           取消
         </Button>
-        <Button type="submit" size="sm" disabled={saving} className="bg-black text-white hover:bg-black/90">
+        <Button type="submit" size="sm" disabled={saving}>
           {saving ? "保存中..." : isCreating ? "创建" : "保存"}
         </Button>
       </div>

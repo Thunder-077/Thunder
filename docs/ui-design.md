@@ -165,6 +165,7 @@
 - 图标默认使用 `lucide-react` 语义图标，可通过 `icon` 覆盖；`hideIcon=true` 可隐藏
 - 视觉规范：居中弹窗、弱蒙层 + 轻 blur、约 420-480px 宽、圆角约 20px、低饱和色块图标容器
 - 按钮规范：底部右对齐，默认确认按钮黑色，危险确认按钮使用低饱和红色
+- 颜色使用规则：在 Tailwind class 中禁止直接写 `bg/text/border/fill/stroke` 的硬编码颜色（如 `bg-white`、`text-black`、`bg-[#F2F4F7]`），统一使用语义 token，如 `bg-background`、`text-foreground`、`bg-sidebar-accent`
 
 ## 图标
 

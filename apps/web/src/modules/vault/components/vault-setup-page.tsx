@@ -76,7 +76,7 @@ export function VaultSetupPage() {
           <CardContent className="space-y-6 p-7">
             <div className="flex items-center justify-center pt-1">
               <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-muted/80 text-muted-foreground">
-                <Shield className="h-7 w-7" />
+                <Shield className="h-8.5 w-8.5" />
                 <Lock className="absolute h-4 w-4" />
               </div>
             </div>

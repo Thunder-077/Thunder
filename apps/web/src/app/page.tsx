@@ -65,8 +65,10 @@ export default function DashboardPage() {
   const displayQuote = quote || rainbowQuote || "专注当下，效率加倍。"
 
   useEffect(() => {
-    // 设置彩虹屁（客户端执行，避免 hydration 错误）
-    setRainbowQuote(getRandomQuote())
+    // 延迟到下一轮事件循环再更新随机文案，避免在 effect 中同步 setState。
+    const rainbowQuoteTimer = window.setTimeout(() => {
+      setRainbowQuote(getRandomQuote())
+    }, 0)
 
     // 获取一言语录（放到底部）
     const fetchQuote = async () => {
@@ -84,6 +86,10 @@ export default function DashboardPage() {
     }
 
     fetchQuote()
+
+    return () => {
+      window.clearTimeout(rainbowQuoteTimer)
+    }
   }, [])
 
   return (

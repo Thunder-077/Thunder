@@ -87,8 +87,8 @@ function SidebarNavItem({
       className={cn(
         "flex h-12 items-center gap-2.5 rounded-[10px] px-3 text-sm transition-colors",
         active
-          ? "bg-[#F2F4F7] text-[#111827]"
-          : "text-muted-foreground hover:bg-[#F7F7F8] hover:text-foreground"
+          ? "bg-sidebar-accent text-sidebar-foreground"
+          : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
       )}
     >
       <Icon className="h-[18px] w-[18px] shrink-0" />
@@ -151,13 +151,13 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        "flex h-full w-[240px] flex-col border-r border-sidebar-border bg-white",
+        "flex h-full w-[240px] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
         className
       )}
     >
       {/* Top Logo Area */}
       <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black text-sm font-semibold text-white dark:bg-white dark:text-black">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground">
           T
         </div>
         <span className="flex-1 text-[15px] font-semibold">Thunder</span>
@@ -233,7 +233,7 @@ export function AppSidebar({
           <button
             type="button"
             onClick={() => setCommandPaletteOpen(true)}
-            className="flex h-12 flex-1 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-[#F7F7F8]"
+            className="flex h-12 flex-1 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
             aria-label="全局命令"
           >
             <Command className="h-[18px] w-[18px]" />
@@ -243,7 +243,7 @@ export function AppSidebar({
           <button
             type="button"
             onClick={() => setTheme(isDark ? "light" : "dark")}
-            className="flex h-12 flex-1 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-[#F7F7F8]"
+            className="flex h-12 flex-1 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
             aria-label="切换主题"
           >
             {isDark ? <Moon className="h-[18px] w-[18px]" /> : <Sun className="h-[18px] w-[18px]" />}
@@ -256,8 +256,8 @@ export function AppSidebar({
             className={cn(
               "flex h-12 flex-1 items-center justify-center rounded-[10px] transition-colors",
               pathname === "/settings"
-                ? "bg-[#F2F4F7] text-[#111827]"
-                : "text-muted-foreground hover:bg-[#F7F7F8]"
+                ? "bg-sidebar-accent text-sidebar-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
             )}
             aria-label="设置"
           >

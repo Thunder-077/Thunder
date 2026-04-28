@@ -66,16 +66,6 @@ const ICON_CONTAINER_CLASS_MAP: Record<AppDialogType, string> = {
   loading: "bg-muted text-muted-foreground",
 }
 
-const CONFIRM_BUTTON_CLASS_MAP: Record<AppDialogType, string> = {
-  default: "bg-black text-white hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/90",
-  info: "bg-black text-white hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/90",
-  success: "bg-black text-white hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/90",
-  warning: "bg-black text-white hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/90",
-  danger: "bg-rose-600 text-white hover:bg-rose-600/85",
-  error: "bg-rose-600 text-white hover:bg-rose-600/85",
-  loading: "bg-black text-white hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/90",
-}
-
 const ESCAPE_KEY_REASON = "escape-key"
 
 export function AppDialog({
@@ -108,6 +98,7 @@ export function AppDialog({
   const loading = confirmLoading || submitting || type === "loading"
   const canClose = !loading
   const showIcon = !hideIcon
+  const confirmVariant = type === "danger" || type === "error" ? "destructive" : "default"
 
   const resolvedIcon = useMemo(() => {
     if (!showIcon) return null
@@ -215,7 +206,8 @@ export function AppDialog({
           <Button
             onClick={handleConfirm}
             disabled={confirmDisabled || loading}
-            className={cn(CONFIRM_BUTTON_CLASS_MAP[type], "min-w-[92px]")}
+            variant={confirmVariant}
+            className="min-w-[92px]"
           >
             {loading ? (
               <span className="inline-flex items-center gap-1.5">
