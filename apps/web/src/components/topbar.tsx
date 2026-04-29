@@ -8,7 +8,7 @@ interface TopbarProps {
 
 export function Topbar({ onToggleSidebar }: TopbarProps) {
   return (
-    <header className="app-topbar sticky top-0 z-[var(--z-sticky)] flex h-[var(--topbar-height)] items-center gap-2 border-b px-4 sm:px-6">
+    <header className="app-topbar sticky top-0 z-[var(--z-sticky)] flex h-[var(--topbar-height)] items-center gap-3 bg-background/80 px-4 backdrop-blur-sm sm:px-6">
       {onToggleSidebar && (
         <Button
           variant="ghost"
@@ -21,14 +21,9 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
         </Button>
       )}
 
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div className="hidden h-2 w-2 rounded-full bg-brand/80 md:block" />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium tracking-tight">Thunder Workspace</div>
-        </div>
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-4">
+        <WeatherWidget />
       </div>
-
-      <WeatherWidget />
     </header>
   )
 }

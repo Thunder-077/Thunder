@@ -48,7 +48,7 @@ function getTodayDate(): string {
   const month = date.getMonth() + 1
   const day = date.getDate()
   const weekday = weekdays[date.getDay()]
-  return `今天是 ${year}年${month}月${day}日 星期${weekday}`
+  return `${year}年${month}月${day}日 星期${weekday}`
 }
 
 function getRandomQuote(): string {
@@ -65,12 +65,10 @@ export default function DashboardPage() {
   const displayQuote = quote || rainbowQuote || "专注当下，效率加倍。"
 
   useEffect(() => {
-    // 延迟到下一轮事件循环再更新随机文案，避免在 effect 中同步 setState。
     const rainbowQuoteTimer = window.setTimeout(() => {
       setRainbowQuote(getRandomQuote())
     }, 0)
 
-    // 获取一言语录（放到底部）
     const fetchQuote = async () => {
       try {
         const response = await fetch('https://v1.hitokoto.cn?c=a&c=b&c=c&c=d&c=h&encode=json')
@@ -94,15 +92,47 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight">
-          {getGreeting()} 👋
-        </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          {getTodayDate()}，{rainbowQuote || "专注当下，效率加倍。"}
-        </p>
+      {/* 顶部大标题区域 */}
+      <div className="mb-10">
+        <div className="flex items-start justify-between gap-6">
+          <div className="min-w-0">
+            <p className="text-sm text-muted-foreground">{getTodayDate()}</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+              {getGreeting()}，
+              <br />
+              <span className="text-brand">欢迎回来</span>
+            </h1>
+            <p className="mt-3 text-sm text-muted-foreground">
+              {rainbowQuote || "专注当下，效率加倍。"}
+            </p>
+          </div>
+
+          {/* 右侧概览卡片 */}
+          <div className="hidden shrink-0 rounded-2xl border border-border bg-card p-5 sm:block sm:w-[260px]">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium">模块概览</h3>
+              <Link href="/modules">
+                <Button variant="ghost" size="sm" className="h-auto gap-1 px-0 py-0 text-xs text-brand hover:text-brand">
+                  查看全部
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-2xl font-semibold tracking-tight">{modules.length}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">已启用模块</div>
+              </div>
+              <div>
+                <div className="text-2xl font-semibold tracking-tight">{registry.getEnabled().filter(m => m.category === "productivity").length}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">效率工具</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* 快速访问 */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-muted-foreground">快速访问</h2>
@@ -122,6 +152,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {/* 最近活动 */}
       <section className="flex-1 min-h-0">
         <h2 className="mb-3 text-sm font-medium text-muted-foreground">最近活动</h2>
         <div className="rounded-lg border border-border p-8 text-center">
@@ -133,7 +164,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* 底部一言语录：正文常驻，出处在悬浮时从底部中间浮出 */}
+      {/* 底部一言语录 */}
       {(displayQuote || quoteFrom) && (
         <div className="sticky bottom-0 bg-background pt-6 pb-4 text-center">
           <div className="group relative mx-auto w-fit">

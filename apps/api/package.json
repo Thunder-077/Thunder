@@ -13,6 +13,7 @@
     "@thunder/contracts": "workspace:*",
     "@thunder/database": "workspace:*",
     "@thunder/vault": "workspace:*",
+    "dotenv": "^17.4.2",
     "hono": "^4.7.9",
     "jose": "^6.2.3"
   },

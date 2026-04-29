@@ -26,6 +26,9 @@ importers:
       '@thunder/vault':
         specifier: workspace:*
         version: link:../../modules/vault
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       hono:
         specifier: ^4.7.9
         version: 4.12.15

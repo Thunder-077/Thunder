@@ -87,14 +87,14 @@ function SidebarNavItem({
       className={cn(
         "group/sidebar-item flex h-10 items-center gap-2.5 rounded-lg border border-transparent px-3 text-sm transition-all duration-normal ease-default",
         active
-          ? "border-sidebar-border bg-sidebar-accent text-sidebar-foreground shadow-xs"
+          ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground shadow-xs"
           : "text-sidebar-foreground/72 hover:border-sidebar-border/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
       )}
     >
       <Icon
         className={cn(
           "h-[18px] w-[18px] shrink-0 transition-colors duration-fast ease-default",
-          active ? "text-sidebar-foreground" : "text-sidebar-foreground/62 group-hover/sidebar-item:text-sidebar-foreground/82"
+          active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/62 group-hover/sidebar-item:text-sidebar-foreground/82"
         )}
       />
       <span className={cn("flex-1 truncate", active ? "font-medium" : "font-normal")}>{label}</span>
@@ -148,12 +148,12 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "app-sidebar surface-panel flex h-full w-[var(--sidebar-width)] flex-col overflow-hidden border-r border-sidebar-border text-sidebar-foreground",
+        "app-sidebar surface-panel flex h-full w-[var(--sidebar-width)] flex-col overflow-hidden text-sidebar-foreground",
         className
       )}
     >
       <div className="border-b border-sidebar-border/80 px-3 py-3">
-        <div className="flex items-center gap-3 rounded-xl border border-sidebar-border/80 bg-sidebar-accent/45 px-3 py-2.5">
+        <div className="flex items-center gap-3 bg-sidebar px-3 py-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-sm font-semibold text-primary-foreground shadow-xs">
             T
           </div>
@@ -228,7 +228,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
       </ScrollArea>
 
       <div className="border-t border-sidebar-border/80 p-2.5">
-        <div className="grid grid-cols-3 gap-1.5 rounded-xl border border-sidebar-border/80 bg-sidebar-accent/40 p-1.5">
+        <div className="grid grid-cols-3 gap-1.5 bg-sidebar/70">
           <button
             type="button"
             onClick={() => setCommandPaletteOpen(true)}
