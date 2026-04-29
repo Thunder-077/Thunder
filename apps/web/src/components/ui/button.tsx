@@ -4,24 +4,24 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all duration-normal ease-default outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/40 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-xl border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap shadow-xs transition-all duration-normal ease-default outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         primary:
-          "bg-primary text-primary-foreground focus-visible:border-ring hover:bg-primary/85 shadow-sm",
+          "bg-primary text-primary-foreground focus-visible:border-ring hover:bg-primary/88 hover:shadow-md",
         accent:
-          "bg-brand-subtle text-brand border border-brand/15 focus-visible:border-brand/40 focus-visible:ring-brand/30 hover:bg-brand-subtle/80 hover:border-brand/25",
+          "border-brand/15 bg-brand-subtle text-brand focus-visible:border-brand/40 focus-visible:ring-brand/25 hover:bg-brand-subtle/80 hover:border-brand/25 hover:shadow-md",
         outline:
-          "border-border bg-background focus-visible:border-ring shadow-xs hover:bg-muted hover:text-foreground hover:shadow-sm aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-border bg-background/88 focus-visible:border-ring hover:bg-muted/75 hover:text-foreground hover:shadow-sm aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/22 dark:hover:bg-input/42",
         secondary:
-          "bg-secondary text-secondary-foreground focus-visible:border-ring hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "bg-secondary text-secondary-foreground focus-visible:border-ring hover:bg-secondary/82 hover:shadow-sm aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
-          "focus-visible:border-ring focus-visible:bg-muted/50 hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:focus-visible:bg-muted/10 dark:hover:bg-muted/50",
+          "bg-transparent shadow-none focus-visible:border-ring focus-visible:bg-muted/50 hover:bg-muted/82 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:focus-visible:bg-muted/10 dark:hover:bg-muted/50",
         destructive:
-          "bg-destructive text-destructive-foreground focus-visible:border-destructive/40 focus-visible:ring-destructive/20 hover:bg-destructive/90 dark:focus-visible:ring-destructive/40",
+          "bg-destructive text-destructive-foreground focus-visible:border-destructive/40 focus-visible:ring-destructive/20 hover:bg-destructive/92 hover:shadow-md dark:focus-visible:ring-destructive/40",
         "outline-destructive":
-          "border-destructive/50 bg-background text-destructive focus-visible:border-destructive/60 focus-visible:ring-destructive/20 hover:bg-destructive/5 hover:border-destructive/70 dark:border-destructive/30 dark:hover:bg-destructive/10",
+          "border-destructive/50 bg-background text-destructive focus-visible:border-destructive/60 focus-visible:ring-destructive/20 hover:border-destructive/70 hover:bg-destructive/5 dark:border-destructive/30 dark:hover:bg-destructive/10",
         link:
           "text-primary underline-offset-4 focus-visible:underline hover:underline",
       },

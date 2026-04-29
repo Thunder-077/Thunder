@@ -9,11 +9,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hono/node-server": "^1.14.1",
     "@thunder/contracts": "workspace:*",
     "@thunder/database": "workspace:*",
     "@thunder/vault": "workspace:*",
-    "@hono/node-server": "^1.14.1",
-    "hono": "^4.7.9"
+    "hono": "^4.7.9",
+    "jose": "^6.2.3"
   },
   "devDependencies": {
     "@types/node": "^20",

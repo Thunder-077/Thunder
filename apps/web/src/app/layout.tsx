@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Thunder",
-  description: "个人模块化应用",
+  description: "模块化的个人工作空间应用",
 }
 
 export default function RootLayout({

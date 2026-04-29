@@ -2,41 +2,66 @@
 
 ## 组件定位
 
-`Select` 是 Thunder 项目的通用下拉框组件，用于统一表单选择、筛选切换和设置项选择的交互与视觉。
+- `Select`：用于选择值、筛选条件、设置项。
+- `DropdownMenu`：用于触发操作、展示命令和上下文菜单。
 
-默认规则：**项目中所有下拉框，如无特别指定，默认使用该通用 Select / Dropdown 组件。**
+默认规则：
 
-## 为什么统一
+- 所有“表单选择器”默认使用通用 `Select`。
+- 所有“操作菜单”默认使用通用 `DropdownMenu`。
 
-- 降低不同页面下拉样式和交互不一致的问题
-- 避免弹窗中下拉层被裁切、不可见等重复问题
-- 减少页面私有下拉实现，降低维护成本
-- 统一可访问性与键盘交互（Esc、方向键、Enter）
+## 设计目标
 
-## 默认视觉规范
+- 保持与 Input、Dialog、Card 一致的表层语言。
+- 统一 Portal、层级、阴影、圆角和键盘交互。
+- 解决弹层裁切、样式漂移和局部私有实现的问题。
+- 借鉴 AFFiNE 的 token 分层思路和 Plane 的运行态完整性。
+
+## Select 视觉规范
 
 ### Trigger
 
-- 白底、浅边框、圆角（10px ~ 12px）
-- placeholder 使用浅灰色
-- 右侧统一使用 `ChevronDown`
-- focus 使用项目风格 ring，不使用原生蓝边
-- open 状态轻微背景强调
+- 高度：
+  - `compact`: 32px
+  - `default`: 40px
+- 背景：`bg-background/85`
+- 边框：`border-border/80`
+- 圆角：
+  - `compact`: `rounded-lg`
+  - `default`: `rounded-xl`
+- 焦点：`focus-visible:ring-[3px]` + `ring/28`
+- open 状态：轻微提高背景和阴影
 
-### Content
+### Popup
 
-- 白底浮层，浅边框
-- 圆角 12px
-- 轻阴影
-- 通过 Portal 渲染，避免容器裁切
+- 使用 `surface-panel`
+- 圆角：`rounded-2xl`
+- 边框：`border-panel-border`
+- 阴影：`shadow-lg`
+- 通过 Portal 渲染
+- z-index 使用 `--z-dropdown`
 
 ### Item
 
-- 圆角 8px
-- hover 使用浅灰背景
-- selected 背景略深于 hover
-- 右侧 check 显示当前选中项
-- 支持单行或双行（description）
+- 圆角：`rounded-lg` / `rounded-xl`
+- hover / highlighted：`bg-muted/85`
+- selected：`bg-brand-subtle/75`
+- 右侧 check 指示当前选中项
+- 支持：
+  - 纯文本
+  - 图标 + 文本
+  - 文本 + description
+
+## DropdownMenu 视觉规范
+
+- 使用与 Select 一致的面板风格：
+  - `surface-panel`
+  - `rounded-2xl`
+  - `border-panel-border`
+  - `shadow-lg`
+- Item 保持 `rounded-xl`
+- Label 使用小号大写 section label 风格
+- Separator 使用弱边框色，不使用纯黑纯白分割
 
 ## Option 数据结构
 
@@ -50,44 +75,14 @@ export type SelectOption = {
 }
 ```
 
-- `label` 必填
-- `value` 必填
-- `icon` 可选
-- `description` 可选
-- `disabled` 可选
+## 交互规范
 
-## 三种模式
-
-### 纯文本模式
-
-- 仅 `label`
-- 无 `icon`
-- 无 `description`
-
-### 描述模式
-
-- `label + description`
-- 适合条目类型等需要解释的场景
-- 未提供 `description` 时自动保持单行
-
-### 图标模式
-
-- `icon + label`
-- `description` 可选
-- `icon` 不存在时不预留左侧空位
-
-## 尺寸规范
-
-- `compact`：工具栏/筛选区，约 32px，高密度单行优先
-- `default`：表单场景，约 40px，支持 description 双行内容
-
-## 交互与状态规范
-
-- 默认态、hover、open、selected、disabled、focus-visible、placeholder、error
-- 点击 trigger 展开；再次点击或点击外部关闭
-- Esc 关闭
-- 键盘上下移动选项
-- Enter 选中
+- 点击 trigger 展开；点击外部关闭。
+- `Esc` 关闭。
+- `↑ / ↓` 切换选项。
+- `Enter` 选中。
+- disabled 项不可聚焦、不可点击。
+- error 态通过 `error` 或 `aria-invalid` 驱动。
 
 ## API 设计
 
@@ -111,66 +106,27 @@ type SelectProps = {
 }
 ```
 
-## 使用示例
+## 使用规则
 
-### 1) 纯文本示例
-
-```tsx
-const options = [
-  { value: "all", label: "全部" },
-  { value: "favorites", label: "收藏" },
-  { value: "recent", label: "最近访问" },
-]
-
-<Select
-  value={scope}
-  onChange={setScope}
-  options={options}
-  size="compact"
-  showDescription={false}
-/>
-```
-
-### 2) 描述示例
-
-```tsx
-const options = [
-  { value: "website", label: "网站账号", description: "用于网站、应用或在线服务登录" },
-  { value: "secret", label: "密钥 / 令牌", description: "用于 API Key、Token、密钥等" },
-  { value: "note", label: "普通条目", description: "用于备注或其他信息" },
-]
-
-<Select value={type} onChange={setType} options={options} size="default" showDescription />
-```
-
-### 3) 图标示例
-
-```tsx
-const options = [
-  { value: "website", label: "网站账号", icon: <Globe className="h-4 w-4" /> },
-  { value: "secret", label: "密钥 / 令牌", icon: <KeyRound className="h-4 w-4" /> },
-  { value: "database", label: "数据库", icon: <Database className="h-4 w-4" /> },
-]
-
-<Select value={kind} onChange={setKind} options={options} />
-```
+- 优先使用字符串 `value`。
+- 页面内不要重复实现私有下拉样式。
+- 若通用组件无法满足场景，必须说明原因后再做特殊实现。
+- 不要把 `Select` 用成“更多操作”菜单。
+- 不要把 `DropdownMenu` 用成表单字段。
 
 ## 适用场景
 
-- 表单字段下拉
+- 表单字段选择
 - 顶部筛选器
-- 设置页选项切换
-- Vault 条目类型选择
-- 标签/范围/类型筛选
+- 设置项切换
+- 模块类型选择
+- 标签、范围、状态筛选
 
 ## 不适用场景
 
-- 操作菜单（如“更多操作”按钮）应使用 `DropdownMenu`
-- 复杂异步搜索与远程分页选择（后续单独组件）
-- 多选、树形级联等复杂选择（后续单独组件）
+- 复杂异步搜索
+- 远程分页选择
+- 多选树形级联
+- 大量富内容插槽式选择器
 
-## 注意事项
-
-- 尽量使用字符串值；业务层自行完成字符串到数值/枚举转换
-- 不要在页面内重复实现私有下拉样式
-- 仅当通用组件无法覆盖时才保留特殊实现，并记录原因
+这些场景需要后续单独组件，而不是继续堆在通用 `Select` 上。

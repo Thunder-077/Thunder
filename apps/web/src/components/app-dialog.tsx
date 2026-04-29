@@ -145,7 +145,7 @@ export function AppDialog({
       <DialogContent
         hideClose={true}
         className={cn(
-          "w-[calc(100%-2rem)] max-w-[460px] rounded-[20px] border border-border/70 bg-background p-6 text-foreground shadow-lg",
+          "w-[calc(100%-2rem)] max-w-[460px] rounded-[22px] border border-border/70 bg-background p-6 text-foreground shadow-xl",
           className
         )}
         aria-labelledby={titleId}
@@ -158,31 +158,31 @@ export function AppDialog({
               setSubmitting(false)
               onOpenChange(false)
             }}
-            className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="关闭弹窗"
           >
             <X className="h-4 w-4" />
           </button>
         )}
 
-        <DialogHeader className="gap-3 pr-10">
+        <DialogHeader className="gap-2 pr-10">
           <div className="flex items-start gap-3">
             {showIcon && (
               <div
                 className={cn(
-                  "mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
                   ICON_CONTAINER_CLASS_MAP[type]
                 )}
               >
                 {resolvedIcon}
               </div>
             )}
-            <div className="min-w-0 space-y-1.5">
-              <DialogTitle id={titleId} className="text-[17px] leading-snug">
+            <div className="min-w-0 space-y-1">
+              <DialogTitle id={titleId} className="text-base leading-snug font-semibold">
                 {title}
               </DialogTitle>
               {description && (
-                <DialogDescription id={descriptionId} className="text-sm leading-relaxed text-muted-foreground">
+                <DialogDescription id={descriptionId} className="text-sm leading-snug text-muted-foreground">
                   {description}
                 </DialogDescription>
               )}

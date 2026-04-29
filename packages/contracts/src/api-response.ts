@@ -26,6 +26,8 @@ export type ApiErrorCode =
   | "VAULT_MISSING_VAULT_ID"
   | "VAULT_SAVE_FAILED"
   | "VAULT_CLEAR_FAILED"
+  | "WEATHER_MISSING_LOCATION"
+  | "WEATHER_UPSTREAM_ERROR"
 
 export function apiSuccess<T>(data: T): ApiResponse<T> {
   return { ok: true, data }

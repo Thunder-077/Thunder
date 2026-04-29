@@ -46,7 +46,7 @@ function Select({
 }: SelectProps) {
   const resolvedShowDescription = showDescription ?? size === "default"
   const selectedOption = options.find((option) => option.value === value) ?? null
-  const triggerSizeClass = size === "compact" ? "h-8 px-3 text-xs rounded-lg" : "h-10 px-3.5 text-sm rounded-xl"
+  const triggerSizeClass = size === "compact" ? "h-8 rounded-lg px-3 text-xs" : "h-10 rounded-xl px-3.5 text-sm"
   const itemBaseClass = size === "compact" ? "min-h-8 px-2.5 py-1.5 text-xs" : "min-h-10 px-3 py-2 text-sm"
   const itemGapClass = size === "compact" ? "gap-2" : "gap-2.5"
   const descriptionClass = size === "compact" ? "text-xs leading-4" : "text-xs leading-4"
@@ -64,10 +64,10 @@ function Select({
       <SelectPrimitive.Trigger
         type="button"
         className={cn(
-          "inline-flex w-full items-center justify-between gap-2 border bg-background text-foreground transition-colors outline-none",
-          "border-border/80 hover:border-border hover:bg-muted/[0.35]",
-          "focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:ring-offset-0",
-          "data-[popup-open]:border-border data-[popup-open]:bg-muted/[0.45]",
+          "inline-flex w-full items-center justify-between gap-2 border bg-background/85 text-foreground shadow-xs transition-all duration-normal ease-default outline-none",
+          "border-border/80 hover:border-border hover:bg-muted/[0.45]",
+          "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/28 focus-visible:ring-offset-0",
+          "data-[popup-open]:border-border data-[popup-open]:bg-muted/[0.55] data-[popup-open]:shadow-sm",
           "disabled:cursor-not-allowed disabled:opacity-50",
           triggerSizeClass,
           error && "border-destructive/60 focus-visible:ring-destructive/25",
@@ -96,12 +96,12 @@ function Select({
       <SelectPrimitive.Positioner
         sideOffset={6}
         alignItemWithTrigger={false}
-        className="z-[10000]"
+        className="z-[var(--z-dropdown)]"
       >
         <SelectPrimitive.ScrollUpArrow className="flex h-4 items-center justify-center text-muted-foreground" />
         <SelectPrimitive.Popup
           className={cn(
-            "relative z-[10001] pointer-events-auto min-w-[var(--anchor-width)] overflow-hidden rounded-xl border border-border/70 bg-background p-1 shadow-lg shadow-black/[0.08]",
+            "surface-panel relative z-[calc(var(--z-dropdown)+1)] pointer-events-auto min-w-[var(--anchor-width)] overflow-hidden rounded-2xl border border-panel-border p-1.5 shadow-lg",
             "data-[side=bottom]:animate-in data-[side=bottom]:slide-in-from-top-1.5 data-[side=top]:animate-in data-[side=top]:slide-in-from-bottom-1.5",
             contentClassName
           )}
@@ -113,8 +113,8 @@ function Select({
               disabled={option.disabled}
               className={cn(
                 "relative flex cursor-pointer select-none items-center rounded-lg pr-8 text-foreground outline-none transition-colors",
-                "hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted",
-                "data-[selected]:bg-muted/80",
+                "hover:bg-muted/85 focus:bg-muted/85 data-[highlighted]:bg-muted/85",
+                "data-[selected]:bg-brand-subtle/75",
                 "data-[disabled]:pointer-events-none data-[disabled]:opacity-45",
                 option.icon ? "pl-2.5" : "pl-3",
                 itemBaseClass

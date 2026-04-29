@@ -21,14 +21,19 @@ export function ModuleCard({ module: mod }: ModuleCardProps) {
   const Icon = iconMap[mod.icon] || Puzzle
 
   return (
-    <Card className="group cursor-pointer transition-shadow hover:shadow-md">
+    <Card className="group cursor-pointer">
       <CardContent className="flex items-start gap-3 p-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-subtle text-brand shadow-xs transition-transform duration-normal ease-default group-hover:scale-[1.03]">
           <Icon className="h-4 w-4" />
         </div>
-        <div className="min-w-0">
-          <h3 className="text-sm font-medium">{mod.name}</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-medium tracking-tight">{mod.name}</h3>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              {mod.category}
+            </span>
+          </div>
+          <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
             {mod.description}
           </p>
         </div>

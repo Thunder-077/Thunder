@@ -272,7 +272,7 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
               </div>
               <div>
                 <h1 className="text-xl font-semibold tracking-tight">密码保险箱</h1>
-                <p className="mt-0.5 text-xs text-muted-foreground">安全管理你的账号、密码、令牌与备注</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">安全管理你的账号、密码与令牌</p>
               </div>
             </div>
           </div>

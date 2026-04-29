@@ -24,7 +24,7 @@ export const mockModules: ModuleManifest[] = [
   {
     id: "vault",
     name: "密码保险箱",
-    description: "本地优先的加密密码管理模块",
+    description: "加密密码管理模块",
     icon: "Lock",
     route: "/vault",
     category: "security",

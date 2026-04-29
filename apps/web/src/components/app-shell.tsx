@@ -10,10 +10,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="surface-shell relative flex h-screen overflow-hidden bg-background">
       <AppSidebar
         className={cn(
-          "hidden shrink-0 transition-all duration-200 md:flex"
+          "hidden shrink-0 md:flex"
         )}
       />
 
@@ -21,16 +21,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <SheetContent
           side="left"
           showCloseButton={false}
-          className="w-[240px] border-r border-border p-0 sm:max-w-[240px]"
+          className="w-[240px] border-r border-panel-border bg-transparent p-0 shadow-none sm:max-w-[240px]"
         >
           <AppSidebar onNavigate={() => setMobileSidebarOpen(false)} className="border-r-0" />
         </SheetContent>
       </Sheet>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
         <Topbar onToggleSidebar={() => setMobileSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto flex min-h-full w-full max-w-[var(--content-max-width)] flex-col px-4 py-5 sm:px-6">
+            {children}
+          </div>
         </main>
       </div>
     </div>

@@ -10,7 +10,7 @@
       "background-color": ["/^#/"],
       "border-color": ["/^#/"]
     },
-    "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla"],
+    "alpha-value-notation": null,
     "at-rule-no-unknown": [
       true,
       {
@@ -27,6 +27,10 @@
         ]
       }
     ],
+    "color-function-notation": null,
+    "custom-property-empty-line-before": null,
+    "declaration-empty-line-before": null,
+    "function-disallowed-list": null,
     "function-no-unknown": [
       true,
       {
@@ -40,7 +44,12 @@
           "clamp"
         ]
       }
-    ]
+    ],
+    "hue-degree-notation": null,
+    "import-notation": null,
+    "lightness-notation": null,
+    "property-no-vendor-prefix": null,
+    "value-keyword-case": null
   },
   "ignoreFiles": [
     "node_modules/**/*",

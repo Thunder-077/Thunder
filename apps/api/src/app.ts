@@ -2,6 +2,7 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { logger } from "hono/logger"
 import { vault } from "./modules/vault/vault-routes"
+import { weather } from "./modules/weather/weather-routes"
 
 const app = new Hono()
 
@@ -13,5 +14,6 @@ app.get("/health", (c) => {
 })
 
 app.route("/api/v1/vault", vault)
+app.route("/api/v1/weather", weather)
 
 export default app
