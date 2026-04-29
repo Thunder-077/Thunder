@@ -7,7 +7,6 @@ import { ModuleCard } from "@/components/module-card"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
 import { Button } from "@/components/ui/button"
 
-// 彩虹屁语录库
 const rainbowQuotes = [
   "专注当下，效率加倍。",
   "今天的你，比昨天更强大。",
@@ -30,25 +29,6 @@ interface HitokotoData {
   hitokoto: string
   from?: string
   from_who?: string | null
-}
-
-function getGreeting(): string {
-  const hour = new Date().getHours()
-  if (hour < 6) return "夜深了"
-  if (hour < 12) return "早上好"
-  if (hour < 14) return "中午好"
-  if (hour < 18) return "下午好"
-  return "晚上好"
-}
-
-function getTodayDate(): string {
-  const date = new Date()
-  const weekdays = ["日", "一", "二", "三", "四", "五", "六"]
-  const year = date.getFullYear()
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  const weekday = weekdays[date.getDay()]
-  return `${year}年${month}月${day}日 星期${weekday}`
 }
 
 function getRandomQuote(): string {
@@ -92,46 +72,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* 顶部大标题区域 */}
-      <div className="mb-10">
-        <div className="flex items-start justify-between gap-6">
-          <div className="min-w-0">
-            <p className="text-sm text-muted-foreground">{getTodayDate()}</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-              {getGreeting()}，
-              <br />
-              <span className="text-brand">欢迎回来</span>
-            </h1>
-            <p className="mt-3 text-sm text-muted-foreground">
-              {rainbowQuote || "专注当下，效率加倍。"}
-            </p>
-          </div>
-
-          {/* 右侧概览卡片 */}
-          <div className="hidden shrink-0 rounded-2xl border border-border bg-card p-5 sm:block sm:w-[260px]">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">模块概览</h3>
-              <Link href="/modules">
-                <Button variant="ghost" size="sm" className="h-auto gap-1 px-0 py-0 text-xs text-brand hover:text-brand">
-                  查看全部
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              </Link>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-2xl font-semibold tracking-tight">{modules.length}</div>
-                <div className="mt-0.5 text-xs text-muted-foreground">已启用模块</div>
-              </div>
-              <div>
-                <div className="text-2xl font-semibold tracking-tight">{registry.getEnabled().filter(m => m.category === "productivity").length}</div>
-                <div className="mt-0.5 text-xs text-muted-foreground">效率工具</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* 快速访问 */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">

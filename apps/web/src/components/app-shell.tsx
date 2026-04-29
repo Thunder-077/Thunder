@@ -28,10 +28,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </Sheet>
 
       <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
-        <Topbar onToggleSidebar={() => setMobileSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto flex min-h-full w-full max-w-[var(--content-max-width)] flex-col px-4 py-5 sm:px-6">
-            {children}
+          <div className="mx-auto w-full max-w-[var(--content-max-width)] px-4 sm:px-6">
+            <Topbar onToggleSidebar={() => setMobileSidebarOpen(true)} />
+            <div className="pb-5 pt-1">
+              {children}
+            </div>
           </div>
         </main>
       </div>
