@@ -8,13 +8,6 @@ import { AppShell } from "@/components/app-shell"
 import { BootSplashController } from "@/components/boot-splash-controller"
 import "./globals.css"
 
-async function waitForBootSplashPreview() {
-  // Keep a short delay in development so the boot splash animation is easy to inspect.
-  if (process.env.NODE_ENV === "development") {
-    await new Promise((resolve) => setTimeout(resolve, 1200))
-  }
-}
-
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -41,13 +34,11 @@ export const metadata: Metadata = {
   },
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  await waitForBootSplashPreview()
-
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
@@ -60,6 +51,7 @@ export default async function RootLayout({
           <div className="thunder-splash-mark">
             <span className="thunder-splash-glow" aria-hidden="true" />
             <span className="thunder-splash-flash" aria-hidden="true" />
+            <span className="thunder-splash-idle-flash" aria-hidden="true" />
             <img
               src="/logo.png"
               alt="Thunder"

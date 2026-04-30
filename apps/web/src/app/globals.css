@@ -459,7 +459,8 @@
   }
 
   .thunder-splash-glow,
-  .thunder-splash-flash {
+  .thunder-splash-flash,
+  .thunder-splash-idle-flash {
     @apply pointer-events-none absolute inset-0 rounded-full;
   }
 
@@ -501,6 +502,60 @@
     opacity: 0;
     transform: translateX(-18px) rotate(-12deg) scale(0.98);
     animation: thunder-splash-flash 1.35s linear both;
+  }
+
+  .thunder-splash-idle-flash {
+    z-index: 1;
+    inset: 8px;
+    background:
+      linear-gradient(112deg, transparent 25%, rgba(255, 255, 255, 0.96) 44%, rgba(255, 202, 120, 0.78) 50%, rgba(255, 255, 255, 0.9) 55%, transparent 68%);
+    filter: blur(1.5px);
+    mix-blend-mode: screen;
+    opacity: 0;
+    transform: translateX(-16px) rotate(-12deg) scale(0.98);
+    animation: thunder-splash-idle-flash 3.8s linear 1.55s infinite;
+  }
+
+  .thunder-route-loading .thunder-splash-mark {
+    width: 72px;
+    height: 72px;
+    animation: thunder-splash-idle-mark 2.6s ease-in-out infinite;
+  }
+
+  .thunder-route-loading .thunder-splash-logo {
+    width: 52px;
+    height: 52px;
+    animation: thunder-splash-idle-logo 2.6s ease-in-out infinite;
+  }
+
+  .thunder-route-loading .thunder-splash-glow {
+    animation: thunder-splash-idle-glow 2.6s ease-in-out infinite;
+    opacity: 0.1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .thunder-boot-splash {
+      transition: opacity 120ms ease-out;
+    }
+
+    .thunder-splash-mark,
+    .thunder-splash-logo,
+    .thunder-splash-glow,
+    .thunder-splash-flash,
+    .thunder-splash-idle-flash {
+      animation: none;
+    }
+
+    .thunder-splash-logo {
+      opacity: 1;
+      transform: none;
+    }
+
+    .thunder-splash-glow,
+    .thunder-splash-flash,
+    .thunder-splash-idle-flash {
+      display: none;
+    }
   }
 }
 
@@ -608,6 +663,30 @@
   63% {
     opacity: 0;
     transform: translateX(16px) rotate(-12deg) scale(0.98);
+  }
+}
+
+@keyframes thunder-splash-idle-flash {
+  0%,
+  68%,
+  100% {
+    opacity: 0;
+    transform: translateX(-16px) rotate(-12deg) scale(0.98);
+  }
+
+  72% {
+    opacity: 0.72;
+    transform: translateX(-2px) rotate(-12deg) scale(1.018);
+  }
+
+  76% {
+    opacity: 0.2;
+    transform: translateX(7px) rotate(-12deg) scale(1);
+  }
+
+  81% {
+    opacity: 0;
+    transform: translateX(14px) rotate(-12deg) scale(0.98);
   }
 }
 

@@ -2,8 +2,7 @@
 
 import { useEffect } from "react"
 
-const SPLASH_HIDE_DELAY_MS = 1350
-const SPLASH_REMOVE_DELAY_MS = 260
+const SPLASH_MIN_VISIBLE_MS = 900
 
 export function BootSplashController() {
   useEffect(() => {
@@ -13,17 +12,29 @@ export function BootSplashController() {
       return
     }
 
-    const hideTimer = window.setTimeout(() => {
-      splash.dataset.state = "hidden"
-    }, SPLASH_HIDE_DELAY_MS)
+    let hideTimer: number | undefined
 
-    const removeTimer = window.setTimeout(() => {
-      splash.remove()
-    }, SPLASH_HIDE_DELAY_MS + SPLASH_REMOVE_DELAY_MS)
+    const hideSplash = () => {
+      splash.dataset.state = "hidden"
+    }
+
+    // Keep the brand moment intentional, then let CSS fade the React-owned node out.
+    const scheduleHide = () => {
+      hideTimer = window.setTimeout(hideSplash, SPLASH_MIN_VISIBLE_MS)
+    }
+
+    if (document.readyState === "complete") {
+      scheduleHide()
+    } else {
+      window.addEventListener("load", scheduleHide, { once: true })
+    }
 
     return () => {
-      window.clearTimeout(hideTimer)
-      window.clearTimeout(removeTimer)
+      window.removeEventListener("load", scheduleHide)
+
+      if (hideTimer) {
+        window.clearTimeout(hideTimer)
+      }
     }
   }, [])
 

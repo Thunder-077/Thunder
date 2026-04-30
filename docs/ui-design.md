@@ -135,8 +135,11 @@
 
 - `::selection` 使用品牌色弱高亮。
 - 滚动条统一使用低对比 token，不保留浏览器默认风格。
-- overlay 使用弱遮罩 + blur。
+- overlay 使用弱遮罩，不使用 blur。
 - 骨架屏统一使用 `skeleton-block`。
+- 启动 Splash 使用白底全屏覆盖 + 居中品牌图标，只在应用冷启动时播放一次品牌动效。
+- 路由级 loading 复用品牌图标，但使用更轻的持续呼吸，不重复强闪。
+- Splash 动效必须支持 `prefers-reduced-motion` 降级。
 
 ### 表单态
 

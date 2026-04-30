@@ -1,27 +1,71 @@
 "use client"
 
+import zxcvbn from "zxcvbn"
+
 export type PasswordStrengthLevel = 0 | 1 | 2 | 3 | 4
 
 export interface PasswordStrengthResult {
   level: PasswordStrengthLevel
   label: string
   color: string
+  feedback: string
+  crackTime: string
+}
+
+const strengthLabels: Record<PasswordStrengthLevel, string> = {
+  0: "",
+  1: "弱",
+  2: "一般",
+  3: "较强",
+  4: "很强",
+}
+
+const strengthColors: Record<PasswordStrengthLevel, string> = {
+  0: "",
+  1: "bg-destructive",
+  2: "bg-yellow-500",
+  3: "bg-emerald-400",
+  4: "bg-emerald-500",
+}
+
+function formatCrackTime(seconds: number): string {
+  if (seconds < 1) return "瞬间"
+  if (seconds < 60) return `${Math.round(seconds)}秒`
+  if (seconds < 3600) return `${Math.round(seconds / 60)}分钟`
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}小时`
+  if (seconds < 31536000) return `${Math.round(seconds / 86400)}天`
+  if (seconds < 3153600000) return `${Math.round(seconds / 31536000)}年`
+  return "数千年"
 }
 
 export function getPasswordStrength(password: string): PasswordStrengthResult {
-  if (!password) return { level: 0, label: "", color: "" }
+  if (!password) {
+    return { level: 0, label: "", color: "", feedback: "", crackTime: "" }
+  }
 
-  let score = 0
-  if (password.length >= 6) score++
-  if (password.length >= 10) score++
-  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++
-  if (/[0-9]/.test(password)) score++
-  if (/[^A-Za-z0-9]/.test(password)) score++
+  const result = zxcvbn(password)
+  const level = result.score as PasswordStrengthLevel
 
-  if (score <= 1) return { level: 1, label: "弱", color: "bg-yellow-400" }
-  if (score <= 2) return { level: 2, label: "一般", color: "bg-yellow-500" }
-  if (score <= 3) return { level: 3, label: "较强", color: "bg-emerald-400" }
-  return { level: 4, label: "很强", color: "bg-emerald-500" }
+  // 获取主要建议
+  const warning = result.feedback.warning || ""
+  const suggestions = result.feedback.suggestions
+  let feedback = warning
+  if (!feedback && suggestions.length > 0) {
+    feedback = suggestions[0]
+  }
+  if (!feedback) {
+    feedback = level >= 3 ? "密码强度不错" : "建议增加密码复杂度"
+  }
+
+  const crackTimeSeconds = result.crack_times_seconds.online_no_throttling_10_per_second as number
+
+  return {
+    level,
+    label: strengthLabels[level],
+    color: strengthColors[level],
+    feedback,
+    crackTime: formatCrackTime(crackTimeSeconds),
+  }
 }
 
 interface PasswordStrengthMeterProps {
@@ -29,7 +73,7 @@ interface PasswordStrengthMeterProps {
 }
 
 export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) {
-  const { level, label } = getPasswordStrength(password)
+  const { level, label, feedback, crackTime } = getPasswordStrength(password)
 
   return (
     <div className="space-y-1.5">
@@ -39,22 +83,32 @@ export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) 
             <div
               key={i}
               className={`h-1 flex-1 rounded-full transition-colors ${
-                i < level
-                  ? getPasswordStrength(password).color
-                  : "bg-muted"
+                i < level ? getPasswordStrength(password).color : "bg-muted"
               }`}
             />
           ))}
         </div>
         {password && (
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
             {label}
           </span>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        建议至少 6 位，包含大小写字母、数字与符号
-      </p>
+      {password && (
+        <p className="text-xs text-muted-foreground">
+          {feedback}
+          {crackTime && (
+            <span className="ml-1 text-muted-foreground/70">
+              (预计破解时间: {crackTime})
+            </span>
+          )}
+        </p>
+      )}
+      {!password && (
+        <p className="text-xs text-muted-foreground">
+          建议至少 8 位，避免使用常见单词和简单模式
+        </p>
+      )}
     </div>
   )
 }
