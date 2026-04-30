@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[var(--content-max-width)] px-4 sm:px-6">
+          <div className="w-full px-4 sm:px-6 xl:px-8">
             <Topbar onToggleSidebar={() => setMobileSidebarOpen(true)} />
             <div className="pb-5 pt-1">
               {children}
