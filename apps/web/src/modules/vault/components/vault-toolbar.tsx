@@ -103,7 +103,7 @@ export function VaultToolbar(props: VaultToolbarProps) {
       </div>
 
       <div className="flex items-center gap-1.5">
-        <Button size="sm" className="h-8 gap-1 px-3 text-xs bg-primary text-primary-foreground hover:bg-primary/90" onClick={onAddItem}>
+        <Button variant="primary" size="sm" onClick={onAddItem}>
           <Plus className="h-3.5 w-3.5" />
           新建条目
         </Button>

@@ -22,6 +22,11 @@ function PasswordInput({
 
   const value = typeof props.value === "string" ? props.value : ""
 
+  // Keep the text cursor inside the input when users toggle visibility or copy.
+  const handleAccessoryMouseDown = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+  }
+
   const handleCopy = async () => {
     if (!value) return
     if (onCopyValue) {
@@ -46,9 +51,10 @@ function PasswordInput({
         variant="ghost"
         size="icon"
         className={cn(
-          "absolute top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg p-0 text-muted-foreground/80 hover:bg-transparent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/8",
+          "absolute top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg p-0 text-muted-foreground/80 hover:bg-transparent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/8 active:translate-y-0 active:scale-100",
           copyable ? "right-9" : "right-2"
         )}
+        onMouseDown={handleAccessoryMouseDown}
         onClick={() => setShowPassword(!showPassword)}
         aria-label={showPassword ? "隐藏密码" : "显示密码"}
       >
@@ -63,7 +69,8 @@ function PasswordInput({
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg p-0 text-muted-foreground/80 hover:bg-transparent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/8"
+          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg p-0 text-muted-foreground/80 hover:bg-transparent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/8 active:translate-y-0 active:scale-100"
+          onMouseDown={handleAccessoryMouseDown}
           onClick={handleCopy}
           aria-label="复制密码"
         >

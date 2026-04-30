@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Menu, Bell } from "lucide-react"
+import { useMemo } from "react"
+import { usePathname } from "next/navigation"
+import { Bell, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { WeatherWidget } from "@/components/weather-widget"
 
@@ -16,7 +17,7 @@ const rainbowQuotes = [
   "慢慢来，好戏都在烟火里。",
   "星光不问赶路人，时光不负有心人。",
   "愿你眼中有光，心中有爱。",
-  "今天的咖啡格外香，因为你很棒的。",
+  "今天的咖啡格外香，因为你很棒。",
   "万事开头难，但你已经开始了。",
   "你的坚持，终将美好。",
   "生活明朗，万物可爱。",
@@ -29,10 +30,23 @@ interface TopbarProps {
 
 function getGreeting(): string {
   const hour = new Date().getHours()
-  if (hour < 6) return "夜深了"
-  if (hour < 12) return "早上好"
-  if (hour < 14) return "中午好"
-  if (hour < 18) return "下午好"
+
+  if (hour < 6) {
+    return "夜深了"
+  }
+
+  if (hour < 12) {
+    return "上午好"
+  }
+
+  if (hour < 14) {
+    return "中午好"
+  }
+
+  if (hour < 18) {
+    return "下午好"
+  }
+
   return "晚上好"
 }
 
@@ -43,50 +57,140 @@ function getTodayDate(): string {
   const month = date.getMonth() + 1
   const day = date.getDate()
   const weekday = weekdays[date.getDay()]
+
   return `${year}年${month}月${day}日 星期${weekday}`
 }
 
-function getRandomQuote(): string {
-  const index = Math.floor(Math.random() * rainbowQuotes.length)
+function getDailyQuote(): string {
+  const date = new Date()
+  const seed = date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate()
+  const index = seed % rainbowQuotes.length
+
   return rainbowQuotes[index]
 }
 
-export function Topbar({ onToggleSidebar }: TopbarProps) {
-  const [greeting, setGreeting] = useState("")
-  const [todayDate, setTodayDate] = useState("")
-  const [quote, setQuote] = useState("")
+function NotificationButton() {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="
+    h-8 w-8 rounded-full
+    text-muted-foreground/60
+    transition-all duration-150
+    hover:bg-muted/70 hover:text-foreground
+    active:scale-95
+  "
+      aria-label="通知"
+    >
+      <Bell className="size-5" strokeWidth={2.2} />
+    </Button>
+  )
+}
 
-  useEffect(() => {
-    setGreeting(getGreeting())
-    setTodayDate(getTodayDate())
-    setQuote(getRandomQuote())
-  }, [])
+function UserAvatar() {
+  return (
+    <button
+      type="button"
+      className="
+        flex h-8 w-8 items-center justify-center rounded-full
+        bg-brand text-[16px] font-semibold text-primary-foreground
+        shadow-sm shadow-brand/20
+        transition-transform duration-150
+        hover:scale-[1.04]
+        active:scale-95
+      "
+      aria-label="用户"
+    >
+      U
+    </button>
+  )
+}
+
+function TopbarActions({ isHomePage }: { isHomePage: boolean }) {
+  return (
+    <div
+      className={
+        isHomePage
+          ? "flex shrink-0 items-center gap-3 pt-1"
+          : "flex shrink-0 items-center gap-3"
+      }
+    >
+      <WeatherWidget />
+
+      <div className="h-6 w-px bg-border" />
+
+      <NotificationButton />
+
+      <UserAvatar />
+    </div>
+  )
+}
+
+export function Topbar({ onToggleSidebar }: TopbarProps) {
+  const pathname = usePathname()
+  const isHomePage = pathname === "/"
+
+  const homeGreeting = useMemo(() => {
+    if (!isHomePage) {
+      return {
+        greeting: "",
+        todayDate: "",
+        quote: "",
+      }
+    }
+
+    return {
+      greeting: getGreeting(),
+      todayDate: getTodayDate(),
+      quote: getDailyQuote(),
+    }
+  }, [isHomePage])
 
   return (
-    <div className="flex items-start justify-between gap-6 py-4">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm text-muted-foreground">{todayDate}</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-          {greeting}，
-          <br />
-          <span className="text-brand">欢迎回来</span>
-        </h1>
-        <p className="mt-3 text-sm text-muted-foreground">{quote || "专注当下，效率加倍。"}</p>
-      </div>
+    <div
+      className={
+        isHomePage
+          ? "flex items-start justify-between gap-6 py-4"
+          : "flex items-center justify-between gap-3 py-3"
+      }
+    >
+      {isHomePage ? (
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-muted-foreground">
+            {homeGreeting.todayDate}
+          </p>
 
-      <div className="flex shrink-0 items-center gap-2 pt-1">
-        <WeatherWidget />
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="通知">
-          <Bell className="h-[16px] w-[16px]" />
-        </Button>
-        <button
-          type="button"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-[11px] font-semibold text-primary-foreground shadow-xs hover:opacity-90 transition-opacity"
-          aria-label="用户"
-        >
-          U
-        </button>
-      </div>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+            {homeGreeting.greeting}，
+            <br />
+            <span className="text-brand">欢迎回来</span>
+          </h1>
+
+          <div className="mt-5 flex items-center gap-4">
+            <span className="h-[3px] w-10 rounded-full bg-brand shrink-0" />
+            <p className="text-sm text-muted-foreground">
+              {homeGreeting.quote || "专注当下，效率加倍。"}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center">
+          {onToggleSidebar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 md:hidden"
+              onClick={onToggleSidebar}
+              aria-label="打开导航"
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      )}
+
+      <TopbarActions isHomePage={isHomePage} />
     </div>
   )
 }

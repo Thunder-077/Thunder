@@ -52,15 +52,8 @@ const categoryOrder: ModuleCategory[] = [
   "dashboard",
 ]
 
-const categoryDotClassMap: Record<ModuleCategory, string> = {
-  productivity: "bg-info/75",
-  security: "bg-success/75",
-  ai: "bg-brand/70",
-  tools: "bg-warning/75",
-  other: "bg-muted-foreground/45",
-  notes: "bg-foreground/28",
-  dashboard: "bg-primary/55",
-}
+const sidebarToolButtonClass =
+  "flex h-11 items-center justify-center rounded-lg text-sidebar-foreground/64 outline-none transition-all duration-normal ease-default hover:-translate-y-0.5 hover:scale-[1.03] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset active:translate-y-0"
 
 interface SidebarProps {
   className?: string
@@ -85,16 +78,16 @@ function SidebarNavItem({
       href={href}
       onClick={onNavigate}
       className={cn(
-        "group/sidebar-item flex h-10 items-center gap-2.5 rounded-lg border border-transparent px-3 text-sm transition-all duration-normal ease-default",
+        "group/sidebar-item flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
         active
-          ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground shadow-xs"
-          : "text-sidebar-foreground/72 hover:border-sidebar-border/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
+          ? "bg-muted/70 text-foreground"
+          : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       )}
     >
       <Icon
         className={cn(
-          "h-[18px] w-[18px] shrink-0 transition-colors duration-fast ease-default",
-          active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/62 group-hover/sidebar-item:text-sidebar-foreground/82"
+          "h-[14px] w-[14px] shrink-0 transition-colors",
+          active ? "text-foreground" : "text-muted-foreground group-hover/sidebar-item:text-sidebar-accent-foreground"
         )}
       />
       <span className={cn("flex-1 truncate", active ? "font-medium" : "font-normal")}>{label}</span>
@@ -154,18 +147,16 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
     >
       <div className="border-b border-sidebar-border/80 px-3 py-3">
         <div className="flex items-center gap-3 bg-sidebar px-3 py-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-sm font-semibold text-primary-foreground shadow-xs">
-            T
-          </div>
+          <img src="/logo-sidebar.png" alt="Thunder" className="h-8 w-8 shrink-0 object-contain" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-semibold tracking-tight">Thunder</div>
           </div>
         </div>
       </div>
 
-      <ScrollArea className="flex-1 px-2.5 py-3">
-        <div className="space-y-3">
-          <nav className="flex flex-col gap-1">
+      <ScrollArea className="flex-1 px-2 py-3">
+        <div className="space-y-3 px-1">
+          <nav className="flex flex-col gap-0.5">
             {navItems.map((item) => {
               const isActive = pathname === item.href
               return (
@@ -191,17 +182,16 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
                     <section key={category} className="space-y-1">
                       <button
                         type="button"
-                        className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs text-sidebar-foreground/58 transition-colors duration-fast ease-default hover:bg-sidebar-accent/55 hover:text-sidebar-foreground/80"
+                        className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs text-sidebar-foreground/58 outline-none transition-all duration-normal ease-default hover:scale-[1.03] hover:bg-sidebar-group-hover hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset"
                         onClick={() => toggleGroup(category)}
                       >
-                        <div className={cn("h-1.5 w-1.5 shrink-0 rounded-full", categoryDotClassMap[category])} />
-                        <span className="flex-1 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                        <span className="flex-1 text-left text-[13px] font-semibold">
                           {categoryLabels[category]}
                         </span>
                         {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                       </button>
                       {expanded && (
-                        <nav className="flex flex-col gap-1">
+                        <nav className="flex flex-col gap-0.5">
                           {categoryModules.map((mod) => {
                             const Icon = iconMap[mod.icon] ?? LayoutGrid
                             const isActive = pathname === mod.route || pathname.startsWith(mod.route + "/")
@@ -232,7 +222,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
           <button
             type="button"
             onClick={() => setCommandPaletteOpen(true)}
-            className="flex h-11 items-center justify-center rounded-lg text-sidebar-foreground/64 transition-all duration-fast ease-default hover:bg-sidebar hover:text-sidebar-foreground"
+            className={sidebarToolButtonClass}
             aria-label="全局命令"
           >
             <div className="flex items-center gap-1.5">
@@ -243,7 +233,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
           <button
             type="button"
             onClick={() => setTheme(isDark ? "light" : "dark")}
-            className="flex h-11 items-center justify-center rounded-lg text-sidebar-foreground/64 transition-all duration-fast ease-default hover:bg-sidebar hover:text-sidebar-foreground"
+            className={sidebarToolButtonClass}
             aria-label="切换主题"
           >
             {isDark ? <Moon className="h-[18px] w-[18px]" /> : <Sun className="h-[18px] w-[18px]" />}
@@ -253,10 +243,10 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
             href="/settings"
             onClick={onNavigate}
             className={cn(
-              "flex h-11 items-center justify-center rounded-lg transition-all duration-fast ease-default",
+              sidebarToolButtonClass,
               pathname === "/settings"
-                ? "bg-sidebar text-sidebar-foreground shadow-xs"
-                : "text-sidebar-foreground/64 hover:bg-sidebar hover:text-sidebar-foreground"
+                ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                : ""
             )}
             aria-label="设置"
           >

@@ -1,13 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Shield, Info, Lock } from "lucide-react"
+import { Shield, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { PasswordStrengthMeter } from "./password-strength-meter"
+import { Callout } from "@/components/ui/callout"
 import { useVault } from "../state"
 
 export function VaultSetupPage() {
@@ -168,18 +169,14 @@ return (
       </Card>
     </form>
 
-    <div className="mt-5 rounded-xl bg-muted/50 px-5 py-4">
-      <div className="flex items-start gap-2.5">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground/70">安全提示</p>
-          <ul className="space-y-1 text-xs text-muted-foreground/60 leading-relaxed list-disc pl-5">
-            <li>主密码仅用于本地解锁，不会明文存储。</li>
-            <li>请妥善保管主密码，忘记后无法为你恢复。</li>
-            <li>创建后可在密码保险箱中管理网站账号、密钥和备注。</li>
-          </ul>
-        </div>
-      </div>
+    <div className="mt-5">
+      <Callout variant="info" title="安全提示" className="border-border/60">
+        <ul className="text-xs text-muted-foreground space-y-1.5">
+          <li>主密码仅用于本地解锁，不会明文存储。</li>
+          <li>请妥善保管主密码，忘记后无法为你恢复。</li>
+          <li>创建后可在密码保险箱中管理网站账号、密钥和备注。</li>
+        </ul>
+      </Callout>
     </div>
   </div>
 )
