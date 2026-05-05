@@ -15,20 +15,32 @@ function createPrismaClient(connectionString?: string): PrismaClient {
   return new PrismaClient({ adapter })
 }
 
-const connectionString = process.env.DATABASE_URL
+function resolveConnectionString(): string | undefined {
+  return process.env.DATABASE_URL
+}
 
-export const prisma =
-  globalForPrisma.prisma && globalForPrisma.prismaConnectionString === connectionString
-    ? globalForPrisma.prisma
-    : createPrismaClient(connectionString)
+export function getPrismaClient(): PrismaClient {
+  const connectionString = resolveConnectionString()
+  if (globalForPrisma.prisma && globalForPrisma.prismaConnectionString === connectionString) {
+    return globalForPrisma.prisma
+  }
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma
+  const client = createPrismaClient(connectionString)
+  globalForPrisma.prisma = client
   globalForPrisma.prismaConnectionString = connectionString
+  return client
 }
 
 export function createScopedPrismaClient(connectionString: string): PrismaClient {
   return createPrismaClient(connectionString)
 }
+
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getPrismaClient()
+    const value = Reflect.get(client, prop, receiver)
+    return typeof value === "function" ? value.bind(client) : value
+  },
+})
 
 export default prisma
