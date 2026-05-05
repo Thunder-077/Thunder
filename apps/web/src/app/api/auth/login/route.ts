@@ -34,9 +34,12 @@ export async function POST(request: Request) {
   const data = await upstream.json().catch(() => null) as AuthLoginResponse | null
 
   if (!upstream.ok || !data?.ok || !data.data?.username) {
+    const message = upstream.status === 404
+      ? "登录服务不可用"
+      : data?.error?.message || "账号或密码不正确"
     return NextResponse.json(
-      { ok: false, message: data?.error?.message || "账号或密码不正确" },
-      { status: upstream.status || 401 }
+      { ok: false, message },
+      { status: upstream.status === 404 ? 502 : upstream.status || 401 }
     )
   }
 
