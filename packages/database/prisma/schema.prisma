@@ -59,6 +59,17 @@ model EmbyPlaylistRecord {
   @@map("emby_playlist")
 }
 
+model EmbyWatchCacheRecord {
+  slug        String @id
+  feedJson    String @map("feed_json")
+  count       Int
+  generatedAt String @map("generated_at")
+  createdAt   String @map("created_at")
+  updatedAt   String @map("updated_at")
+
+  @@map("emby_watch_cache")
+}
+
 model VaultMetadata {
   id                   String  @id
   kdfJson              String  @map("kdf_json")

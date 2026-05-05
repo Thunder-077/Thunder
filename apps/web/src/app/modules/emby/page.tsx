@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select"
 
 const embyClient = new EmbyClient()
 const inputClassName = "placeholder:text-muted-foreground/55"
+const PREVIEW_DISPLAY_LIMIT = 100
 
 function toDisplayError(error: unknown, fallback: string): string {
   if (error instanceof ThunderApiError && error.message.trim()) {
@@ -168,6 +169,7 @@ export default function EmbyModulePage() {
 
   const selectedPlaylist = config.playlists.find((playlist) => playlist.slug === selectedSlug) ?? null
   const selectedPreview = selectedPlaylist ? (previewMap[selectedPlaylist.slug] ?? null) : null
+  const visiblePreviewVideos = selectedPreview?.videos.slice(0, PREVIEW_DISPLAY_LIMIT) ?? []
   const isSelectedPreviewCollapsed = selectedPlaylist
     ? (collapsedPreviewMap[selectedPlaylist.slug] ?? false)
     : false
@@ -325,9 +327,10 @@ export default function EmbyModulePage() {
                         id="emby-limit"
                         type="number"
                         min={1}
-                        max={100}
+                        max={5000}
                         value={selectedPlaylist.limit}
                         onChange={(event) => updateSelectedPlaylist({ limit: Number(event.target.value) })}
+                        placeholder="最高 5000"
                         className={inputClassName}
                       />
                     </div>
@@ -340,6 +343,19 @@ export default function EmbyModulePage() {
                         max={3650}
                         value={selectedPlaylist.releaseWindowDays}
                         onChange={(event) => updateSelectedPlaylist({ releaseWindowDays: Number(event.target.value) })}
+                        className={inputClassName}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="emby-point" className="text-sm font-medium text-foreground">订阅所需胡萝卜</label>
+                      <Input
+                        id="emby-point"
+                        type="number"
+                        min={0}
+                        max={999999}
+                        value={selectedPlaylist.point}
+                        onChange={(event) => updateSelectedPlaylist({ point: Number(event.target.value) })}
+                        placeholder="0 表示免费订阅"
                         className={inputClassName}
                       />
                     </div>
@@ -450,8 +466,13 @@ export default function EmbyModulePage() {
                   </div>
                   {selectedPreview && !isSelectedPreviewCollapsed ? (
                     <div className="space-y-4">
+                      {selectedPreview.videos.length > PREVIEW_DISPLAY_LIMIT && (
+                        <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                          当前片单共生成 {selectedPreview.videos.length} 条，页面预览仅展示前 {PREVIEW_DISPLAY_LIMIT} 条，Emos 动态接口会读取完整缓存。
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                        {selectedPreview.videos.map((video) => (
+                        {visiblePreviewVideos.map((video) => (
                           <div key={`${video.tmdbType}-${video.tmdbId}`} className="flex gap-3 overflow-hidden rounded-xl border border-border/70 bg-background p-2 shadow-xs">
                             <div className="aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-lg bg-muted/50">
                               {video.posterUrl ? (
@@ -484,7 +505,7 @@ export default function EmbyModulePage() {
                           name: selectedPreview.feed.name,
                           cover: selectedPreview.feed.cover,
                           updated_at: selectedPreview.feed.updatedAt,
-                          videos: selectedPreview.feed.videos.map((video) => ({
+                          videos: selectedPreview.feed.videos.slice(0, PREVIEW_DISPLAY_LIMIT).map((video) => ({
                             tmdb_id: video.tmdbId,
                             tmdb_type: video.tmdbType,
                             title: video.title,

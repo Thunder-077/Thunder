@@ -1,4 +1,4 @@
-import type { EmbyConfig, IEmbyRepository } from "@thunder/emby"
+import type { EmbyConfig, EmbyDynamicWatchFeed, EmbyWatchCache, IEmbyRepository } from "@thunder/emby"
 import { prisma } from "@thunder/database"
 import type { EmbyManagedPlaylist, EmbyPlaylistSlug } from "@thunder/emby"
 
@@ -194,5 +194,44 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
     }
 
     return (await this.getConfig()) ?? getConfigFromEnv()
+  }
+
+  async getWatchCache(slug: EmbyPlaylistSlug): Promise<EmbyWatchCache | null> {
+    const record = await prisma.embyWatchCacheRecord.findUnique({ where: { slug } })
+    if (!record) {
+      return null
+    }
+
+    try {
+      return {
+        feed: JSON.parse(record.feedJson) as EmbyDynamicWatchFeed,
+        generatedAt: record.generatedAt,
+        count: record.count,
+      }
+    } catch {
+      return null
+    }
+  }
+
+  async saveWatchCache(slug: EmbyPlaylistSlug, feed: EmbyDynamicWatchFeed): Promise<void> {
+    const updatedAt = now()
+
+    await prisma.embyWatchCacheRecord.upsert({
+      where: { slug },
+      create: {
+        slug,
+        feedJson: JSON.stringify(feed),
+        count: feed.videos.length,
+        generatedAt: feed.updatedAt,
+        createdAt: updatedAt,
+        updatedAt,
+      },
+      update: {
+        feedJson: JSON.stringify(feed),
+        count: feed.videos.length,
+        generatedAt: feed.updatedAt,
+        updatedAt,
+      },
+    })
   }
 }

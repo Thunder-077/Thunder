@@ -48,6 +48,12 @@ interface TmdbDiscoverResponse {
   results: TmdbDiscoverItem[]
 }
 
+const TMDB_DISCOVER_PAGE_SIZE = 20
+const MAX_PLAYLIST_LIMIT = 5000
+const TMDB_DISCOVER_MAX_PAGE = 500
+const TMDB_DISCOVER_PAGE_BATCH_SIZE = 5
+const WATCH_CACHE_TTL_MS = 6 * 60 * 60 * 1000
+
 interface EmosWatchListItem {
   id: number
   name: string
@@ -61,6 +67,49 @@ function formatDateTime(date = new Date()): string {
   const minutes = `${date.getMinutes()}`.padStart(2, "0")
   const seconds = `${date.getSeconds()}`.padStart(2, "0")
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
+function parseDateTime(value: string): number {
+  const normalized = value.includes("T") ? value : value.replace(" ", "T")
+  const timestamp = new Date(normalized).getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function isWatchCacheFresh(generatedAt: string): boolean {
+  const timestamp = parseDateTime(generatedAt)
+  return timestamp > 0 && Date.now() - timestamp < WATCH_CACHE_TTL_MS
+}
+
+function refreshWatchCacheInBackground(
+  context: {
+    executionCtx?: {
+      waitUntil?: (promise: Promise<unknown>) => void
+    }
+  },
+  config: EmbyConfig,
+  playlist: EmbyManagedPlaylist
+) {
+  const refreshTask = generatePlaylistFeed(config, playlist)
+    .then((feed) => repository.saveWatchCache(playlist.slug, feed))
+    .catch((error) => {
+      console.error("[emby-server] background cache refresh failed", {
+        slug: playlist.slug,
+        message: getErrorMessage(error, "unknown error"),
+      })
+    })
+
+  let waitUntil: ((promise: Promise<unknown>) => void) | undefined
+  try {
+    waitUntil = context.executionCtx?.waitUntil
+  } catch {
+    waitUntil = undefined
+  }
+
+  if (waitUntil) {
+    waitUntil(refreshTask)
+  } else {
+    void refreshTask
+  }
 }
 
 function daysAgo(days: number): string {
@@ -107,6 +156,51 @@ async function fetchTmdbDiscover(
 
   const data = await res.json() as TmdbDiscoverResponse
   return data.results ?? []
+}
+
+async function fetchTmdbDiscoverPages(
+  apiKey: string,
+  mediaType: EmbyTmdbType,
+  searchParams: URLSearchParams,
+  limit: number,
+  maxPages = Math.ceil(limit / TMDB_DISCOVER_PAGE_SIZE)
+): Promise<TmdbDiscoverItem[]> {
+  const pageCount = Math.min(TMDB_DISCOVER_MAX_PAGE, Math.max(1, maxPages))
+  const items: TmdbDiscoverItem[] = []
+
+  for (let page = 1; page <= pageCount && items.length < limit; page += TMDB_DISCOVER_PAGE_BATCH_SIZE) {
+    const pages = Array.from(
+      { length: Math.min(TMDB_DISCOVER_PAGE_BATCH_SIZE, pageCount - page + 1) },
+      (_item, index) => page + index
+    )
+    const results = await Promise.all(pages.map((currentPage) => {
+      const params = new URLSearchParams(searchParams)
+      params.set("page", String(currentPage))
+      return fetchTmdbDiscover(apiKey, mediaType, params)
+    }))
+
+    items.push(...results.flat())
+  }
+
+  return items.slice(0, limit)
+}
+
+function resolvePlaylistLimit(limit: number): number {
+  return Math.min(MAX_PLAYLIST_LIMIT, Math.max(limit, 10))
+}
+
+function toExternalFeed(feed: EmbyDynamicWatchFeed) {
+  return {
+    name: feed.name,
+    cover: feed.cover,
+    updated_at: feed.updatedAt,
+    videos: feed.videos.map((video) => ({
+      tmdb_id: video.tmdbId,
+      tmdb_type: video.tmdbType,
+      title: video.title,
+      sort: video.sort,
+    })),
+  }
 }
 
 function toPosterUrl(path: string | null | undefined): string | null {
@@ -164,7 +258,7 @@ async function generatePlaylistFeed(
     throw new Error("TMDB API key is missing")
   }
 
-  const limit = Math.max(playlist.limit, 10)
+  const limit = resolvePlaylistLimit(playlist.limit)
   const common = new URLSearchParams({
     language: "zh-CN",
     include_adult: "false",
@@ -176,11 +270,11 @@ async function generatePlaylistFeed(
     common.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("with_origin_country", "CN")
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscover(apiKey, "tv", common)
+    const items = await fetchTmdbDiscoverPages(apiKey, "tv", common, limit)
     return toFeed(
       config,
       playlist,
-      items.slice(0, limit).map((item) => ({
+      items.map((item) => ({
         id: item.id,
         type: "tv",
         title: item.name ?? "",
@@ -192,11 +286,11 @@ async function generatePlaylistFeed(
     common.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("with_origin_country", "CN")
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscover(apiKey, "movie", common)
+    const items = await fetchTmdbDiscoverPages(apiKey, "movie", common, limit)
     return toFeed(
       config,
       playlist,
-      items.slice(0, limit).map((item) => ({
+      items.map((item) => ({
         id: item.id,
         type: "movie",
         title: item.title ?? "",
@@ -207,7 +301,7 @@ async function generatePlaylistFeed(
   if (playlist.slug === "foreign-tv") {
     common.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscover(apiKey, "tv", common)
+    const items = await fetchTmdbDiscoverPages(apiKey, "tv", common, limit * 2)
     const filtered = items
       .filter((item) => !(item.origin_country ?? []).includes("CN"))
       .slice(0, limit)
@@ -222,7 +316,7 @@ async function generatePlaylistFeed(
   if (playlist.slug === "foreign-movie") {
     common.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscover(apiKey, "movie", common)
+    const items = await fetchTmdbDiscoverPages(apiKey, "movie", common, limit * 2)
     return toFeed(
       config,
       playlist,
@@ -246,8 +340,8 @@ async function generatePlaylistFeed(
   animeMovieParams.set("with_genres", "16")
 
   const [tvItems, movieItems] = await Promise.all([
-    fetchTmdbDiscover(apiKey, "tv", animeTvParams),
-    fetchTmdbDiscover(apiKey, "movie", animeMovieParams),
+    fetchTmdbDiscoverPages(apiKey, "tv", animeTvParams, Math.ceil(limit / 2)),
+    fetchTmdbDiscoverPages(apiKey, "movie", animeMovieParams, Math.ceil(limit / 2)),
   ])
 
   const merged = dedupeItems([
@@ -275,7 +369,7 @@ async function generatePlaylistPreview(
     throw new Error("TMDB API key is missing")
   }
 
-  const limit = Math.max(playlist.limit, 10)
+  const limit = resolvePlaylistLimit(playlist.limit)
   const common = new URLSearchParams({
     language: "zh-CN",
     include_adult: "false",
@@ -289,8 +383,8 @@ async function generatePlaylistPreview(
     common.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("with_origin_country", "CN")
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscover(apiKey, "tv", common)
-    previewVideos = items.slice(0, limit).map((item, index) => ({
+    const items = await fetchTmdbDiscoverPages(apiKey, "tv", common, limit)
+    previewVideos = items.map((item, index) => ({
       tmdbId: item.id,
       tmdbType: "tv",
       title: item.name ?? "",
@@ -301,8 +395,8 @@ async function generatePlaylistPreview(
     common.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("with_origin_country", "CN")
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscover(apiKey, "movie", common)
-    previewVideos = items.slice(0, limit).map((item, index) => ({
+    const items = await fetchTmdbDiscoverPages(apiKey, "movie", common, limit)
+    previewVideos = items.map((item, index) => ({
       tmdbId: item.id,
       tmdbType: "movie",
       title: item.title ?? "",
@@ -312,7 +406,7 @@ async function generatePlaylistPreview(
   } else if (playlist.slug === "foreign-tv") {
     common.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscover(apiKey, "tv", common)
+    const items = await fetchTmdbDiscoverPages(apiKey, "tv", common, limit * 2)
     previewVideos = items
       .filter((item) => !(item.origin_country ?? []).includes("CN"))
       .slice(0, limit)
@@ -326,7 +420,7 @@ async function generatePlaylistPreview(
   } else if (playlist.slug === "foreign-movie") {
     common.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscover(apiKey, "movie", common)
+    const items = await fetchTmdbDiscoverPages(apiKey, "movie", common, limit * 2)
     previewVideos = items
       .filter((item) => item.original_language !== "zh")
       .slice(0, limit)
@@ -347,8 +441,8 @@ async function generatePlaylistPreview(
     animeMovieParams.set("with_genres", "16")
 
     const [tvItems, movieItems] = await Promise.all([
-      fetchTmdbDiscover(apiKey, "tv", animeTvParams),
-      fetchTmdbDiscover(apiKey, "movie", animeMovieParams),
+      fetchTmdbDiscoverPages(apiKey, "tv", animeTvParams, Math.ceil(limit / 2)),
+      fetchTmdbDiscoverPages(apiKey, "movie", animeMovieParams, Math.ceil(limit / 2)),
     ])
 
     previewVideos = dedupePreviewItems([
@@ -428,6 +522,7 @@ async function syncPlaylistToEmos(
   playlist: EmbyManagedPlaylist
 ): Promise<EmbySyncResult> {
   const feed = await generatePlaylistFeed(config, playlist)
+  await repository.saveWatchCache(playlist.slug, feed)
   const watchId = playlist.remoteWatchId
 
   const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
@@ -507,6 +602,7 @@ emby.get("/playlists/:slug/preview", async (c) => {
     }
 
     const preview = await generatePlaylistPreview(config, playlist)
+    await repository.saveWatchCache(slug, preview.feed)
     return c.json(apiSuccess({ preview }))
   } catch (error) {
     console.error("[emby-api] GET /playlists/:slug/preview failed", error)
@@ -563,18 +659,18 @@ serverEmby.get("/watch/:slug", async (c) => {
       return c.json({ message: "playlist not configured" }, 404)
     }
 
+    const cached = await repository.getWatchCache(slug)
+    if (cached) {
+      if (!isWatchCacheFresh(cached.generatedAt)) {
+        refreshWatchCacheInBackground(c, config, playlist)
+      }
+
+      return c.json(toExternalFeed(cached.feed))
+    }
+
     const feed = await generatePlaylistFeed(config, playlist)
-    return c.json({
-      name: feed.name,
-      cover: feed.cover,
-      updated_at: feed.updatedAt,
-      videos: feed.videos.map((video) => ({
-        tmdb_id: video.tmdbId,
-        tmdb_type: video.tmdbType,
-        title: video.title,
-        sort: video.sort,
-      })),
-    })
+    await repository.saveWatchCache(slug, feed)
+    return c.json(toExternalFeed(feed))
   } catch (error) {
     console.error("[emby-server] GET /watch/:slug failed", error)
     return c.json({ message: "failed to generate playlist" }, 500)

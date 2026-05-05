@@ -52,10 +52,12 @@ export async function proxyToApi(
 ): Promise<Response> {
   const method = request.method.toUpperCase()
   const upstreamUrl = createUpstreamUrl(request, prefix, segments)
+  const body = method === "GET" || method === "HEAD" ? undefined : request.body
   const upstream = await fetch(upstreamUrl, {
     method,
     headers: createForwardHeaders(request),
-    body: method === "GET" || method === "HEAD" ? undefined : request.body,
+    body,
+    ...(body ? { duplex: "half" as const } : {}),
     redirect: "manual",
   }).catch((error) => {
     console.error("[api-proxy] upstream fetch failed", {
