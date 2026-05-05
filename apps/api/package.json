@@ -7,7 +7,7 @@
     "dev:cf": "wrangler dev --port 8787",
     "build": "tsc",
     "start": "node dist/index.js",
-    "deploy:cf": "wrangler deploy",
+    "deploy:cf": "pnpm --filter @thunder/database db:generate && wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

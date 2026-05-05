@@ -31,6 +31,7 @@ Thunder 当前按两个 Cloudflare Worker 部署：
 - 新增脚本：
   - `pnpm --filter @thunder/api dev:cf`
   - `pnpm --filter @thunder/api deploy:cf`
+  - `deploy:cf` 会先执行 `@thunder/database` 的 `prisma generate`，再执行 `wrangler deploy`
 
 ### apps/web
 
