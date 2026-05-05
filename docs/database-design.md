@@ -72,24 +72,11 @@ Thunder 当前使用 Prisma ORM 访问关系型数据库。项目已切换到 Po
 | created_at | TEXT NOT NULL | 创建时间 |
 | updated_at | TEXT NOT NULL | 更新时间 |
 
-### emby_config
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | TEXT PRIMARY KEY | 固定为 `default` 的单例配置 |
-| public_base_url | TEXT NOT NULL | Thunder 对外地址 |
-| emos_base_url | TEXT NOT NULL | Emos 服务地址 |
-| emos_token | TEXT NOT NULL | Emos 授权令牌 |
-| tmdb_api_key | TEXT NOT NULL | TMDB 读令牌 |
-| created_at | TEXT NOT NULL | 创建时间 |
-| updated_at | TEXT NOT NULL | 更新时间 |
-
 ### emby_playlist
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | slug | TEXT PRIMARY KEY | 片单标识 |
-| config_id | TEXT NOT NULL | 关联 `emby_config.id` |
 | name | TEXT NOT NULL | 片单名称 |
 | description | TEXT NOT NULL | 片单描述 |
 | cover | TEXT NOT NULL | 封面地址 |
@@ -104,7 +91,7 @@ Thunder 当前使用 Prisma ORM 访问关系型数据库。项目已切换到 Po
 | created_at | TEXT NOT NULL | 创建时间 |
 | updated_at | TEXT NOT NULL | 更新时间 |
 
-Emby 模块不再复用 `app_settings`。旧的 `thunder:module:emby:config` 仅在首次读取时作为迁移来源，随后会写入 `emby_config` / `emby_playlist`。
+Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKey）从环境变量读取，数据库中不再存储这些敏感信息。片单配置通过环境变量配置，页面上不允许修改。
 
 ## Vault 安全约束
 

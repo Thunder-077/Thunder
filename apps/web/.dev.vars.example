@@ -1,1 +1,2 @@
 API_URL="http://127.0.0.1:8787"
+THUNDER_AUTH_SECRET="change_this_to_a_long_random_secret"

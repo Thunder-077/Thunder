@@ -28,38 +28,34 @@ model AppSetting {
   @@map("app_settings")
 }
 
-model EmbyConfigRecord {
-  id            String               @id
-  publicBaseUrl String               @map("public_base_url")
-  emosBaseUrl   String               @map("emos_base_url")
-  emosToken     String               @map("emos_token")
-  tmdbApiKey    String               @map("tmdb_api_key")
-  createdAt     String               @map("created_at")
-  updatedAt     String               @map("updated_at")
-  playlists     EmbyPlaylistRecord[]
+model AuthUser {
+  id            String  @id
+  username      String  @unique
+  passwordHash  String  @map("password_hash")
+  passwordSalt  String  @map("password_salt")
+  avatarDataUrl String? @map("avatar_data_url")
+  createdAt     String  @map("created_at")
+  updatedAt     String  @map("updated_at")
 
-  @@map("emby_config")
+  @@map("auth_user")
 }
 
 model EmbyPlaylistRecord {
-  slug              String           @id
-  configId          String           @map("config_id")
+  slug              String @id
   name              String
   description       String
   cover             String
-  tagsJson          String           @map("tags_json")
+  tagsJson          String @map("tags_json")
   point             Int
-  isPublic          Boolean          @map("is_public")
-  isShowEmpty       Boolean          @map("is_show_empty")
+  isPublic          Boolean @map("is_public")
+  isShowEmpty       Boolean @map("is_show_empty")
   enabled           Boolean
   limit             Int
-  releaseWindowDays Int              @map("release_window_days")
-  remoteWatchId     Int?             @map("remote_watch_id")
-  createdAt         String           @map("created_at")
-  updatedAt         String           @map("updated_at")
-  config            EmbyConfigRecord @relation(fields: [configId], references: [id], onDelete: Cascade)
+  releaseWindowDays Int    @map("release_window_days")
+  remoteWatchId     Int?   @map("remote_watch_id")
+  createdAt         String @map("created_at")
+  updatedAt         String @map("updated_at")
 
-  @@index([configId])
   @@map("emby_playlist")
 }
 

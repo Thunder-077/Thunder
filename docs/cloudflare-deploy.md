@@ -24,6 +24,8 @@ Thunder 当前按两个 Worker 部署：
 - `/api/v1/*`
 - `/server/*`
 
+`/server/emby/*` 会保持公开访问，用于 Emos 抓取动态片单；Thunder 其他页面需要登录后访问。
+
 ## 当前仓库已完成的改造
 
 ### Cloudflare 相关
@@ -148,6 +150,7 @@ Thunder 当前按两个 Worker 部署：
 
 - `DATABASE_URL` 直接填 Neon 完整连接串
 - Emby 模块使用的地址、Token、TMDB 令牌也只从 `thunder-api` 的环境变量读取，不再从页面保存
+- 登录账号密码来自后端 `auth_user` 表，需要你手动插入用户记录，代码不会自动初始化账号密码
 
 例如：
 
@@ -163,6 +166,21 @@ postgresql://neondb_owner:你的密码@your-neon-host/neondb?sslmode=require&cha
 
 这个值后面会给 `thunder-web` 当 `API_URL` 用。
 
+### 手动预置登录用户
+
+Thunder 登录用户来自 `auth_user` 表，代码不会自动创建默认账号。
+
+表字段要求：
+
+- `id`：用户 ID，建议使用 UUID
+- `username`：登录账号
+- `password_hash`：PBKDF2-SHA256 哈希值，Base64URL 编码
+- `password_salt`：16 字节随机盐，Base64URL 编码
+- `avatar_data_url`：头像，可为空
+- `created_at` / `updated_at`：ISO 时间字符串
+
+不要把明文密码写入数据库。插入用户前先生成 `password_salt` 和 `password_hash`，再执行 SQL 插入。
+
 ## 创建 `thunder-web`
 
 同样在 Cloudflare Dashboard 中新建第二个 Worker 项目。
@@ -175,13 +193,17 @@ postgresql://neondb_owner:你的密码@your-neon-host/neondb?sslmode=require&cha
 - 非生产分支部署命令：`pnpm --filter @thunder/web exec opennextjs-cloudflare build && pnpm --filter @thunder/web exec wrangler versions upload`
 - 路径：`/`
 
-### `thunder-web` 只需要一个关键变量
+### `thunder-web` 需要的变量
 
 - `API_URL`
+- `THUNDER_AUTH_SECRET`
 
 值填 `thunder-api` 部署成功后的默认域名，例如：
 
 `API_URL=https://thunder-api.wangchenxi077.workers.dev`
+
+`THUNDER_AUTH_SECRET` 用于签名登录 Cookie，生产环境建议设置为一串足够长的随机字符串。
+登录账号密码由 `thunder-api` 的后端用户表负责，`thunder-web` 不保存账号密码。
 
 ### `thunder-web` 不需要的变量
 
@@ -203,13 +225,13 @@ postgresql://neondb_owner:你的密码@your-neon-host/neondb?sslmode=require&cha
 这个地址就是：
 
 1. 你访问 Thunder 前端的地址
-2. Emby 模块里 `publicBaseUrl` 应该填写的地址
+2. `thunder-api` 中 `EMBY_PUBLIC_BASE_URL` 应该配置的地址
 
 ## Emby 最终配置
 
-当 `thunder-web` 部署成功后，在 Thunder Emby 模块中，把：
+当 `thunder-web` 部署成功后，在 `thunder-api` 的环境变量中把：
 
-- `publicBaseUrl`
+- `EMBY_PUBLIC_BASE_URL`
 
 设置成：
 
@@ -264,8 +286,9 @@ pnpm preview:web:cf
 4. 给 `thunder-web` 配 `API_URL`
 5. 部署 `thunder-web`
 6. 打开 `thunder-web.<subdomain>.workers.dev`
-7. 在 Emby 模块中把 `publicBaseUrl` 改成 `thunder-web` 域名
-8. 再去 Emos 同步动态片单
+7. 手动插入 `auth_user` 用户后，使用该用户登录
+8. 确认 `EMBY_PUBLIC_BASE_URL` 已配置为 `thunder-web` 域名
+9. 再去 Emos 同步动态片单
 
 ## 后续建议
 

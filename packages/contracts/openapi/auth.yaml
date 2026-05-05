@@ -1,0 +1,69 @@
+openapi: 3.0.3
+info:
+  title: Thunder Auth API
+  version: 0.1.0
+paths:
+  /api/v1/auth/login:
+    post:
+      summary: Validate user credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login validated
+        "401":
+          description: Invalid credentials
+  /api/v1/auth/users/{username}:
+    get:
+      summary: Get user profile
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+        "404":
+          description: User not found
+  /api/v1/auth/users/{username}/avatar:
+    put:
+      summary: Update user avatar
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - avatarUrl
+              properties:
+                username:
+                  type: string
+                avatarUrl:
+                  type: string
+      responses:
+        "200":
+          description: Updated user profile
+        "403":
+          description: Forbidden

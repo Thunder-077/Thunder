@@ -24,6 +24,16 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+function toPublicConfig(config: EmbyConfig): EmbyConfig {
+  return {
+    ...config,
+    publicBaseUrl: "",
+    emosBaseUrl: "",
+    emosToken: "",
+    tmdbApiKey: "",
+  }
+}
+
 interface TmdbDiscoverItem {
   id: number
   title?: string
@@ -449,84 +459,13 @@ async function syncPlaylistToEmos(
   }
 }
 
-function normalizePlaylist(input: unknown): EmbyManagedPlaylist | null {
-  if (!input || typeof input !== "object") return null
-  const record = input as Record<string, unknown>
-  const slug = record.slug
-  if (
-    slug !== "domestic-tv" &&
-    slug !== "domestic-movie" &&
-    slug !== "foreign-tv" &&
-    slug !== "foreign-movie" &&
-    slug !== "anime"
-  ) {
-    return null
-  }
-
-  return {
-    slug,
-    name: typeof record.name === "string" ? record.name.trim() : "",
-    description: typeof record.description === "string" ? record.description.trim() : "",
-    cover: typeof record.cover === "string" ? record.cover.trim() : "",
-    tags: Array.isArray(record.tags) ? record.tags.filter((tag): tag is string => typeof tag === "string") : [],
-    point: Number(record.point ?? 0),
-    isPublic: Boolean(record.isPublic),
-    isShowEmpty: Boolean(record.isShowEmpty),
-    enabled: Boolean(record.enabled),
-    limit: Number(record.limit ?? 30),
-    releaseWindowDays: Number(record.releaseWindowDays ?? 180),
-    remoteWatchId: record.remoteWatchId === null || record.remoteWatchId === undefined
-      ? null
-      : Number(record.remoteWatchId),
-  }
-}
-
-function normalizeConfig(input: unknown, existing?: EmbyConfig): EmbyConfig | null {
-  if (!input || typeof input !== "object") return null
-  const record = input as Record<string, unknown>
-  const playlistsInput = Array.isArray(record.playlists) ? record.playlists : []
-  const playlists = playlistsInput
-    .map((playlist) => normalizePlaylist(playlist))
-    .filter((playlist): playlist is EmbyManagedPlaylist => Boolean(playlist))
-
-  const config: EmbyConfig = {
-    publicBaseUrl: typeof record.publicBaseUrl === "string" ? record.publicBaseUrl.trim() : existing?.publicBaseUrl ?? "",
-    emosBaseUrl: typeof record.emosBaseUrl === "string" ? record.emosBaseUrl.trim() : existing?.emosBaseUrl ?? "",
-    emosToken: typeof record.emosToken === "string" ? record.emosToken.trim() : existing?.emosToken ?? "",
-    tmdbApiKey: typeof record.tmdbApiKey === "string" ? record.tmdbApiKey.trim() : existing?.tmdbApiKey ?? "",
-    playlists,
-  }
-
-  if (!config.publicBaseUrl || !config.emosBaseUrl) return null
-  if (playlists.length === 0) return null
-  return config
-}
-
 emby.get("/config", async (c) => {
   try {
     const config = await repository.getConfig()
-    return c.json(apiSuccess({ config }))
+    return c.json(apiSuccess({ config: config ? toPublicConfig(config) : null }))
   } catch (error) {
     console.error("[emby-api] GET /config failed", error)
     return c.json(apiError("INTERNAL_ERROR", "获取 Emby 配置失败"), 500)
-  }
-})
-
-emby.put("/config", async (c) => {
-  try {
-    const current = await repository.getConfig()
-    const body = await c.req.json()
-    const config = normalizeConfig((body as { config?: unknown }).config, current ?? undefined)
-
-    if (!config) {
-      return c.json(apiError("EMBY_INVALID_DYNAMIC_WATCH", "Emby 配置格式不正确"), 400)
-    }
-
-    const saved = await repository.saveConfig(config)
-    return c.json(apiSuccess({ config: saved }))
-  } catch (error) {
-    console.error("[emby-api] PUT /config failed", error)
-    return c.json(apiError("EMBY_DYNAMIC_WATCH_SAVE_FAILED", getErrorMessage(error, "保存 Emby 配置失败")), 500)
   }
 })
 
@@ -580,7 +519,7 @@ emby.post("/sync", async (c) => {
       playlists: updatedPlaylists,
     })
 
-    return c.json(apiSuccess({ results, config: saved }))
+    return c.json(apiSuccess({ results, config: toPublicConfig(saved) }))
   } catch (error) {
     console.error("[emby-api] POST /sync failed", error)
     return c.json(apiError("INTERNAL_ERROR", getErrorMessage(error, "同步 Emos 片单失败")), 500)

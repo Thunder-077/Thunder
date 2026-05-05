@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowRight, Puzzle } from "lucide-react"
 import { ModuleCard } from "@/components/module-card"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
 import { Button } from "@/components/ui/button"
+import { useAppShellFooter } from "@/components/app-shell"
 
 const rainbowQuotes = [
   "专注当下，效率加倍。",
@@ -43,6 +44,29 @@ export default function DashboardPage() {
   const [quoteFrom, setQuoteFrom] = useState<string>("")
   const [rainbowQuote, setRainbowQuote] = useState<string>("")
   const displayQuote = quote || rainbowQuote || "专注当下，效率加倍。"
+  const { setFooter } = useAppShellFooter()
+
+  const footerContent = useMemo(() => {
+    if (!displayQuote && !quoteFrom) return null
+    return (
+      <div className="pb-5 text-center">
+        <div className="group relative mx-auto w-fit">
+          <p className="text-sm text-muted-foreground/70 transition-colors duration-200 group-hover:text-muted-foreground">
+            {`「 ${displayQuote} 」`}
+          </p>
+          {quoteFrom && (
+            <span className="pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 translate-y-1 whitespace-nowrap text-xs text-muted-foreground/0 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:text-muted-foreground/60 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:text-muted-foreground/60 group-focus-within:opacity-100">
+              -{quoteFrom}-
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }, [displayQuote, quoteFrom])
+
+  useEffect(() => {
+    setFooter(footerContent)
+  }, [footerContent, setFooter])
 
   useEffect(() => {
     const rainbowQuoteTimer = window.setTimeout(() => {
@@ -103,22 +127,6 @@ export default function DashboardPage() {
           <p className="mt-1 text-xs text-muted-foreground">开始使用模块后，这里会显示你的最近活动</p>
         </div>
       </section>
-
-      {/* 底部一言语录 */}
-      {(displayQuote || quoteFrom) && (
-        <div className="sticky bottom-0 bg-background pt-6 pb-4 text-center">
-          <div className="group relative mx-auto w-fit">
-            <p className="text-sm text-muted-foreground/70 transition-colors duration-200 group-hover:text-muted-foreground">
-              {`「 ${displayQuote} 」`}
-            </p>
-            {quoteFrom && (
-              <span className="pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 translate-y-1 whitespace-nowrap text-xs text-muted-foreground/0 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:text-muted-foreground/60 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:text-muted-foreground/60 group-focus-within:opacity-100">
-                -{quoteFrom}-
-              </span>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

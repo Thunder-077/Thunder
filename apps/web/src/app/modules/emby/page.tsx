@@ -1,14 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ChevronDown, ChevronUp, Clapperboard, LoaderCircle, RefreshCcw, Save, Send } from "lucide-react"
+import { ChevronDown, ChevronUp, Clapperboard, LoaderCircle, RefreshCcw, Send } from "lucide-react"
 import { EmbyClient, ThunderApiError } from "@thunder/api-client"
 import type { EmbyConfig, EmbyManagedPlaylist, EmbyPlaylistPreview, EmbyPlaylistSlug } from "@thunder/emby"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 
 const embyClient = new EmbyClient()
@@ -35,15 +34,10 @@ function createEmptyConfig(): EmbyConfig {
   }
 }
 
-function configStatusLabel(value: string): string {
-  return value.trim() ? "已配置" : "未配置"
-}
-
 export default function EmbyModulePage() {
   const [config, setConfig] = useState<EmbyConfig>(createEmptyConfig())
   const [previewMap, setPreviewMap] = useState<Record<string, EmbyPlaylistPreview | null>>({})
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [syncingSlug, setSyncingSlug] = useState<string | null>(null)
   const [refreshingSlug, setRefreshingSlug] = useState<string | null>(null)
   const [collapsedPreviewMap, setCollapsedPreviewMap] = useState<Record<string, boolean>>({})
@@ -61,10 +55,10 @@ export default function EmbyModulePage() {
         const data = await embyClient.getConfig()
         if (cancelled) return
         setConfig(data ?? createEmptyConfig())
-    } catch (loadError) {
-      if (cancelled) return
-      console.error("[emby-module] load failed", loadError)
-      setError(toDisplayError(loadError, "加载 Emby 配置失败"))
+      } catch (loadError) {
+        if (cancelled) return
+        console.error("[emby-module] load failed", loadError)
+        setError(toDisplayError(loadError, "加载 Emby 配置失败"))
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -78,34 +72,6 @@ export default function EmbyModulePage() {
       cancelled = true
     }
   }, [])
-
-  const updatePlaylist = (
-    slug: EmbyPlaylistSlug,
-    updater: (playlist: EmbyManagedPlaylist) => EmbyManagedPlaylist
-  ) => {
-    setConfig((current) => ({
-      ...current,
-      playlists: current.playlists.map((playlist) => (
-        playlist.slug === slug ? updater(playlist) : playlist
-      )),
-    }))
-  }
-
-  const saveConfig = async () => {
-    try {
-      setSaving(true)
-      setError(null)
-      setMessage(null)
-      const saved = await embyClient.saveConfig(config)
-      setConfig(saved)
-      setMessage("Emby 配置已保存")
-    } catch (saveError) {
-      console.error("[emby-module] save config failed", saveError)
-      setError(toDisplayError(saveError, "保存 Emby 配置失败"))
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const previewPlaylist = async (slug: EmbyPlaylistSlug) => {
     try {
@@ -168,54 +134,19 @@ export default function EmbyModulePage() {
         title="Emby 片单"
         description="基于全网热门规则生成 5 个预设片单，并通过 Emos 官方接口自动新增或更新远端片单。"
         actions={(
-          <>
-            <Button
-              variant="outline"
-              className="gap-2"
-              onClick={() => syncPlaylist()}
-              disabled={loading || syncingSlug !== null}
-            >
-              {syncingSlug === "all" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              同步全部
-            </Button>
-            <Button className="gap-2" onClick={saveConfig} disabled={loading || saving}>
-              {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              保存配置
-            </Button>
-          </>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => syncPlaylist()}
+            disabled={loading || syncingSlug !== null}
+          >
+            {syncingSlug === "all" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            同步全部
+          </Button>
         )}
       />
 
       <div className="space-y-4">
-        <Card>
-          <CardContent className="grid gap-4 p-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">Thunder 对外地址</div>
-              <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                {config.publicBaseUrl || "未配置 EMBY_PUBLIC_BASE_URL"}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">Emos 地址</div>
-              <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                {config.emosBaseUrl || "未配置 EMBY_EMOS_BASE_URL"}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">Emos Token</div>
-              <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                {configStatusLabel(config.emosToken)}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-foreground">TMDB API Token</div>
-              <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                {configStatusLabel(config.tmdbApiKey)}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {error && (
           <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {error}
@@ -238,7 +169,7 @@ export default function EmbyModulePage() {
           <EmptyState
             icon={<Clapperboard className="h-6 w-6" />}
             title="还没有片单配置"
-            description="先保存一份默认配置，再开始同步 Emos 片单。"
+            description="请检查环境变量配置。"
           />
         ) : (
           <div className="space-y-4">
@@ -284,49 +215,32 @@ export default function EmbyModulePage() {
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2">
                       <div className="text-sm font-medium text-foreground">封面地址</div>
-                      <Input
-                        value={selectedPlaylist.cover}
-                        onChange={(e) => updatePlaylist(selectedPlaylist.slug, (current) => ({ ...current, cover: e.target.value }))}
-                        placeholder={`${(config.publicBaseUrl || "https://your-domain.example").replace(/\/$/, "")}/icon-512.png`}
-                      />
+                      <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                        {selectedPlaylist.cover || "-"}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <div className="text-sm font-medium text-foreground">远端片单 ID</div>
-                      <Input
-                        value={selectedPlaylist.remoteWatchId ? String(selectedPlaylist.remoteWatchId) : ""}
-                        onChange={(e) => updatePlaylist(selectedPlaylist.slug, (current) => ({
-                          ...current,
-                          remoteWatchId: e.target.value ? Number(e.target.value) : null,
-                        }))}
-                        placeholder="首次同步可留空"
-                      />
+                      <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                        {selectedPlaylist.remoteWatchId ?? "-"}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <div className="text-sm font-medium text-foreground">抓取数量</div>
-                      <Input
-                        type="number"
-                        value={String(selectedPlaylist.limit)}
-                        onChange={(e) => updatePlaylist(selectedPlaylist.slug, (current) => ({
-                          ...current,
-                          limit: Number(e.target.value || 0),
-                        }))}
-                      />
+                      <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                        {selectedPlaylist.limit}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <div className="text-sm font-medium text-foreground">时间窗口（天）</div>
-                      <Input
-                        type="number"
-                        value={String(selectedPlaylist.releaseWindowDays)}
-                        onChange={(e) => updatePlaylist(selectedPlaylist.slug, (current) => ({
-                          ...current,
-                          releaseWindowDays: Number(e.target.value || 0),
-                        }))}
-                      />
+                      <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                        {selectedPlaylist.releaseWindowDays}
+                      </div>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-6 text-muted-foreground">
-                    外部动态地址：{`${config.publicBaseUrl.replace(/\/$/, "")}/server/emby/watch/${selectedPlaylist.slug}`}
+                    外部动态路径：{`/server/emby/watch/${selectedPlaylist.slug}`}
                   </div>
 
                   <div className="flex items-center justify-between gap-3">
