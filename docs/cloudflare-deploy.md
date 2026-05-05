@@ -113,6 +113,8 @@ Thunder 当前按两个 Worker 部署：
 
 `head_sampling_rate: 1` 表示部署后采集 100% 请求日志，适合当前调试阶段。后续访问量变大后可以改成 `0.1` 或更低。
 
+`thunder-web` 还启用了 `global_fetch_strictly_public` compatibility flag。原因是 `thunder-web` 会在 Cloudflare Worker 内部请求 `thunder-api` 的 `workers.dev` 地址；如果不启用这个 flag，Cloudflare 会拦截同 zone Worker 到 Worker 的 `fetch`，返回 `404 error code: 1042`。
+
 ## 创建 `thunder-api`
 
 在 Cloudflare Dashboard 中：
