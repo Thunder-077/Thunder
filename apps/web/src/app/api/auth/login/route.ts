@@ -22,11 +22,19 @@ export async function POST(request: Request) {
   const username = body?.username?.trim() ?? ""
   const password = body?.password ?? ""
 
-  const upstream = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
+  const apiBaseUrl = getApiBaseUrl()
+  const upstreamUrl = `${apiBaseUrl}/api/v1/auth/login`
+  const upstream = await fetch(upstreamUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
-  }).catch(() => null)
+  }).catch((error) => {
+    console.error("[auth-bff] POST /login upstream fetch failed", {
+      apiBaseUrl,
+      message: error instanceof Error ? error.message : String(error),
+    })
+    return null
+  })
 
   if (!upstream) {
     return NextResponse.json({ ok: false, message: "登录服务不可用" }, { status: 502 })
@@ -35,6 +43,11 @@ export async function POST(request: Request) {
   const data = await upstream.json().catch(() => null) as AuthLoginResponse | null
 
   if (!upstream.ok || !data?.ok || !data.data?.username) {
+    console.error("[auth-bff] POST /login upstream returned error", {
+      upstreamUrl,
+      status: upstream.status,
+      message: data?.error?.message,
+    })
     const message = upstream.status === 404
       ? "登录服务不可用"
       : data?.error?.message || "账号或密码不正确"

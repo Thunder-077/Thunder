@@ -7,7 +7,5 @@
     "nodejs_compat",
     "nodejs_compat_populate_process_env"
   ],
-  "vars": {
-    "QWEATHER_API_HOST": "nb33jqkfhv.re.qweatherapi.com"
-  }
+  "keep_vars": true
 }

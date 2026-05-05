@@ -46,7 +46,6 @@ Thunder 当前按两个 Worker 部署：
 
 - Emby 不再复用 `app_settings`
 - 已改为专属表：
-  - `emby_config`
   - `emby_playlist`
 
 ## 本地环境文件说明
@@ -99,6 +98,9 @@ Thunder 当前按两个 Worker 部署：
   -> Cloudflare `thunder-api` 的 `DATABASE_URL`
 - 本地 `apps/api/.env`
   -> Cloudflare `thunder-api` 的运行时变量
+
+仓库里的 Wrangler 配置已开启 `keep_vars`，部署时会保留 Cloudflare Dashboard 中配置的运行时 Variables / Secrets。
+不要把 `DATABASE_URL`、`API_URL`、`THUNDER_AUTH_SECRET` 等运行时变量写进 `wrangler.jsonc` 的 `vars` 字段。
 
 ## 创建 `thunder-api`
 
