@@ -24,6 +24,8 @@ Thunder 当前按两个 Worker 部署：
 - `/api/v1/*`
 - `/server/*`
 
+这两个路径通过 Next Route Handler 在运行时代理到 `API_URL`，不依赖 `next.config.ts` 的构建期 rewrites。因此 Cloudflare 只需要配置运行时变量，不需要把 `API_URL` 配成构建变量。
+
 `/server/emby/*` 会保持公开访问，用于 Emos 抓取动态片单；Thunder 其他页面需要登录后访问。
 
 ## 当前仓库已完成的改造

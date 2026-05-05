@@ -19,6 +19,10 @@ function isPublicAsset(pathname: string): boolean {
   )
 }
 
+function isApiRequest(pathname: string): boolean {
+  return pathname.startsWith("/api/v1")
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -30,6 +34,13 @@ export async function middleware(request: NextRequest) {
 
   if (authenticated) {
     return NextResponse.next()
+  }
+
+  if (isApiRequest(pathname)) {
+    return NextResponse.json(
+      { ok: false, message: "未登录" },
+      { status: 401 }
+    )
   }
 
   const loginUrl = request.nextUrl.clone()

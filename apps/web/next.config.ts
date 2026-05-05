@@ -8,18 +8,6 @@ const nextConfig: NextConfig = {
     "@thunder/vault",
     "@thunder/contracts",
   ],
-  async rewrites() {
-    return [
-      {
-        source: "/api/v1/:path*",
-        destination: `${process.env.API_URL || "http://localhost:3001"}/api/v1/:path*`,
-      },
-      {
-        source: "/server/:path*",
-        destination: `${process.env.API_URL || "http://localhost:3001"}/server/:path*`,
-      },
-    ]
-  },
   webpack: (config) => {
     config.experiments = {
       ...config.experiments,
