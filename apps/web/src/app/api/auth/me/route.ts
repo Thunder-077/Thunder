@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { AUTH_COOKIE_NAME, getSessionUser } from "@/lib/auth"
+import { getEnv } from "@/lib/env"
 
 interface AuthMeResponse {
   ok: boolean
@@ -11,7 +12,7 @@ interface AuthMeResponse {
 }
 
 function getApiBaseUrl(): string {
-  return process.env.API_URL || "http://localhost:3001"
+  return getEnv("API_URL") || "http://localhost:3001"
 }
 
 export async function GET() {

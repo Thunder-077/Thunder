@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { AUTH_COOKIE_NAME, authCookieOptions, createSessionToken } from "@/lib/auth"
+import { getEnv } from "@/lib/env"
 
 interface AuthLoginResponse {
   ok: boolean
@@ -13,7 +14,7 @@ interface AuthLoginResponse {
 }
 
 function getApiBaseUrl(): string {
-  return process.env.API_URL || "http://localhost:3001"
+  return getEnv("API_URL") || "http://localhost:3001"
 }
 
 export async function POST(request: Request) {

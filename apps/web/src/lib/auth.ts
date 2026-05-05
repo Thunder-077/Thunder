@@ -1,9 +1,11 @@
+import { getEnv } from "@/lib/env"
+
 export const AUTH_COOKIE_NAME = "thunder_session"
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
 
 function getAuthSecret(): string {
-  return process.env.THUNDER_AUTH_SECRET || "thunder-development-auth-secret"
+  return getEnv("THUNDER_AUTH_SECRET") || "thunder-development-auth-secret"
 }
 
 function toBase64Url(value: string): string {
@@ -67,7 +69,7 @@ export async function getSessionUser(token: string | undefined): Promise<{ usern
 export const authCookieOptions = {
   httpOnly: true,
   sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
+  secure: getEnv("NODE_ENV") === "production",
   path: "/",
   maxAge: SESSION_MAX_AGE_SECONDS,
 }
