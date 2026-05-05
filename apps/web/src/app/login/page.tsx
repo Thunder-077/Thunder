@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, LoaderCircle } from "lucide-react"
+import { ArrowRight, LoaderCircle, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
@@ -41,75 +41,80 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_440px]">
-        <section className="relative hidden overflow-hidden border-r border-border/70 bg-muted/20 px-12 py-10 lg:flex lg:flex-col">
+    <main className="min-h-screen bg-muted/30 p-2">
+      <div className="grid min-h-[calc(100vh-16px)] overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm lg:grid-cols-[minmax(0,1fr)_500px]">
+        <section className="relative hidden overflow-hidden bg-surface-2 px-12 py-10 lg:flex lg:flex-col">
           <div className="flex items-center gap-3">
-            <img src="/logo-sidebar.png" alt="Thunder" className="h-10 w-10 object-contain" />
-            <div>
-              <div className="text-base font-semibold tracking-tight text-foreground">Thunder</div>
-            </div>
+            <img src="/logo-sidebar.png" alt="Thunder" className="h-12 w-12 object-contain" />
+            <div className="text-2xl font-semibold tracking-tight text-foreground">Thunder</div>
           </div>
 
-          <div className="flex flex-1 items-center justify-center">
-            <div className="w-full max-w-[600px]">
+          <div className="pointer-events-none absolute left-24 top-64 grid grid-cols-8 gap-2 opacity-40">
+            {Array.from({ length: 48 }).map((_, index) => (
+              <span key={index} className="h-1 w-1 rounded-full bg-brand/25" />
+            ))}
+          </div>
+
+          <div className="relative mx-auto flex w-full max-w-[980px] flex-1 items-center justify-center">
+            <div className="flex w-full items-end justify-center">
               <img
                 src="/illustrations/secure-login-storyset.svg"
                 alt="安全登录"
-                className="max-h-[560px] w-full object-contain"
+                className="max-h-[720px] w-full object-contain"
               />
             </div>
           </div>
         </section>
 
-        <section className="flex items-center justify-center px-5 py-10">
-          <div className="w-full max-w-[360px]">
-            <div className="mb-8 lg:hidden">
-              <img src="/logo-sidebar.png" alt="Thunder" className="h-11 w-11 object-contain" />
-            </div>
-
-            <div className="mb-8">
-              <p className="text-sm font-medium text-muted-foreground">欢迎回来</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">登录 Thunder</h1>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                使用你的访问账号进入个人工作空间。
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="username" className="text-sm font-medium text-foreground">账号</label>
-                <Input
-                  id="username"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  autoComplete="username"
-                  placeholder="thunder"
-                />
+        <section className="flex items-center justify-center bg-background p-3 lg:p-0">
+          <div className="flex min-h-[calc(100vh-40px)] w-full items-center justify-center rounded-xl border border-border/70 bg-background px-6 py-10 shadow-lg shadow-slate-200/60 sm:px-10 lg:min-h-[calc(100vh-16px)] lg:rounded-l-xl lg:rounded-r-none lg:border-y-0 lg:border-r-0 lg:px-14">
+            <div className="w-full max-w-[392px]">
+              <div className="mb-10 lg:hidden">
+                <img src="/logo-sidebar.png" alt="Thunder" className="h-11 w-11 object-contain" />
               </div>
 
-              <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium text-foreground">密码</label>
-                <PasswordInput
-                  id="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="current-password"
-                  placeholder="输入密码"
-                />
+              <div className="mb-9">
+                <p className="text-base font-semibold text-brand">欢迎回来</p>
+                <h1 className="mt-4 text-4xl font-semibold tracking-tight text-foreground">登录 Thunder</h1>
+
               </div>
 
-              {error && (
-                <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                  {error}
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-3">
+                  <label htmlFor="username" className="text-base font-medium text-foreground">账号</label>
+                  <Input
+                    id="username"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                    autoComplete="username"
+                    className="h-14 rounded-xl px-5 text-lg"
+                  />
                 </div>
-              )}
 
-              <Button type="submit" className="h-11 w-full gap-2" disabled={loading}>
-                {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                登录
-              </Button>
-            </form>
+                <div className="space-y-3">
+                  <label htmlFor="password" className="text-base font-medium text-foreground">密码</label>
+                  <PasswordInput
+                    id="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete="current-password"
+                    placeholder="输入密码"
+                    className="h-14 rounded-xl px-5 text-lg"
+                  />
+                </div>
+
+                {error && (
+                  <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
+
+                <Button type="submit" className="h-14 w-full gap-3 rounded-xl text-lg shadow-md shadow-primary/20" disabled={loading}>
+                  {loading ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+                  登录
+                </Button>
+              </form>
+            </div>
           </div>
         </section>
       </div>

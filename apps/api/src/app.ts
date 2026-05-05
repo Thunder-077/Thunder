@@ -23,7 +23,7 @@ const app = new Hono<{ Bindings: ThunderBindings }>()
 app.use("*", logger())
 app.use("*", cors())
 app.use("*", async (c, next) => {
-  const bindings = c.env as Record<string, unknown>
+  const bindings = (c.env ?? {}) as Record<string, unknown>
 
   for (const [key, value] of Object.entries(bindings)) {
     if (typeof value === "string") {

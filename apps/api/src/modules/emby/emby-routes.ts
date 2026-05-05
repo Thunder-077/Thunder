@@ -412,7 +412,12 @@ async function emosRequest<T>(
 
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Emos request failed: ${res.status} ${text}`)
+
+    if (res.status === 403 && text.includes("Just a moment")) {
+      throw new Error("Emos 主站被 Cloudflare 403 拦截，请将 EMBY_EMOS_BASE_URL 切换为 https://api.emos.best 后重试")
+    }
+
+    throw new Error(`Emos request failed: ${res.status} ${text.slice(0, 500)}`)
   }
 
   return res.json() as Promise<T>
@@ -466,6 +471,28 @@ emby.get("/config", async (c) => {
   } catch (error) {
     console.error("[emby-api] GET /config failed", error)
     return c.json(apiError("INTERNAL_ERROR", "获取 Emby 配置失败"), 500)
+  }
+})
+
+emby.put("/config", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => null) as { config?: EmbyConfig } | null
+    const current = await repository.getConfig()
+    const incoming = body?.config
+
+    if (!current || !incoming) {
+      return c.json(apiError("VALIDATION_ERROR", "片单配置不能为空"), 400)
+    }
+
+    const saved = await repository.saveConfig({
+      ...current,
+      playlists: incoming.playlists,
+    })
+
+    return c.json(apiSuccess({ config: toPublicConfig(saved) }))
+  } catch (error) {
+    console.error("[emby-api] PUT /config failed", error)
+    return c.json(apiError("INTERNAL_ERROR", getErrorMessage(error, "保存 Emby 片单失败")), 500)
   }
 })
 
