@@ -195,6 +195,8 @@ Thunder 登录用户来自 `auth_user` 表，代码不会自动创建默认账�
 
 ### `thunder-web` 需要的变量
 
+这些变量要配置在 `thunder-web` 的运行时 Variables / Secrets，不是构建变量。
+
 - `API_URL`
 - `THUNDER_AUTH_SECRET`
 
@@ -202,7 +204,14 @@ Thunder 登录用户来自 `auth_user` 表，代码不会自动创建默认账�
 
 `API_URL=https://thunder-api.wangchenxi077.workers.dev`
 
-`THUNDER_AUTH_SECRET` 用于签名登录 Cookie，生产环境建议设置为一串足够长的随机字符串。
+`THUNDER_AUTH_SECRET` 用于签名登录 Cookie。它不是登录密码，也不是数据库密码；生产环境必须设置为一串足够长的随机字符串。
+
+PowerShell 生成示例：
+
+```powershell
+[Convert]::ToHexString((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
 登录账号密码由 `thunder-api` 的后端用户表负责，`thunder-web` 不保存账号密码。
 
 ### `thunder-web` 不需要的变量

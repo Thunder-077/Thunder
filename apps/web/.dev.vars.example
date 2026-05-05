@@ -1,2 +1,3 @@
 API_URL="http://127.0.0.1:8787"
+# Used by apps/web to sign the login session cookie. Use a long random value in production.
 THUNDER_AUTH_SECRET="change_this_to_a_long_random_secret"

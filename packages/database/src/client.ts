@@ -8,7 +8,7 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient(connectionString?: string): PrismaClient {
   if (!connectionString) {
-    return new PrismaClient()
+    throw new Error("DATABASE_URL is not configured for Prisma Neon adapter")
   }
 
   const adapter = new PrismaNeon({ connectionString })
