@@ -4,14 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:cf": "wrangler dev --port 8787",
     "build": "tsc",
     "start": "node dist/index.js",
+    "deploy:cf": "wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.1",
     "@thunder/contracts": "workspace:*",
     "@thunder/database": "workspace:*",
+    "@thunder/emby": "workspace:*",
     "@thunder/vault": "workspace:*",
     "dotenv": "^17.4.2",
     "hono": "^4.7.9",
@@ -20,6 +23,7 @@
   "devDependencies": {
     "@types/node": "^20",
     "tsx": "^4.19.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.44.0"
   }
 }

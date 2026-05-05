@@ -136,6 +136,7 @@ interface PaginatedData<T> {
 ### 当前 OpenAPI 文件
 
 - `vault.yaml` — Vault 模块 API 规范
+- `emby.yaml` — Emby 动态片单模块 API 规范
 
 ### 新增 API 流程
 

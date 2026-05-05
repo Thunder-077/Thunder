@@ -9,6 +9,24 @@ export default function AppLoading() {
           className="thunder-splash-logo"
           draggable="false"
         />
+        <span className="thunder-splash-blocks" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+        </span>
       </div>
     </div>
   )

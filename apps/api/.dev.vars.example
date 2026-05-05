@@ -1,5 +1,4 @@
 DATABASE_URL="postgresql://user:password@host:5432/thunder?sslmode=require"
-API_PORT=3001
 QWEATHER_API_HOST="nb33jqkfhv.re.qweatherapi.com"
 QWEATHER_KEY_ID="your_key_id"
 QWEATHER_PROJECT_ID="your_project_id"

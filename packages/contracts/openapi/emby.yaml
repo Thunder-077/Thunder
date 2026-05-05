@@ -1,0 +1,20 @@
+openapi: 3.0.3
+info:
+  title: Thunder Emby API
+  version: 0.1.0
+servers:
+  - url: /api/v1
+paths:
+  /emby/watch/dynamic:
+    get:
+      summary: 获取 Emby 动态片单配置
+      responses:
+        "200":
+          description: 成功
+    put:
+      summary: 保存 Emby 动态片单配置
+      requestBody:
+        required: true
+      responses:
+        "200":
+          description: 成功

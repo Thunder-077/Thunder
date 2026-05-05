@@ -15,6 +15,7 @@ import {
   CheckSquare,
   Lock,
   Brain,
+  Clapperboard,
   Settings,
   Sun,
   Moon,
@@ -82,6 +83,13 @@ function useCommands(): Command[] {
       icon: Lock,
       keywords: ["vault", "密码", "保险箱"],
       action: () => router.push("/vault"),
+    },
+    {
+      id: "emby",
+      label: "打开 Emby 片单",
+      icon: Clapperboard,
+      keywords: ["emby", "emos", "片单", "动态片单"],
+      action: () => router.push("/modules/emby"),
     },
     {
       id: "ai-hub",

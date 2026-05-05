@@ -120,13 +120,6 @@ export function VaultUnlockPage() {
         </Card>
       </form>
       <div className="mt-5 space-y-3">
-        <Callout variant="info" title="安全提示" className="border-border/60">
-          <ul className="text-xs text-muted-foreground space-y-1.5">
-            <li>主密码仅用于本地解锁，不会明文存储。</li>
-            <li>请妥善保管主密码，忘记后无法为你恢复。</li>
-            <li>创建后可在密码保险箱中管理网站账号、密钥和备注。</li>
-          </ul>
-        </Callout>
         <Callout variant="warning" className="border-border/60">
           <p className="text-xs text-muted-foreground leading-5">
             如果忘记主密码，只能

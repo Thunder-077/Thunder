@@ -51,13 +51,30 @@ export default function RootLayout({
           <div className="thunder-splash-mark">
             <span className="thunder-splash-glow" aria-hidden="true" />
             <span className="thunder-splash-flash" aria-hidden="true" />
-            <span className="thunder-splash-idle-flash" aria-hidden="true" />
             <img
               src="/logo.png"
               alt="Thunder"
               className="thunder-splash-logo"
               draggable="false"
             />
+            <span className="thunder-splash-blocks" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+            </span>
           </div>
         </div>
         <ThemeProvider>

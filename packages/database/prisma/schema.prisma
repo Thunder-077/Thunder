@@ -1,49 +1,85 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "client"
 }
 
 model AppModule {
-  id          String   @id
-  name        String
-  enabled     Boolean  @default(true)
+  id           String  @id
+  name         String
+  enabled      Boolean @default(true)
   settingsJson String?
-  createdAt   String   @map("created_at")
-  updatedAt   String   @map("updated_at")
+  createdAt    String  @map("created_at")
+  updatedAt    String  @map("updated_at")
 
   @@map("app_modules")
 }
 
 model AppSetting {
-  key        String   @id
-  valueJson  String   @map("value_json")
-  createdAt  String   @map("created_at")
-  updatedAt  String   @map("updated_at")
+  key       String @id
+  valueJson String @map("value_json")
+  createdAt String @map("created_at")
+  updatedAt String @map("updated_at")
 
   @@map("app_settings")
 }
 
+model EmbyConfigRecord {
+  id            String               @id
+  publicBaseUrl String               @map("public_base_url")
+  emosBaseUrl   String               @map("emos_base_url")
+  emosToken     String               @map("emos_token")
+  tmdbApiKey    String               @map("tmdb_api_key")
+  createdAt     String               @map("created_at")
+  updatedAt     String               @map("updated_at")
+  playlists     EmbyPlaylistRecord[]
+
+  @@map("emby_config")
+}
+
+model EmbyPlaylistRecord {
+  slug              String           @id
+  configId          String           @map("config_id")
+  name              String
+  description       String
+  cover             String
+  tagsJson          String           @map("tags_json")
+  point             Int
+  isPublic          Boolean          @map("is_public")
+  isShowEmpty       Boolean          @map("is_show_empty")
+  enabled           Boolean
+  limit             Int
+  releaseWindowDays Int              @map("release_window_days")
+  remoteWatchId     Int?             @map("remote_watch_id")
+  createdAt         String           @map("created_at")
+  updatedAt         String           @map("updated_at")
+  config            EmbyConfigRecord @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  @@index([configId])
+  @@map("emby_playlist")
+}
+
 model VaultMetadata {
-  id                   String   @id
-  kdfJson              String   @map("kdf_json")
-  encryptedDataKeyJson String   @map("encrypted_data_key_json")
-  passwordHint         String?  @map("password_hint")
-  createdAt            String   @map("created_at")
-  updatedAt            String   @map("updated_at")
+  id                   String  @id
+  kdfJson              String  @map("kdf_json")
+  encryptedDataKeyJson String  @map("encrypted_data_key_json")
+  passwordHint         String? @map("password_hint")
+  createdAt            String  @map("created_at")
+  updatedAt            String  @map("updated_at")
 
   @@map("vault_metadata")
 }
 
 model VaultItem {
-  id                   String   @id
-  vaultId              String   @map("vault_id")
-  encryptedPayloadJson String   @map("encrypted_payload_json")
-  createdAt            String   @map("created_at")
-  updatedAt            String   @map("updated_at")
+  id                   String @id
+  vaultId              String @map("vault_id")
+  encryptedPayloadJson String @map("encrypted_payload_json")
+  createdAt            String @map("created_at")
+  updatedAt            String @map("updated_at")
 
   @@index([vaultId])
   @@map("vault_items")

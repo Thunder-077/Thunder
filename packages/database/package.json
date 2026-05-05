@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@prisma/adapter-neon": "^6.19.0",
     "@prisma/client": "^6.7.0"
   },
   "devDependencies": {

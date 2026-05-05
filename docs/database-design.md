@@ -2,27 +2,27 @@
 
 ## 概述
 
-Thunder 当前使用 SQLite 作为过渡数据库，通过 Prisma ORM 访问，后续可以平滑替换为 PostgreSQL / MySQL。
+Thunder 当前使用 Prisma ORM 访问关系型数据库。项目已切换到 PostgreSQL 连接方式，推荐使用 Neon 这类托管 PostgreSQL；SQLite 仍可作为历史本地开发方案参考。
 
-## 当前方案：SQLite + Prisma
+## 当前方案：PostgreSQL（Neon）+ Prisma
 
-### 为什么选择 SQLite 作为过渡
+### 为什么当前推荐 PostgreSQL（Neon）
 
-1. **零配置**：无需安装数据库服务，文件即数据库
-2. **本地开发友好**：`file:./data/app.db` 即可使用
-3. **平滑迁移**：通过 Prisma 切换 `provider` 和 `DATABASE_URL` 即可迁移到 PostgreSQL/MySQL
-4. **Tauri 兼容**：未来桌面端可通过 Tauri 后端访问 SQLite
+1. **更适合部署**：数据库通过网络连接访问，适合公网和云环境
+2. **与 Prisma 兼容稳定**：无需改变现有 Repository / API 分层
+3. **便于后续 Cloudflare / Serverless 部署**：不依赖本地磁盘数据库文件
+4. **仍保留迁移弹性**：后续仍可迁移到其他 PostgreSQL / MySQL 服务
 
-### 数据库文件位置
+### 数据库连接方式
 
-- **本地开发**：`data/app.db`（项目根目录下）
-- **生产部署**：通过 `DATABASE_URL` 环境变量配置
-- **Tauri 桌面端**：通过 Tauri 后端或本地服务访问 SQLite
+- **当前推荐**：通过 `DATABASE_URL` 连接托管 PostgreSQL（如 Neon）
+- **本地历史数据**：`data/app.db`（项目根目录下）仍可作为旧 SQLite 数据来源
+- **生产部署**：统一通过 `DATABASE_URL` 环境变量配置
 
 ### 数据库访问架构
 
 ```
-前端组件 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → SQLite
+前端组件 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
 ```
 
 - 前端不得直接访问 SQLite / Prisma / 数据库连接
@@ -72,6 +72,40 @@ Thunder 当前使用 SQLite 作为过渡数据库，通过 Prisma ORM 访问，�
 | created_at | TEXT NOT NULL | 创建时间 |
 | updated_at | TEXT NOT NULL | 更新时间 |
 
+### emby_config
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | TEXT PRIMARY KEY | 固定为 `default` 的单例配置 |
+| public_base_url | TEXT NOT NULL | Thunder 对外地址 |
+| emos_base_url | TEXT NOT NULL | Emos 服务地址 |
+| emos_token | TEXT NOT NULL | Emos 授权令牌 |
+| tmdb_api_key | TEXT NOT NULL | TMDB 读令牌 |
+| created_at | TEXT NOT NULL | 创建时间 |
+| updated_at | TEXT NOT NULL | 更新时间 |
+
+### emby_playlist
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| slug | TEXT PRIMARY KEY | 片单标识 |
+| config_id | TEXT NOT NULL | 关联 `emby_config.id` |
+| name | TEXT NOT NULL | 片单名称 |
+| description | TEXT NOT NULL | 片单描述 |
+| cover | TEXT NOT NULL | 封面地址 |
+| tags_json | TEXT NOT NULL | 标签 JSON |
+| point | INTEGER NOT NULL | 片单积分 |
+| is_public | BOOLEAN NOT NULL | 是否公开 |
+| is_show_empty | BOOLEAN NOT NULL | 是否显示空片单 |
+| enabled | BOOLEAN NOT NULL | 是否启用 |
+| limit | INTEGER NOT NULL | 抓取数量 |
+| release_window_days | INTEGER NOT NULL | 时间窗口 |
+| remote_watch_id | INTEGER | Emos 远端片单 ID |
+| created_at | TEXT NOT NULL | 创建时间 |
+| updated_at | TEXT NOT NULL | 更新时间 |
+
+Emby 模块不再复用 `app_settings`。旧的 `thunder:module:emby:config` 仅在首次读取时作为迁移来源，随后会写入 `emby_config` / `emby_playlist`。
+
 ## Vault 安全约束
 
 - vault_items 中只保存加密后的 VaultItemRecord
@@ -93,15 +127,15 @@ Thunder 当前使用 SQLite 作为过渡数据库，通过 Prisma ORM 访问，�
 ### SQLite → PostgreSQL / MySQL
 
 ```
-当前：SQLite (file:./data/app.db)
+历史：SQLite (file:./data/app.db)
   ↓ 修改 prisma/schema.prisma provider + DATABASE_URL
-后续：PostgreSQL / MySQL
+当前：PostgreSQL（Neon 等）
 ```
 
 切换步骤：
 1. 修改 `packages/database/prisma/schema.prisma` 中的 `provider`
 2. 修改 `DATABASE_URL` 环境变量
-3. 运行 `prisma migrate dev` 生成新迁移
+3. 运行 `prisma db push` 或 `prisma migrate dev` 同步 schema
 4. 页面和业务代码无需修改
 
 ### 兼容性注意事项
@@ -125,8 +159,8 @@ Thunder 当前使用 SQLite 作为过渡数据库，通过 Prisma ORM 访问，�
 ### 环境变量
 
 - `DATABASE_URL`：数据库连接字符串
-- SQLite 示例：`file:./data/app.db`
-- PostgreSQL 示例：`postgresql://user:password@localhost:5432/thunder`
+- PostgreSQL 示例：`postgresql://user:password@host:5432/thunder?sslmode=require`
+- SQLite 历史示例：`file:./data/app.db`
 
 ## 数据访问规则
 

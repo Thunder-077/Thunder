@@ -450,17 +450,18 @@
 
   .thunder-splash-mark {
     @apply relative flex items-center justify-center;
+    --splash-logo-size: 64px;
+    --splash-block-size: calc(var(--splash-logo-size) / 4);
     width: 88px;
     height: 88px;
     isolation: isolate;
     animation:
-      thunder-splash-settle 1.35s cubic-bezier(0.2, 0, 0, 1) both,
-      thunder-splash-idle-mark 2.6s ease-in-out 1.35s infinite;
+      thunder-splash-mark-enter 520ms cubic-bezier(0.2, 0, 0, 1) both,
+      thunder-splash-idle-mark 3.2s ease-in-out 520ms infinite;
   }
 
   .thunder-splash-glow,
-  .thunder-splash-flash,
-  .thunder-splash-idle-flash {
+  .thunder-splash-flash {
     @apply pointer-events-none absolute inset-0 rounded-full;
   }
 
@@ -474,10 +475,126 @@
       drop-shadow(0 8px 16px rgba(20, 95, 228, 0.06))
       drop-shadow(0 0 0 rgba(255, 170, 44, 0));
     animation:
-      thunder-splash-logo 1.35s cubic-bezier(0.2, 0, 0, 1) both,
-      thunder-splash-idle-logo 2.6s ease-in-out 1.35s infinite;
+      thunder-splash-logo-enter 520ms cubic-bezier(0.2, 0, 0, 1) both,
+      thunder-splash-idle-logo 2.8s ease-in-out 520ms infinite;
     transform-origin: center;
     user-select: none;
+  }
+
+  .thunder-splash-blocks {
+    position: absolute;
+    z-index: 3;
+    width: var(--splash-logo-size);
+    height: var(--splash-logo-size);
+    pointer-events: none;
+    transform-origin: center;
+    animation: thunder-splash-blocks-enter 520ms cubic-bezier(0.2, 0, 0, 1) both;
+  }
+
+  .thunder-splash-blocks span {
+    position: absolute;
+    width: calc(var(--splash-block-size) + 1px);
+    height: calc(var(--splash-block-size) + 1px);
+    background: oklch(1 0 0);
+    opacity: 0;
+    transform: scale(0.86);
+    animation: thunder-splash-block 3.2s ease-in-out infinite;
+  }
+
+  .thunder-splash-blocks span:nth-child(1) {
+    left: 0;
+    top: 0;
+    animation-delay: 520ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(2) {
+    left: var(--splash-block-size);
+    top: 0;
+    animation-delay: 640ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(3) {
+    left: calc(var(--splash-block-size) * 2);
+    top: 0;
+    animation-delay: 760ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(4) {
+    left: calc(var(--splash-block-size) * 3);
+    top: 0;
+    animation-delay: 880ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(5) {
+    left: 0;
+    top: var(--splash-block-size);
+    animation-delay: 640ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(6) {
+    left: var(--splash-block-size);
+    top: var(--splash-block-size);
+    animation-delay: 760ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(7) {
+    left: calc(var(--splash-block-size) * 2);
+    top: var(--splash-block-size);
+    animation-delay: 880ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(8) {
+    left: calc(var(--splash-block-size) * 3);
+    top: var(--splash-block-size);
+    animation-delay: 1000ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(9) {
+    left: 0;
+    top: calc(var(--splash-block-size) * 2);
+    animation-delay: 760ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(10) {
+    left: var(--splash-block-size);
+    top: calc(var(--splash-block-size) * 2);
+    animation-delay: 880ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(11) {
+    left: calc(var(--splash-block-size) * 2);
+    top: calc(var(--splash-block-size) * 2);
+    animation-delay: 1000ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(12) {
+    left: calc(var(--splash-block-size) * 3);
+    top: calc(var(--splash-block-size) * 2);
+    animation-delay: 1120ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(13) {
+    left: 0;
+    top: calc(var(--splash-block-size) * 3);
+    animation-delay: 880ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(14) {
+    left: var(--splash-block-size);
+    top: calc(var(--splash-block-size) * 3);
+    animation-delay: 1000ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(15) {
+    left: calc(var(--splash-block-size) * 2);
+    top: calc(var(--splash-block-size) * 3);
+    animation-delay: 1120ms;
+  }
+
+  .thunder-splash-blocks span:nth-child(16) {
+    left: calc(var(--splash-block-size) * 3);
+    top: calc(var(--splash-block-size) * 3);
+    animation-delay: 1240ms;
   }
 
   .thunder-splash-glow {
@@ -488,8 +605,8 @@
     transform: scale(0.82);
     opacity: 0;
     animation:
-      thunder-splash-glow 1.35s cubic-bezier(0.2, 0, 0, 1) both,
-      thunder-splash-idle-glow 2.6s ease-in-out 1.35s infinite;
+      thunder-splash-glow-enter 520ms cubic-bezier(0.2, 0, 0, 1) both,
+      thunder-splash-idle-glow 2.8s ease-in-out 520ms infinite;
   }
 
   .thunder-splash-flash {
@@ -501,35 +618,24 @@
     mix-blend-mode: screen;
     opacity: 0;
     transform: translateX(-18px) rotate(-12deg) scale(0.98);
-    animation: thunder-splash-flash 1.35s linear both;
-  }
-
-  .thunder-splash-idle-flash {
-    z-index: 1;
-    inset: 8px;
-    background:
-      linear-gradient(112deg, transparent 25%, rgba(255, 255, 255, 0.96) 44%, rgba(255, 202, 120, 0.78) 50%, rgba(255, 255, 255, 0.9) 55%, transparent 68%);
-    filter: blur(1.5px);
-    mix-blend-mode: screen;
-    opacity: 0;
-    transform: translateX(-16px) rotate(-12deg) scale(0.98);
-    animation: thunder-splash-idle-flash 3.8s linear 1.55s infinite;
+    animation: thunder-splash-flash 520ms ease-out both;
   }
 
   .thunder-route-loading .thunder-splash-mark {
+    --splash-logo-size: 52px;
     width: 72px;
     height: 72px;
-    animation: thunder-splash-idle-mark 2.6s ease-in-out infinite;
+    animation: thunder-splash-idle-mark 3.2s ease-in-out infinite;
   }
 
   .thunder-route-loading .thunder-splash-logo {
     width: 52px;
     height: 52px;
-    animation: thunder-splash-idle-logo 2.6s ease-in-out infinite;
+    animation: thunder-splash-idle-logo 3.2s ease-in-out infinite;
   }
 
   .thunder-route-loading .thunder-splash-glow {
-    animation: thunder-splash-idle-glow 2.6s ease-in-out infinite;
+    animation: thunder-splash-idle-glow 3.2s ease-in-out infinite;
     opacity: 0.1;
   }
 
@@ -542,7 +648,8 @@
     .thunder-splash-logo,
     .thunder-splash-glow,
     .thunder-splash-flash,
-    .thunder-splash-idle-flash {
+    .thunder-splash-blocks,
+    .thunder-splash-blocks span {
       animation: none;
     }
 
@@ -553,7 +660,7 @@
 
     .thunder-splash-glow,
     .thunder-splash-flash,
-    .thunder-splash-idle-flash {
+    .thunder-splash-blocks {
       display: none;
     }
   }
@@ -569,44 +676,16 @@
   }
 }
 
-@keyframes thunder-splash-logo {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1) translate3d(0, 0, 0);
-    filter:
-      drop-shadow(0 8px 16px rgba(20, 95, 228, 0.06))
-      drop-shadow(0 0 0 rgba(255, 170, 44, 0));
-  }
-
-  12% {
+@keyframes thunder-splash-logo-enter {
+  0% {
     opacity: 0;
-    transform: scale(0.96) translate3d(0, 2px, 0);
-  }
-
-  28% {
-    opacity: 1;
-    transform: scale(1) translate3d(0, 0, 0);
-  }
-
-  48% {
-    opacity: 1;
-    transform: scale(1) translate3d(0, 0, 0);
+    transform: scale(0.96) translate3d(0, 3px, 0);
     filter:
-      drop-shadow(0 8px 16px rgba(20, 95, 228, 0.08))
+      drop-shadow(0 6px 12px rgba(20, 95, 228, 0))
       drop-shadow(0 0 0 rgba(255, 170, 44, 0));
   }
 
-  54% {
-    opacity: 1;
-    transform: scale(1.018) translate3d(-0.4px, 0, 0);
-    filter:
-      drop-shadow(0 0 22px rgba(255, 255, 255, 0.72))
-      drop-shadow(0 0 14px rgba(255, 183, 77, 0.54))
-      drop-shadow(0 10px 18px rgba(20, 95, 228, 0.12));
-  }
-
-  61% {
+  100% {
     opacity: 1;
     transform: scale(1) translate3d(0, 0, 0);
     filter:
@@ -615,93 +694,76 @@
   }
 }
 
-@keyframes thunder-splash-glow {
-  0%,
-  100% {
+@keyframes thunder-splash-glow-enter {
+  0% {
     opacity: 0;
-    transform: scale(0.8);
+    transform: scale(0.78);
   }
 
-  18% {
+  100% {
     opacity: 0.12;
-    transform: scale(0.84);
-  }
-
-  54% {
-    opacity: 0.58;
-    transform: scale(1.02);
-  }
-
-  68% {
-    opacity: 0.18;
-    transform: scale(0.92);
+    transform: scale(0.86);
   }
 }
 
 @keyframes thunder-splash-flash {
   0%,
+  58%,
   100% {
     opacity: 0;
-    transform: translateX(-18px) rotate(-12deg) scale(0.98);
-  }
-
-  51% {
-    opacity: 0;
-    transform: translateX(-14px) rotate(-12deg) scale(0.98);
-  }
-
-  54% {
-    opacity: 0.95;
-    transform: translateX(0) rotate(-12deg) scale(1.04);
-  }
-
-  58% {
-    opacity: 0.24;
-    transform: translateX(8px) rotate(-12deg) scale(1);
-  }
-
-  63% {
-    opacity: 0;
-    transform: translateX(16px) rotate(-12deg) scale(0.98);
-  }
-}
-
-@keyframes thunder-splash-idle-flash {
-  0%,
-  68%,
-  100% {
-    opacity: 0;
-    transform: translateX(-16px) rotate(-12deg) scale(0.98);
+    transform: translateX(-12px) rotate(-12deg) scale(0.98);
   }
 
   72% {
-    opacity: 0.72;
-    transform: translateX(-2px) rotate(-12deg) scale(1.018);
+    opacity: 0.28;
+    transform: translateX(0) rotate(-12deg) scale(1.01);
   }
 
-  76% {
-    opacity: 0.2;
-    transform: translateX(7px) rotate(-12deg) scale(1);
-  }
-
-  81% {
+  86% {
     opacity: 0;
-    transform: translateX(14px) rotate(-12deg) scale(0.98);
+    transform: translateX(10px) rotate(-12deg) scale(0.98);
   }
 }
 
-@keyframes thunder-splash-settle {
-  0%,
+@keyframes thunder-splash-mark-enter {
+  0% {
+    transform: translate3d(0, 2px, 0);
+  }
+
   100% {
     transform: translate3d(0, 0, 0);
   }
+}
 
-  54% {
-    transform: translate3d(-0.35px, 0, 0);
+@keyframes thunder-splash-blocks-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translate3d(0, 3px, 0);
   }
 
+  100% {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+}
+
+@keyframes thunder-splash-block {
+  0%,
+  22% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+
+  36%,
   58% {
-    transform: translate3d(0.35px, 0, 0);
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  74%,
+  100% {
+    opacity: 0;
+    transform: scale(0.82);
   }
 }
 
@@ -717,10 +779,10 @@
 
   50% {
     opacity: 0.96;
-    transform: scale(0.985);
+    transform: scale(0.992);
     filter:
       drop-shadow(0 8px 16px rgba(20, 95, 228, 0.08))
-      drop-shadow(0 0 7px rgba(255, 183, 77, 0.14));
+      drop-shadow(0 0 6px rgba(255, 183, 77, 0.1));
   }
 }
 
@@ -732,8 +794,8 @@
   }
 
   50% {
-    opacity: 0.18;
-    transform: scale(0.92);
+    opacity: 0.15;
+    transform: scale(0.9);
   }
 }
 
