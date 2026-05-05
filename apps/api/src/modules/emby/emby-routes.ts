@@ -10,7 +10,7 @@ import type {
   EmbySyncResult,
   EmbyTmdbType,
 } from "@thunder/emby"
-import { EmbyRepositorySQLite } from "./emby-repository.sqlite"
+import { EmbyRepositorySQLite } from "./emby-repository"
 
 const emby = new Hono()
 const serverEmby = new Hono()
