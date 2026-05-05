@@ -13,6 +13,14 @@ interface AuthLoginResponse {
   }
 }
 
+function parseLoginResponse(value: string): AuthLoginResponse | null {
+  try {
+    return value ? JSON.parse(value) as AuthLoginResponse : null
+  } catch {
+    return null
+  }
+}
+
 function getApiBaseUrl(): string {
   return getEnv("API_URL") || "http://localhost:3001"
 }
@@ -40,13 +48,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: "登录服务不可用" }, { status: 502 })
   }
 
-  const data = await upstream.json().catch(() => null) as AuthLoginResponse | null
+  const upstreamBody = await upstream.text().catch(() => "")
+  const data = parseLoginResponse(upstreamBody)
 
   if (!upstream.ok || !data?.ok || !data.data?.username) {
     console.error("[auth-bff] POST /login upstream returned error", {
       upstreamUrl,
       status: upstream.status,
       message: data?.error?.message,
+      body: upstreamBody.slice(0, 500),
     })
     const message = upstream.status === 404
       ? "登录服务不可用"

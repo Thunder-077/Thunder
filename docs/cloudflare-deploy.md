@@ -102,6 +102,17 @@ Thunder 当前按两个 Worker 部署：
 仓库里的 Wrangler 配置已开启 `keep_vars`，部署时会保留 Cloudflare Dashboard 中配置的运行时 Variables / Secrets。
 不要把 `DATABASE_URL`、`API_URL`、`THUNDER_AUTH_SECRET` 等运行时变量写进 `wrangler.jsonc` 的 `vars` 字段。
 
+仓库里的两个 Wrangler 配置也已开启 Workers Logs：
+
+```json
+"observability": {
+  "enabled": true,
+  "head_sampling_rate": 1
+}
+```
+
+`head_sampling_rate: 1` 表示部署后采集 100% 请求日志，适合当前调试阶段。后续访问量变大后可以改成 `0.1` 或更低。
+
 ## 创建 `thunder-api`
 
 在 Cloudflare Dashboard 中：

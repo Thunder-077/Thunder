@@ -7,5 +7,9 @@
     "nodejs_compat",
     "nodejs_compat_populate_process_env"
   ],
-  "keep_vars": true
+  "keep_vars": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
 }
