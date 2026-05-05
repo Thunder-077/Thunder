@@ -63,7 +63,7 @@ async function hashPassword(password: string, salt: string): Promise<string> {
       name: "PBKDF2",
       hash: "SHA-256",
       salt: toArrayBuffer(fromBase64Url(salt)),
-      iterations: 120_000,
+      iterations: 100_000,
     },
     key,
     256
