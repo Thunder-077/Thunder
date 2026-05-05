@@ -16,6 +16,14 @@ const emby = new Hono()
 const serverEmby = new Hono()
 const repository = new EmbyRepositorySQLite()
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+
+  return fallback
+}
+
 interface TmdbDiscoverItem {
   id: number
   title?: string
@@ -33,10 +41,6 @@ interface TmdbDiscoverResponse {
 interface EmosWatchListItem {
   id: number
   name: string
-}
-
-interface EmosWatchListResponse {
-  items?: EmosWatchListItem[]
 }
 
 function formatDateTime(date = new Date()): string {
@@ -404,22 +408,12 @@ async function emosRequest<T>(
   return res.json() as Promise<T>
 }
 
-async function findExistingWatchId(config: EmbyConfig, playlist: EmbyManagedPlaylist): Promise<number | null> {
-  const params = new URLSearchParams({
-    name: playlist.name,
-    is_self: "true",
-  })
-  const data = await emosRequest<EmosWatchListResponse>(config, `/api/watch?${params.toString()}`)
-  const match = data.items?.find((item) => item.name === playlist.name)
-  return match?.id ?? null
-}
-
 async function syncPlaylistToEmos(
   config: EmbyConfig,
   playlist: EmbyManagedPlaylist
 ): Promise<EmbySyncResult> {
   const feed = await generatePlaylistFeed(config, playlist)
-  const watchId = playlist.remoteWatchId ?? await findExistingWatchId(config, playlist)
+  const watchId = playlist.remoteWatchId
 
   const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
     method: "POST",
@@ -532,7 +526,7 @@ emby.put("/config", async (c) => {
     return c.json(apiSuccess({ config: saved }))
   } catch (error) {
     console.error("[emby-api] PUT /config failed", error)
-    return c.json(apiError("EMBY_DYNAMIC_WATCH_SAVE_FAILED", "保存 Emby 配置失败"), 500)
+    return c.json(apiError("EMBY_DYNAMIC_WATCH_SAVE_FAILED", getErrorMessage(error, "保存 Emby 配置失败")), 500)
   }
 })
 
@@ -550,7 +544,7 @@ emby.get("/playlists/:slug/preview", async (c) => {
     return c.json(apiSuccess({ preview }))
   } catch (error) {
     console.error("[emby-api] GET /playlists/:slug/preview failed", error)
-    return c.json(apiError("INTERNAL_ERROR", "生成热门片单预览失败"), 500)
+    return c.json(apiError("INTERNAL_ERROR", getErrorMessage(error, "生成热门片单预览失败")), 500)
   }
 })
 
@@ -589,7 +583,7 @@ emby.post("/sync", async (c) => {
     return c.json(apiSuccess({ results, config: saved }))
   } catch (error) {
     console.error("[emby-api] POST /sync failed", error)
-    return c.json(apiError("INTERNAL_ERROR", "同步 Emos 片单失败"), 500)
+    return c.json(apiError("INTERNAL_ERROR", getErrorMessage(error, "同步 Emos 片单失败")), 500)
   }
 })
 

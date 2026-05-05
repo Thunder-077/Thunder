@@ -47,10 +47,18 @@ export class ThunderClient {
     }
     const res = await fetch(url, options)
     if (!res.ok) {
-      const json = await res.json().catch(() => ({ error: "请求失败", code: "INTERNAL_ERROR" }))
+      const json = await res.json().catch(() => null)
+      const apiError = json && typeof json === "object" && "error" in json
+        ? (json as {
+            error?: {
+              code?: string
+              message?: string
+            }
+          }).error
+        : null
       throw new ThunderApiError(
-        (json as { error: string }).error || "请求失败",
-        (json as { code: string }).code || "INTERNAL_ERROR",
+        apiError?.message || `请求失败（HTTP ${res.status}）`,
+        apiError?.code || "INTERNAL_ERROR",
         res.status
       )
     }

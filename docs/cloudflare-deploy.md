@@ -136,6 +136,10 @@ Thunder 当前按两个 Worker 部署：
 建议作为 Secret 配置：
 
 - `DATABASE_URL`
+- `EMBY_PUBLIC_BASE_URL`
+- `EMBY_EMOS_BASE_URL`
+- `EMBY_EMOS_TOKEN`
+- `EMBY_TMDB_API_TOKEN`
 - `QWEATHER_KEY_ID`
 - `QWEATHER_PROJECT_ID`
 - `QWEATHER_PRIVATE_KEY`
@@ -143,6 +147,7 @@ Thunder 当前按两个 Worker 部署：
 其中：
 
 - `DATABASE_URL` 直接填 Neon 完整连接串
+- Emby 模块使用的地址、Token、TMDB 令牌也只从 `thunder-api` 的环境变量读取，不再从页面保存
 
 例如：
 

@@ -2,26 +2,41 @@
 
 import { useEffect, useState } from "react"
 import { ChevronDown, ChevronUp, Clapperboard, LoaderCircle, RefreshCcw, Save, Send } from "lucide-react"
-import { EmbyClient } from "@thunder/api-client"
+import { EmbyClient, ThunderApiError } from "@thunder/api-client"
 import type { EmbyConfig, EmbyManagedPlaylist, EmbyPlaylistPreview, EmbyPlaylistSlug } from "@thunder/emby"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { PasswordInput } from "@/components/ui/password-input"
 import { Select } from "@/components/ui/select"
 
 const embyClient = new EmbyClient()
 
+function toDisplayError(error: unknown, fallback: string): string {
+  if (error instanceof ThunderApiError && error.message.trim()) {
+    return error.message
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+
+  return fallback
+}
+
 function createEmptyConfig(): EmbyConfig {
   return {
-    publicBaseUrl: "http://localhost:3000",
-    emosBaseUrl: "https://test.emos.best",
-    emosToken: "11_test-token",
+    publicBaseUrl: "",
+    emosBaseUrl: "",
+    emosToken: "",
     tmdbApiKey: "",
     playlists: [],
   }
+}
+
+function configStatusLabel(value: string): string {
+  return value.trim() ? "已配置" : "未配置"
 }
 
 export default function EmbyModulePage() {
@@ -46,10 +61,10 @@ export default function EmbyModulePage() {
         const data = await embyClient.getConfig()
         if (cancelled) return
         setConfig(data ?? createEmptyConfig())
-      } catch (loadError) {
-        if (cancelled) return
-        console.error("[emby-module] load failed", loadError)
-        setError("加载 Emby 配置失败")
+    } catch (loadError) {
+      if (cancelled) return
+      console.error("[emby-module] load failed", loadError)
+      setError(toDisplayError(loadError, "加载 Emby 配置失败"))
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -86,7 +101,7 @@ export default function EmbyModulePage() {
       setMessage("Emby 配置已保存")
     } catch (saveError) {
       console.error("[emby-module] save config failed", saveError)
-      setError("保存 Emby 配置失败")
+      setError(toDisplayError(saveError, "保存 Emby 配置失败"))
     } finally {
       setSaving(false)
     }
@@ -103,7 +118,7 @@ export default function EmbyModulePage() {
       }))
     } catch (previewError) {
       console.error("[emby-module] preview playlist failed", previewError)
-      setError("生成热门片单预览失败，请检查 TMDB Key")
+      setError(toDisplayError(previewError, "生成热门片单预览失败，请检查 TMDB Key"))
     } finally {
       setRefreshingSlug(null)
     }
@@ -123,7 +138,7 @@ export default function EmbyModulePage() {
       )
     } catch (syncError) {
       console.error("[emby-module] sync playlist failed", syncError)
-      setError("同步 Emos 片单失败，请检查 Emos 地址、Token 和 TMDB Key")
+      setError(toDisplayError(syncError, "同步 Emos 片单失败，请检查 Emos 地址、Token 和 TMDB Key"))
     } finally {
       setSyncingSlug(null)
     }
@@ -176,35 +191,27 @@ export default function EmbyModulePage() {
           <CardContent className="grid gap-4 p-4 md:grid-cols-2">
             <div className="space-y-2">
               <div className="text-sm font-medium text-foreground">Thunder 对外地址</div>
-              <Input
-                value={config.publicBaseUrl}
-                onChange={(e) => setConfig((current) => ({ ...current, publicBaseUrl: e.target.value }))}
-                placeholder="https://your-domain.example"
-              />
+              <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                {config.publicBaseUrl || "未配置 EMBY_PUBLIC_BASE_URL"}
+              </div>
             </div>
             <div className="space-y-2">
               <div className="text-sm font-medium text-foreground">Emos 地址</div>
-              <Input
-                value={config.emosBaseUrl}
-                onChange={(e) => setConfig((current) => ({ ...current, emosBaseUrl: e.target.value }))}
-                placeholder="https://emos.best"
-              />
+              <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                {config.emosBaseUrl || "未配置 EMBY_EMOS_BASE_URL"}
+              </div>
             </div>
             <div className="space-y-2">
               <div className="text-sm font-medium text-foreground">Emos Token</div>
-              <PasswordInput
-                value={config.emosToken}
-                onChange={(e) => setConfig((current) => ({ ...current, emosToken: e.target.value }))}
-                placeholder="正式服或测试服 Bearer Token"
-              />
+              <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                {configStatusLabel(config.emosToken)}
+              </div>
             </div>
             <div className="space-y-2">
               <div className="text-sm font-medium text-foreground">TMDB API Token</div>
-              <PasswordInput
-                value={config.tmdbApiKey}
-                onChange={(e) => setConfig((current) => ({ ...current, tmdbApiKey: e.target.value }))}
-                placeholder="用于生成全网热门片单"
-              />
+              <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                {configStatusLabel(config.tmdbApiKey)}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -236,8 +243,8 @@ export default function EmbyModulePage() {
         ) : (
           <div className="space-y-4">
             <Card>
-              <CardContent className="grid gap-4 p-4 md:grid-cols-[320px_minmax(0,1fr)] md:items-end">
-                <div className="space-y-2">
+              <CardContent className="space-y-3 p-4">
+                <div className="max-w-[320px] space-y-2">
                   <div className="text-sm font-medium text-foreground">当前片单</div>
                   <Select
                     value={selectedSlug}
@@ -247,7 +254,7 @@ export default function EmbyModulePage() {
                   />
                 </div>
                 {selectedPlaylist && (
-                  <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     {selectedPlaylist.description}
                   </div>
                 )}
@@ -280,7 +287,7 @@ export default function EmbyModulePage() {
                       <Input
                         value={selectedPlaylist.cover}
                         onChange={(e) => updatePlaylist(selectedPlaylist.slug, (current) => ({ ...current, cover: e.target.value }))}
-                        placeholder={`${config.publicBaseUrl.replace(/\/$/, "")}/icon-512.png`}
+                        placeholder={`${(config.publicBaseUrl || "https://your-domain.example").replace(/\/$/, "")}/icon-512.png`}
                       />
                     </div>
                     <div className="space-y-2">

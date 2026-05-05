@@ -81,11 +81,27 @@ function defaultPlaylists(): EmbyConfig["playlists"] {
 
 function defaultConfig(): EmbyConfig {
   return {
-    publicBaseUrl: "http://localhost:3000",
-    emosBaseUrl: "https://test.emos.best",
-    emosToken: "11_test-token",
-    tmdbApiKey: "",
+    publicBaseUrl: process.env.EMBY_PUBLIC_BASE_URL?.trim() || "",
+    emosBaseUrl: process.env.EMBY_EMOS_BASE_URL?.trim() || "",
+    emosToken: process.env.EMBY_EMOS_TOKEN?.trim() || "",
+    tmdbApiKey: process.env.EMBY_TMDB_API_TOKEN?.trim() || "",
     playlists: defaultPlaylists(),
+  }
+}
+
+function resolveEnvConfig(): Pick<EmbyConfig, "publicBaseUrl" | "emosBaseUrl" | "emosToken" | "tmdbApiKey"> {
+  return {
+    publicBaseUrl: process.env.EMBY_PUBLIC_BASE_URL?.trim() || "",
+    emosBaseUrl: process.env.EMBY_EMOS_BASE_URL?.trim() || "",
+    emosToken: process.env.EMBY_EMOS_TOKEN?.trim() || "",
+    tmdbApiKey: process.env.EMBY_TMDB_API_TOKEN?.trim() || "",
+  }
+}
+
+function withEnvConfig(playlists: EmbyConfig["playlists"]): EmbyConfig {
+  return {
+    ...resolveEnvConfig(),
+    playlists,
   }
 }
 
@@ -93,8 +109,7 @@ function normalizeConfig(config: EmbyConfig): EmbyConfig {
   const playlistMap = new Map(config.playlists.map((playlist) => [playlist.slug, playlist]))
 
   return {
-    ...defaultConfig(),
-    ...config,
+    ...resolveEnvConfig(),
     playlists: defaultPlaylists().map((playlist) => ({
       ...playlist,
       ...(playlistMap.get(playlist.slug) ?? {}),
@@ -112,10 +127,6 @@ function parseLegacyConfig(valueJson: string): EmbyConfig | null {
 
 function fromRecords(
   configRecord: {
-    publicBaseUrl: string
-    emosBaseUrl: string
-    emosToken: string
-    tmdbApiKey: string
     playlists: Array<{
       slug: string
       name: string
@@ -132,12 +143,7 @@ function fromRecords(
     }>
   }
 ): EmbyConfig {
-  return normalizeConfig({
-    publicBaseUrl: configRecord.publicBaseUrl,
-    emosBaseUrl: configRecord.emosBaseUrl,
-    emosToken: configRecord.emosToken,
-    tmdbApiKey: configRecord.tmdbApiKey,
-    playlists: configRecord.playlists.map((playlist) => ({
+  return normalizeConfig(withEnvConfig(configRecord.playlists.map((playlist) => ({
       slug: playlist.slug as EmbyConfig["playlists"][number]["slug"],
       name: playlist.name,
       description: playlist.description,
@@ -150,13 +156,13 @@ function fromRecords(
       limit: playlist.limit,
       releaseWindowDays: playlist.releaseWindowDays,
       remoteWatchId: playlist.remoteWatchId,
-    })),
-  })
+    }))))
 }
 
 async function writeConfig(config: EmbyConfig): Promise<EmbyConfig> {
   const normalized = normalizeConfig(config)
   const now = new Date().toISOString()
+  const envConfig = resolveEnvConfig()
 
   await prisma.$transaction(async (tx) => {
     const existing = await tx.embyConfigRecord.findUnique({
@@ -166,18 +172,18 @@ async function writeConfig(config: EmbyConfig): Promise<EmbyConfig> {
     await tx.embyConfigRecord.upsert({
       where: { id: EMBY_CONFIG_ID },
       update: {
-        publicBaseUrl: normalized.publicBaseUrl,
-        emosBaseUrl: normalized.emosBaseUrl,
-        emosToken: normalized.emosToken,
-        tmdbApiKey: normalized.tmdbApiKey,
+        publicBaseUrl: envConfig.publicBaseUrl,
+        emosBaseUrl: envConfig.emosBaseUrl,
+        emosToken: envConfig.emosToken,
+        tmdbApiKey: envConfig.tmdbApiKey,
         updatedAt: now,
       },
       create: {
         id: EMBY_CONFIG_ID,
-        publicBaseUrl: normalized.publicBaseUrl,
-        emosBaseUrl: normalized.emosBaseUrl,
-        emosToken: normalized.emosToken,
-        tmdbApiKey: normalized.tmdbApiKey,
+        publicBaseUrl: envConfig.publicBaseUrl,
+        emosBaseUrl: envConfig.emosBaseUrl,
+        emosToken: envConfig.emosToken,
+        tmdbApiKey: envConfig.tmdbApiKey,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       },
