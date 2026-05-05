@@ -55,7 +55,7 @@ export function VaultUnlockPage() {
         <div className="text-center">
           <h1 className="text-xl font-semibold tracking-tight">解锁密码保险箱</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            输入主密码来访问你的账号、密钥和备注
+            输入主密码来访问你的密码保险箱。
           </p>
         </div>
       </div>
