@@ -120,7 +120,7 @@ export function VaultUnlockPage() {
         </Card>
       </form>
       <div className="mt-5 space-y-3">
-        <Callout variant="warning" className="border-border/60">
+        <Callout variant="warning" title="无法恢复主密码" className="border-border/60">
           <p className="text-xs text-muted-foreground leading-5">
             如果忘记主密码，只能
             <button
