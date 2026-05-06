@@ -222,6 +222,26 @@ function buildEmosSyncSignature(config: EmbyConfig, playlist: EmbyManagedPlaylis
   })
 }
 
+function isEmosSameUpdateError(error: unknown): boolean {
+  return getErrorMessage(error).includes("\"updated_at same\"")
+}
+
+function truncateLogText(value: string, maxLength = 2000): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...<truncated>` : value
+}
+
+function getRequestBodyPreview(body: RequestInit["body"]): string | null {
+  if (typeof body === "string") {
+    return truncateLogText(body)
+  }
+
+  return null
+}
+
+function parseJsonResponse<T>(text: string): T {
+  return JSON.parse(text) as T
+}
+
 function getTmdbHeaders(apiKey: string): HeadersInit {
   return {
     accept: "application/json",
@@ -648,10 +668,19 @@ async function emosRequest<T>(
 ): Promise<T> {
   const baseUrl = config.emosBaseUrl.replace(/\/$/, "")
   const token = config.emosToken.trim()
+  const method = init?.method ?? "GET"
+  const requestBody = getRequestBodyPreview(init?.body)
 
   if (!baseUrl || !token) {
     throw new Error("Emos config is incomplete")
   }
+
+  // 统一输出 Emos 请求日志，便于在 Cloudflare Workers 日志中排查同步问题。
+  console.info("[emby-api] Emos request", {
+    method,
+    url: `${baseUrl}${path}`,
+    body: requestBody,
+  })
 
   const res = await fetch(`${baseUrl}${path}`, {
     ...init,
@@ -663,9 +692,17 @@ async function emosRequest<T>(
     },
   })
 
-  if (!res.ok) {
-    const text = await res.text()
+  const text = await res.text()
 
+  console.info("[emby-api] Emos response", {
+    method,
+    url: `${baseUrl}${path}`,
+    status: res.status,
+    ok: res.ok,
+    body: truncateLogText(text),
+  })
+
+  if (!res.ok) {
     if (res.status === 403 && text.includes("Just a moment")) {
       throw new Error("Emos 主站被 Cloudflare 403 拦截，请将 EMBY_EMOS_BASE_URL 切换为 https://api.emos.best 后重试")
     }
@@ -673,7 +710,7 @@ async function emosRequest<T>(
     throw new Error(`Emos request failed: ${res.status} ${text.slice(0, 500)}`)
   }
 
-  return res.json() as Promise<T>
+  return parseJsonResponse<T>(text)
 }
 
 async function refreshEnabledPlaylistCaches(): Promise<void> {
@@ -735,28 +772,47 @@ async function syncPlaylistToEmos(
     }
   }
 
-  const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
-    method: "POST",
-    body: JSON.stringify({
-      id: watchId,
-      name: playlist.name,
-      description: playlist.description,
-      is_public: playlist.isPublic,
-      point: playlist.point,
-      tags: playlist.tags,
-      is_show_empty: playlist.isShowEmpty,
-      image_poster_url: resolveCover(config, playlist),
-    }),
-  })
+  let resolvedWatchId = watchId
 
-  const resolvedWatchId = watchResponse.watch_id
+  try {
+    const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
+      method: "POST",
+      body: JSON.stringify({
+        id: watchId,
+        name: playlist.name,
+        description: playlist.description,
+        is_public: playlist.isPublic,
+        point: playlist.point,
+        tags: playlist.tags,
+        is_show_empty: playlist.isShowEmpty,
+        image_poster_url: resolveCover(config, playlist),
+      }),
+    })
+    resolvedWatchId = watchResponse.watch_id
+  } catch (error) {
+    // Emos 会把“无实际变更”的重复更新直接回 422，这里按幂等成功处理。
+    if (!watchId || !isEmosSameUpdateError(error)) {
+      throw error
+    }
+  }
 
-  await emosRequest(config, `/api/watch/${resolvedWatchId}/dynamic`, {
-    method: "PUT",
-    body: JSON.stringify({
-      url: dynamicUrl,
-    }),
-  })
+  if (!resolvedWatchId) {
+    throw new Error("Emos watch id is missing after sync")
+  }
+
+  try {
+    await emosRequest(config, `/api/watch/${resolvedWatchId}/dynamic`, {
+      method: "PUT",
+      body: JSON.stringify({
+        url: dynamicUrl,
+      }),
+    })
+  } catch (error) {
+    // 动态地址未变化时，Emos 也会返回 same，这里同样视为幂等成功。
+    if (!isEmosSameUpdateError(error)) {
+      throw error
+    }
+  }
 
   await repository.savePlaylistSyncSignature(playlist.slug, syncSignature)
 
