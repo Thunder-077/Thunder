@@ -98,6 +98,28 @@ interface EmbyRefreshCandidate {
   shouldRestart: boolean
 }
 
+function isValidRefreshSourceState(value: unknown): value is EmbyRefreshSourceState {
+  if (!value || typeof value !== "object") {
+    return false
+  }
+
+  const source = value as Partial<EmbyRefreshSourceState>
+  return (
+    typeof source.key === "string" &&
+    (source.mediaType === "movie" || source.mediaType === "tv") &&
+    typeof source.nextPage === "number" &&
+    Number.isFinite(source.nextPage) &&
+    typeof source.maxPages === "number" &&
+    Number.isFinite(source.maxPages) &&
+    typeof source.targetCount === "number" &&
+    Number.isFinite(source.targetCount) &&
+    typeof source.done === "boolean" &&
+    !!source.params &&
+    typeof source.params === "object" &&
+    Array.isArray(source.items)
+  )
+}
+
 const CRON_REFRESH_PAGE_BUDGET = 5
 const PREVIEW_REFRESH_PAGE_BUDGET = 12
 const PUBLIC_FEED_REFRESH_PAGE_BUDGET = 5
@@ -529,7 +551,13 @@ async function advancePlaylistRefresh(
 function parseRefreshState(raw: string, playlist: EmbyManagedPlaylist): EmbyRefreshState {
   try {
     const parsed = JSON.parse(raw) as EmbyRefreshState
-    if (parsed.slug === playlist.slug && Array.isArray(parsed.sources)) {
+    // 持久化任务可能来自旧结构或异常写入，这里必须校验每个 source，
+    // 避免 refresh-status 在读取 items/nextPage 时直接把 Worker 打崩。
+    if (
+      parsed.slug === playlist.slug &&
+      Array.isArray(parsed.sources) &&
+      parsed.sources.every((source) => isValidRefreshSourceState(source))
+    ) {
       return parsed
     }
   } catch {
