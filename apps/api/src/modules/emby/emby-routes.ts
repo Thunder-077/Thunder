@@ -231,7 +231,12 @@ function resolvePublicFeedUrl(config: EmbyConfig, slug: EmbyPlaylistSlug): strin
   return `${baseUrl}/server/emby/watch/${slug}`
 }
 
-function buildEmosSyncSignature(config: EmbyConfig, playlist: EmbyManagedPlaylist): string {
+interface EmosSyncState {
+  metadataSignature: string
+  dynamicSignature: string
+}
+
+function buildEmosMetadataSignature(config: EmbyConfig, playlist: EmbyManagedPlaylist): string {
   return JSON.stringify({
     name: playlist.name,
     description: playlist.description,
@@ -240,8 +245,43 @@ function buildEmosSyncSignature(config: EmbyConfig, playlist: EmbyManagedPlaylis
     tags: playlist.tags,
     isShowEmpty: playlist.isShowEmpty,
     cover: resolveCover(config, playlist),
+  })
+}
+
+function buildEmosDynamicSignature(config: EmbyConfig, playlist: EmbyManagedPlaylist): string {
+  return JSON.stringify({
     dynamicUrl: resolvePublicFeedUrl(config, playlist.slug),
   })
+}
+
+function buildEmosSyncState(config: EmbyConfig, playlist: EmbyManagedPlaylist): EmosSyncState {
+  return {
+    metadataSignature: buildEmosMetadataSignature(config, playlist),
+    dynamicSignature: buildEmosDynamicSignature(config, playlist),
+  }
+}
+
+function parseStoredEmosSyncState(raw: string | null): EmosSyncState | null {
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<EmosSyncState>
+    if (
+      typeof parsed.metadataSignature === "string" &&
+      typeof parsed.dynamicSignature === "string"
+    ) {
+      return {
+        metadataSignature: parsed.metadataSignature,
+        dynamicSignature: parsed.dynamicSignature,
+      }
+    }
+  } catch {
+    // 兼容旧格式：之前只存了一份整体验签名，无法区分元数据和动态地址。
+  }
+
+  return null
 }
 
 function truncateLogText(value: string, maxLength = 2000): string {
@@ -781,11 +821,18 @@ async function syncPlaylistToEmos(
   feed: EmbyDynamicWatchFeed
 ): Promise<EmbySyncResult> {
   const dynamicUrl = resolvePublicFeedUrl(config, playlist.slug)
-  const syncSignature = buildEmosSyncSignature(config, playlist)
+  const syncState = buildEmosSyncState(config, playlist)
   const watchId = playlist.remoteWatchId
-  const lastSyncSignature = await repository.getPlaylistSyncSignature(playlist.slug)
+  const lastSyncSignature = parseStoredEmosSyncState(
+    await repository.getPlaylistSyncSignature(playlist.slug)
+  )
 
-  if (watchId && lastSyncSignature === syncSignature) {
+  const shouldSyncMetadata =
+    !watchId || lastSyncSignature?.metadataSignature !== syncState.metadataSignature
+  const shouldSyncDynamic =
+    !watchId || lastSyncSignature?.dynamicSignature !== syncState.dynamicSignature
+
+  if (watchId && !shouldSyncMetadata && !shouldSyncDynamic) {
     return {
       slug: playlist.slug,
       name: playlist.name,
@@ -796,30 +843,40 @@ async function syncPlaylistToEmos(
     }
   }
 
-  const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
-    method: "POST",
-    body: JSON.stringify({
-      id: watchId,
-      name: playlist.name,
-      description: playlist.description,
-      is_public: playlist.isPublic,
-      point: playlist.point,
-      tags: playlist.tags,
-      is_show_empty: playlist.isShowEmpty,
-      image_poster_url: resolveCover(config, playlist),
-    }),
-  })
+  let resolvedWatchId = watchId
 
-  const resolvedWatchId = watchResponse.watch_id
+  if (shouldSyncMetadata) {
+    const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
+      method: "POST",
+      body: JSON.stringify({
+        id: watchId,
+        name: playlist.name,
+        description: playlist.description,
+        is_public: playlist.isPublic,
+        point: playlist.point,
+        tags: playlist.tags,
+        is_show_empty: playlist.isShowEmpty,
+        image_poster_url: resolveCover(config, playlist),
+      }),
+    })
+    resolvedWatchId = watchResponse.watch_id
+  }
 
-  await emosRequest(config, `/api/watch/${resolvedWatchId}/dynamic`, {
-    method: "PUT",
-    body: JSON.stringify({
-      url: dynamicUrl,
-    }),
-  })
+  if (!resolvedWatchId) {
+    throw new Error("Emos watch id is missing after metadata sync")
+  }
 
-  await repository.savePlaylistSyncSignature(playlist.slug, syncSignature)
+  if (shouldSyncDynamic) {
+    // 动态地址未变化时跳过 /dynamic，避免 Emos 返回 updated_at same。
+    await emosRequest(config, `/api/watch/${resolvedWatchId}/dynamic`, {
+      method: "PUT",
+      body: JSON.stringify({
+        url: dynamicUrl,
+      }),
+    })
+  }
+
+  await repository.savePlaylistSyncSignature(playlist.slug, JSON.stringify(syncState))
 
   return {
     slug: playlist.slug,
