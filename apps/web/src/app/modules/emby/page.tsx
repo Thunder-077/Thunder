@@ -207,11 +207,11 @@ export default function EmbyModulePage() {
   }, [selectedSlug])
 
   useEffect(() => {
-    const playlistSlug = selectedPlaylist?.slug
-    if (!playlistSlug) {
+    if (!selectedPlaylist) {
       return
     }
 
+    const playlistSlug = selectedPlaylist.slug
     let cancelled = false
 
     async function loadRefreshStatus() {
