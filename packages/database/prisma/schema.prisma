@@ -53,6 +53,7 @@ model EmbyPlaylistRecord {
   limit             Int
   releaseWindowDays Int    @map("release_window_days")
   remoteWatchId     Int?   @map("remote_watch_id")
+  lastEmosSyncSignature String? @map("last_emos_sync_signature")
   createdAt         String @map("created_at")
   updatedAt         String @map("updated_at")
 

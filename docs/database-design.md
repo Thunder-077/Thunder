@@ -88,6 +88,7 @@ Thunder 当前使用 Prisma ORM 访问关系型数据库。项目已切换到 Po
 | limit | INTEGER NOT NULL | 抓取数量 |
 | release_window_days | INTEGER NOT NULL | 时间窗口 |
 | remote_watch_id | INTEGER | Emos 远端片单 ID |
+| last_emos_sync_signature | TEXT | 上次同步到 Emos 的元数据签名 |
 | created_at | TEXT NOT NULL | 创建时间 |
 | updated_at | TEXT NOT NULL | 更新时间 |
 

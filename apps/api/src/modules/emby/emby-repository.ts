@@ -278,4 +278,23 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
       },
     })
   }
+
+  async getPlaylistSyncSignature(slug: EmbyPlaylistSlug): Promise<string | null> {
+    const rows = await prisma.$queryRaw<Array<{ last_emos_sync_signature: string | null }>>`
+      SELECT last_emos_sync_signature
+      FROM emby_playlist
+      WHERE slug = ${slug}
+      LIMIT 1
+    `
+
+    return rows[0]?.last_emos_sync_signature ?? null
+  }
+
+  async savePlaylistSyncSignature(slug: EmbyPlaylistSlug, signature: string): Promise<void> {
+    await prisma.$executeRaw`
+      UPDATE emby_playlist
+      SET last_emos_sync_signature = ${signature}
+      WHERE slug = ${slug}
+    `
+  }
 }

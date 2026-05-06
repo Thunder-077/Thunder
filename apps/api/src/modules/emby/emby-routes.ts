@@ -209,6 +209,19 @@ function resolvePublicFeedUrl(config: EmbyConfig, slug: EmbyPlaylistSlug): strin
   return `${baseUrl}/server/emby/watch/${slug}`
 }
 
+function buildEmosSyncSignature(config: EmbyConfig, playlist: EmbyManagedPlaylist): string {
+  return JSON.stringify({
+    name: playlist.name,
+    description: playlist.description,
+    isPublic: playlist.isPublic,
+    point: playlist.point,
+    tags: playlist.tags,
+    isShowEmpty: playlist.isShowEmpty,
+    cover: resolveCover(config, playlist),
+    dynamicUrl: resolvePublicFeedUrl(config, playlist.slug),
+  })
+}
+
 function getTmdbHeaders(apiKey: string): HeadersInit {
   return {
     accept: "application/json",
@@ -706,7 +719,21 @@ async function syncPlaylistToEmos(
   playlist: EmbyManagedPlaylist,
   feed: EmbyDynamicWatchFeed
 ): Promise<EmbySyncResult> {
+  const dynamicUrl = resolvePublicFeedUrl(config, playlist.slug)
+  const syncSignature = buildEmosSyncSignature(config, playlist)
   const watchId = playlist.remoteWatchId
+  const lastSyncSignature = await repository.getPlaylistSyncSignature(playlist.slug)
+
+  if (watchId && lastSyncSignature === syncSignature) {
+    return {
+      slug: playlist.slug,
+      name: playlist.name,
+      watchId,
+      dynamicUrl,
+      updatedAt: feed.updatedAt,
+      count: feed.videos.length,
+    }
+  }
 
   const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
     method: "POST",
@@ -723,7 +750,6 @@ async function syncPlaylistToEmos(
   })
 
   const resolvedWatchId = watchResponse.watch_id
-  const dynamicUrl = resolvePublicFeedUrl(config, playlist.slug)
 
   await emosRequest(config, `/api/watch/${resolvedWatchId}/dynamic`, {
     method: "PUT",
@@ -731,6 +757,8 @@ async function syncPlaylistToEmos(
       url: dynamicUrl,
     }),
   })
+
+  await repository.savePlaylistSyncSignature(playlist.slug, syncSignature)
 
   return {
     slug: playlist.slug,
