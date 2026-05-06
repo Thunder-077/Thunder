@@ -16,16 +16,25 @@ function applyBindingsToProcessEnv(bindings: Record<string, unknown>) {
 export default {
   fetch: app.fetch,
   async scheduled(
-    _controller: { cron: string; scheduledTime: number },
+    controller: { cron: string; scheduledTime: number },
     env: Record<string, unknown>,
     ctx: WorkerExecutionContext
   ) {
+    console.info("[emby-worker] 定时触发", {
+      cron: controller.cron,
+      scheduledTime: new Date(controller.scheduledTime).toISOString(),
+    })
+
     applyBindingsToProcessEnv(env)
 
     ctx.waitUntil(
-      refreshEnabledPlaylistCaches().catch((error) => {
-        console.error("[emby-worker] scheduled cache refresh failed", error)
-      })
+      refreshEnabledPlaylistCaches()
+        .then(() => {
+          console.info("[emby-worker] 定时任务完成")
+        })
+        .catch((error) => {
+          console.error("[emby-worker] 定时任务失败", error)
+        })
     )
   },
 }
