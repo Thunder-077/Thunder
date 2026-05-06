@@ -20,7 +20,7 @@ export default {
     env: Record<string, unknown>,
     ctx: WorkerExecutionContext
   ) {
-    console.info("[emby-worker] 定时触发", {
+    console.info("[emby-refresh-scheduler] trigger received", {
       cron: controller.cron,
       scheduledTime: new Date(controller.scheduledTime).toISOString(),
     })
@@ -30,10 +30,14 @@ export default {
     ctx.waitUntil(
       refreshEnabledPlaylistCaches()
         .then(() => {
-          console.info("[emby-worker] 定时任务完成")
+          console.info("[emby-refresh-scheduler] trigger completed")
         })
         .catch((error) => {
-          console.error("[emby-worker] 定时任务失败", error)
+          console.error("[emby-refresh-scheduler] trigger failed", {
+            cron: controller.cron,
+            scheduledTime: new Date(controller.scheduledTime).toISOString(),
+            error: error instanceof Error ? error.message : String(error),
+          })
         })
     )
   },
