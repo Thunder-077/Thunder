@@ -199,7 +199,7 @@ function refreshWatchCacheInBackground(
 
   let waitUntil: ((promise: Promise<unknown>) => void) | undefined
   try {
-    waitUntil = context.executionCtx?.waitUntil
+    waitUntil = context.executionCtx?.waitUntil?.bind(context.executionCtx)
   } catch {
     waitUntil = undefined
   }
