@@ -1,4 +1,10 @@
-import type { EmbyConfig, EmbyPlaylistPreview, EmbyPlaylistSlug, EmbySyncResult } from "@thunder/emby"
+import type {
+  EmbyConfig,
+  EmbyPlaylistPreview,
+  EmbyPlaylistRefreshStatus,
+  EmbyPlaylistSlug,
+  EmbySyncResult,
+} from "@thunder/emby"
 import { ThunderClient } from "../client"
 
 export class EmbyClient extends ThunderClient {
@@ -17,6 +23,13 @@ export class EmbyClient extends ThunderClient {
       `/emby/playlists/${encodeURIComponent(slug)}/preview`
     )
     return res.data.preview
+  }
+
+  async getPlaylistRefreshStatus(slug: EmbyPlaylistSlug): Promise<EmbyPlaylistRefreshStatus> {
+    const res = await this.get<{ ok: boolean; data: { status: EmbyPlaylistRefreshStatus } }>(
+      `/emby/playlists/${encodeURIComponent(slug)}/refresh-status`
+    )
+    return res.data.status
   }
 
   async syncPlaylists(slug?: EmbyPlaylistSlug): Promise<{ results: EmbySyncResult[]; config: EmbyConfig }> {

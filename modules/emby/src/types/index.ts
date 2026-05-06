@@ -30,6 +30,20 @@ export interface EmbyPlaylistPreview {
   videos: EmbyPreviewVideo[]
 }
 
+export interface EmbyPlaylistRefreshStatus {
+  slug: EmbyPlaylistSlug
+  status: "idle" | "refreshing" | "completed" | "failed"
+  processedPages: number
+  totalPages: number
+  collectedCount: number
+  targetCount: number
+  completedSources: number
+  totalSources: number
+  cacheGeneratedAt: string | null
+  updatedAt: string | null
+  errorMessage: string | null
+}
+
 export interface EmbyManagedPlaylist {
   slug: EmbyPlaylistSlug
   name: string

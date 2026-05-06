@@ -5,9 +5,12 @@ import type {
   EmbyDynamicWatchFeed,
   EmbyManagedPlaylist,
   EmbyPlaylistPreview,
+  EmbyPlaylistRefreshStatus,
   EmbyPlaylistSlug,
   EmbySyncResult,
   EmbyTmdbType,
+  EmbyWatchCache,
+  EmbyWatchRefreshTask,
 } from "@thunder/emby"
 import { EmbyRepositorySQLite } from "./emby-repository"
 
@@ -586,6 +589,45 @@ function buildPreviewFromRefreshState(
   }
 }
 
+function toRefreshStatus(
+  playlist: EmbyManagedPlaylist,
+  refreshTask: EmbyWatchRefreshTask | null,
+  cache: EmbyWatchCache | null
+): EmbyPlaylistRefreshStatus {
+  if (!refreshTask) {
+    return {
+      slug: playlist.slug,
+      status: cache ? "completed" : "idle",
+      processedPages: 0,
+      totalPages: 0,
+      collectedCount: cache?.count ?? 0,
+      targetCount: resolvePlaylistLimit(playlist.limit),
+      completedSources: 0,
+      totalSources: 0,
+      cacheGeneratedAt: cache?.generatedAt ?? null,
+      updatedAt: cache?.generatedAt ?? null,
+      errorMessage: null,
+    }
+  }
+
+  const state = parseRefreshState(refreshTask.stateJson, playlist)
+  const mergedItems = dedupePreviewItems(state.sources.flatMap((source) => source.items))
+
+  return {
+    slug: playlist.slug,
+    status: refreshTask.status as EmbyPlaylistRefreshStatus["status"],
+    processedPages: state.sources.reduce((total, source) => total + Math.min(source.maxPages, source.nextPage - 1), 0),
+    totalPages: state.sources.reduce((total, source) => total + source.maxPages, 0),
+    collectedCount: mergedItems.length,
+    targetCount: resolvePlaylistLimit(playlist.limit),
+    completedSources: state.sources.filter((source) => source.done || source.items.length >= source.targetCount).length,
+    totalSources: state.sources.length,
+    cacheGeneratedAt: cache?.generatedAt ?? null,
+    updatedAt: refreshTask.updatedAt,
+    errorMessage: refreshTask.errorMessage,
+  }
+}
+
 async function emosRequest<T>(
   config: EmbyConfig,
   path: string,
@@ -757,6 +799,30 @@ emby.get("/playlists/:slug/preview", async (c) => {
   }
 })
 
+emby.get("/playlists/:slug/refresh-status", async (c) => {
+  try {
+    const slug = c.req.param("slug") as EmbyPlaylistSlug
+    const config = await repository.getConfig()
+    const playlist = config?.playlists.find((item) => item.slug === slug)
+
+    if (!config || !playlist) {
+      return c.json(apiError("EMBY_DYNAMIC_WATCH_NOT_FOUND", "片单不存在"), 404)
+    }
+
+    const [cache, refreshTask] = await Promise.all([
+      repository.getWatchCache(slug),
+      repository.getWatchRefreshTask(slug),
+    ])
+
+    return c.json(apiSuccess({
+      status: toRefreshStatus(playlist, refreshTask, cache),
+    }))
+  } catch (error) {
+    console.error("[emby-api] GET /playlists/:slug/refresh-status failed", error)
+    return c.json(apiError("INTERNAL_ERROR", getErrorMessage(error, "获取缓存刷新状态失败")), 500)
+  }
+})
+
 emby.post("/sync", async (c) => {
   try {
     const config = await repository.getConfig()
@@ -774,21 +840,16 @@ emby.post("/sync", async (c) => {
 
     for (const playlist of targets) {
       const cached = await repository.getWatchCache(playlist.slug)
-      const refreshTask = await repository.getWatchRefreshTask(playlist.slug)
-      if (!cached) {
-        return c.json(
-          apiError("VALIDATION_ERROR", `片单 ${playlist.name} 暂无缓存，请先刷新预览或等待定时任务更新缓存`),
-          400
-        )
-      }
-      if (refreshTask?.status === "refreshing") {
-        return c.json(
-          apiError("VALIDATION_ERROR", `片单 ${playlist.name} 缓存仍在更新中，请稍后再同步到 Emos`),
-          409
-        )
-      }
-
-      const result = await syncPlaylistToEmos(config, playlist, cached.feed)
+      const result = await syncPlaylistToEmos(
+        config,
+        playlist,
+        cached?.feed ?? {
+          name: playlist.name,
+          cover: resolveCover(config, playlist),
+          updatedAt: formatDateTime(),
+          videos: [],
+        }
+      )
       results.push(result)
       const index = updatedPlaylists.findIndex((item) => item.slug === playlist.slug)
       if (index >= 0) {

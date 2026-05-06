@@ -7,6 +7,7 @@ import type {
   EmbyConfig,
   EmbyManagedPlaylist,
   EmbyPlaylistPreview,
+  EmbyPlaylistRefreshStatus,
   EmbyPlaylistSlug,
   EmbySyncResult,
 } from "@thunder/emby"
@@ -14,12 +15,15 @@ import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Callout } from "@/components/ui/callout"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 
 const embyClient = new EmbyClient()
 const inputClassName = "placeholder:text-muted-foreground/55"
 const PREVIEW_DISPLAY_LIMIT = 100
+const REFRESH_LEAD_HOURS = 10
+const CRON_INTERVAL_MINUTES = 10
 
 function toDisplayError(error: unknown, fallback: string): string {
   if (error instanceof ThunderApiError && error.message.trim()) {
@@ -49,9 +53,116 @@ function buildSyncSuccessMessage(slug: EmbyPlaylistSlug | undefined, results: Em
     : `已同步 ${results.length} 个片单到 Emos`
 }
 
+function mergeRemoteWatchIds(config: EmbyConfig, results: EmbySyncResult[]): EmbyConfig {
+  if (results.length === 0) {
+    return config
+  }
+
+  const watchIdMap = new Map(results.map((result) => [result.slug, result.watchId]))
+
+  return {
+    ...config,
+    playlists: config.playlists.map((playlist) => {
+      const watchId = watchIdMap.get(playlist.slug)
+      return watchId === undefined
+        ? playlist
+        : {
+          ...playlist,
+          remoteWatchId: watchId,
+        }
+    }),
+  }
+}
+
+function toRefreshStatusLabel(status: EmbyPlaylistRefreshStatus["status"]): string {
+  if (status === "refreshing") return "缓存更新中"
+  if (status === "completed") return "缓存已完成"
+  if (status === "failed") return "缓存更新失败"
+  return "缓存未开始"
+}
+
+function formatDisplayDateTime(value: string | null): string | null {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, "0")
+  const day = `${date.getDate()}`.padStart(2, "0")
+  const hours = `${date.getHours()}`.padStart(2, "0")
+  const minutes = `${date.getMinutes()}`.padStart(2, "0")
+  const seconds = `${date.getSeconds()}`.padStart(2, "0")
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
+function formatDisplayTime(value: string | null): string | null {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const hours = `${date.getHours()}`.padStart(2, "0")
+  const minutes = `${date.getMinutes()}`.padStart(2, "0")
+  const seconds = `${date.getSeconds()}`.padStart(2, "0")
+  return `${hours}:${minutes}:${seconds}`
+}
+
+function addMinutes(value: string, minutes: number): string | null {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  date.setMinutes(date.getMinutes() + minutes)
+  return formatDisplayDateTime(date.toISOString())
+}
+
+function addHours(value: string, hours: number): string | null {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  date.setHours(date.getHours() + hours)
+  return formatDisplayDateTime(date.toISOString())
+}
+
+function getNextRefreshStageDescription(status: EmbyPlaylistRefreshStatus): string {
+  if (status.status === "refreshing" && status.updatedAt) {
+    return `下阶段预计执行 ${formatDisplayTime(addMinutes(status.updatedAt, CRON_INTERVAL_MINUTES)) ?? "等待下一次定时推进"}`
+  }
+
+  if (status.status === "completed" && status.cacheGeneratedAt) {
+    return `下阶段预计开始 ${formatDisplayTime(addHours(status.cacheGeneratedAt, REFRESH_LEAD_HOURS)) ?? "等待下一轮刷新窗口"}`
+  }
+
+  if (status.status === "failed") {
+    return "下阶段执行方式：等待下一次定时推进或手动更新预览"
+  }
+
+  return "下阶段执行方式：点击“更新预览”或等待定时任务启动"
+}
+
+function getRefreshStatusVariant(status: EmbyPlaylistRefreshStatus["status"]): "info" | "success" | "warning" | "danger" | "neutral" {
+  if (status === "refreshing") return "info"
+  if (status === "completed") return "success"
+  if (status === "failed") return "danger"
+  return "neutral"
+}
+
 export default function EmbyModulePage() {
   const [config, setConfig] = useState<EmbyConfig>(createEmptyConfig())
   const [previewMap, setPreviewMap] = useState<Record<string, EmbyPlaylistPreview | null>>({})
+  const [refreshStatusMap, setRefreshStatusMap] = useState<Record<string, EmbyPlaylistRefreshStatus | null>>({})
   const [loading, setLoading] = useState(true)
   const [syncingSlug, setSyncingSlug] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -61,6 +172,7 @@ export default function EmbyModulePage() {
   const [tagInput, setTagInput] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const selectedPlaylist = config.playlists.find((playlist) => playlist.slug === selectedSlug) ?? null
 
   useEffect(() => {
     let cancelled = false
@@ -94,14 +206,48 @@ export default function EmbyModulePage() {
     setTagInput("")
   }, [selectedSlug])
 
+  useEffect(() => {
+    if (!selectedPlaylist) {
+      return
+    }
+
+    const playlistSlug = selectedPlaylist.slug
+    let cancelled = false
+
+    async function loadRefreshStatus() {
+      try {
+        const status = await embyClient.getPlaylistRefreshStatus(playlistSlug)
+        if (cancelled) return
+        setRefreshStatusMap((current) => ({
+          ...current,
+          [playlistSlug]: status,
+        }))
+      } catch (statusError) {
+        if (cancelled) return
+        console.error("[emby-module] load refresh status failed", statusError)
+      }
+    }
+
+    void loadRefreshStatus()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedPlaylist])
+
   const previewPlaylist = async (slug: EmbyPlaylistSlug) => {
     try {
       setRefreshingSlug(slug)
       setError(null)
       const feed = await embyClient.previewPlaylist(slug)
+      const status = await embyClient.getPlaylistRefreshStatus(slug)
       setPreviewMap((current) => ({
         ...current,
         [slug]: feed,
+      }))
+      setRefreshStatusMap((current) => ({
+        ...current,
+        [slug]: status,
       }))
     } catch (previewError) {
       console.error("[emby-module] preview playlist failed", previewError)
@@ -112,6 +258,12 @@ export default function EmbyModulePage() {
   }
 
   const syncPlaylist = async (slug?: EmbyPlaylistSlug) => {
+    if (saving) {
+      setError(null)
+      setMessage("片单配置正在保存，请稍后再同步")
+      return
+    }
+
     try {
       setSyncingSlug(slug ?? "all")
       setError(null)
@@ -119,7 +271,12 @@ export default function EmbyModulePage() {
 
       if (slug) {
         const result = await embyClient.syncPlaylists(slug)
-        setConfig(result.config)
+        setConfig((current) => mergeRemoteWatchIds(current, result.results))
+        const status = await embyClient.getPlaylistRefreshStatus(slug)
+        setRefreshStatusMap((current) => ({
+          ...current,
+          [slug]: status,
+        }))
         setMessage(buildSyncSuccessMessage(slug, result.results))
         return
       }
@@ -137,7 +294,12 @@ export default function EmbyModulePage() {
       for (const playlist of enabledPlaylists) {
         const result = await embyClient.syncPlaylists(playlist.slug)
         syncResults.push(...result.results)
-        setConfig(result.config)
+        setConfig((current) => mergeRemoteWatchIds(current, result.results))
+        const status = await embyClient.getPlaylistRefreshStatus(playlist.slug)
+        setRefreshStatusMap((current) => ({
+          ...current,
+          [playlist.slug]: status,
+        }))
       }
 
       setMessage(buildSyncSuccessMessage(undefined, syncResults))
@@ -197,8 +359,8 @@ export default function EmbyModulePage() {
     }
   }
 
-  const selectedPlaylist = config.playlists.find((playlist) => playlist.slug === selectedSlug) ?? null
   const selectedPreview = selectedPlaylist ? (previewMap[selectedPlaylist.slug] ?? null) : null
+  const selectedRefreshStatus = selectedPlaylist ? (refreshStatusMap[selectedPlaylist.slug] ?? null) : null
   const visiblePreviewVideos = selectedPreview?.videos.slice(0, PREVIEW_DISPLAY_LIMIT) ?? []
   const isSelectedPreviewCollapsed = selectedPlaylist
     ? (collapsedPreviewMap[selectedPlaylist.slug] ?? false)
@@ -219,7 +381,7 @@ export default function EmbyModulePage() {
             variant="outline"
             className="gap-2"
             onClick={() => syncPlaylist()}
-            disabled={loading || syncingSlug !== null}
+            disabled={loading || saving || syncingSlug !== null}
           >
             {syncingSlug === "all" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             同步全部
@@ -302,7 +464,7 @@ export default function EmbyModulePage() {
                       size="sm"
                       className="gap-2"
                       onClick={() => syncPlaylist(selectedPlaylist.slug)}
-                      disabled={syncingSlug !== null}
+                      disabled={saving || syncingSlug !== null}
                     >
                       {syncingSlug === selectedPlaylist.slug ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       同步
@@ -455,7 +617,7 @@ export default function EmbyModulePage() {
                     <Button
                       className="h-10 gap-2"
                       onClick={saveConfig}
-                      disabled={saving}
+                      disabled={saving || syncingSlug !== null}
                     >
                       {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                       保存片单
@@ -494,6 +656,25 @@ export default function EmbyModulePage() {
                       </Button>
                     </div>
                   </div>
+                  {selectedRefreshStatus && (
+                    <Callout
+                      variant={getRefreshStatusVariant(selectedRefreshStatus.status)}
+                      title={toRefreshStatusLabel(selectedRefreshStatus.status)}
+                      className="px-4 py-4"
+                    >
+                        <p>
+                          进度 {selectedRefreshStatus.processedPages}/{selectedRefreshStatus.totalPages} 页，
+                          已收集 {selectedRefreshStatus.collectedCount}/{selectedRefreshStatus.targetCount} 条；
+                          {selectedRefreshStatus.cacheGeneratedAt
+                            ? `当前缓存生成 ${formatDisplayTime(selectedRefreshStatus.cacheGeneratedAt) ?? selectedRefreshStatus.cacheGeneratedAt}`
+                            : "当前缓存生成 尚未生成"}
+                          ，{getNextRefreshStageDescription(selectedRefreshStatus)}
+                        </p>
+                        {selectedRefreshStatus.errorMessage && (
+                          <p className="text-destructive">错误：{selectedRefreshStatus.errorMessage}</p>
+                        )}
+                    </Callout>
+                  )}
                   {selectedPreview && !isSelectedPreviewCollapsed ? (
                     <div className="space-y-4">
                       {selectedPreview.videos.length > PREVIEW_DISPLAY_LIMIT && (
