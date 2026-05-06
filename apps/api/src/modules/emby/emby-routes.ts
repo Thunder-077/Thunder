@@ -244,10 +244,6 @@ function buildEmosSyncSignature(config: EmbyConfig, playlist: EmbyManagedPlaylis
   })
 }
 
-function isEmosSameUpdateError(error: unknown): boolean {
-  return getErrorMessage(error).includes("\"updated_at same\"")
-}
-
 function truncateLogText(value: string, maxLength = 2000): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...<truncated>` : value
 }
@@ -800,47 +796,28 @@ async function syncPlaylistToEmos(
     }
   }
 
-  let resolvedWatchId = watchId
+  const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
+    method: "POST",
+    body: JSON.stringify({
+      id: watchId,
+      name: playlist.name,
+      description: playlist.description,
+      is_public: playlist.isPublic,
+      point: playlist.point,
+      tags: playlist.tags,
+      is_show_empty: playlist.isShowEmpty,
+      image_poster_url: resolveCover(config, playlist),
+    }),
+  })
 
-  try {
-    const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
-      method: "POST",
-      body: JSON.stringify({
-        id: watchId,
-        name: playlist.name,
-        description: playlist.description,
-        is_public: playlist.isPublic,
-        point: playlist.point,
-        tags: playlist.tags,
-        is_show_empty: playlist.isShowEmpty,
-        image_poster_url: resolveCover(config, playlist),
-      }),
-    })
-    resolvedWatchId = watchResponse.watch_id
-  } catch (error) {
-    // Emos 会把“无实际变更”的重复更新直接回 422，这里按幂等成功处理。
-    if (!watchId || !isEmosSameUpdateError(error)) {
-      throw error
-    }
-  }
+  const resolvedWatchId = watchResponse.watch_id
 
-  if (!resolvedWatchId) {
-    throw new Error("Emos watch id is missing after sync")
-  }
-
-  try {
-    await emosRequest(config, `/api/watch/${resolvedWatchId}/dynamic`, {
-      method: "PUT",
-      body: JSON.stringify({
-        url: dynamicUrl,
-      }),
-    })
-  } catch (error) {
-    // 动态地址未变化时，Emos 也会返回 same，这里同样视为幂等成功。
-    if (!isEmosSameUpdateError(error)) {
-      throw error
-    }
-  }
+  await emosRequest(config, `/api/watch/${resolvedWatchId}/dynamic`, {
+    method: "PUT",
+    body: JSON.stringify({
+      url: dynamicUrl,
+    }),
+  })
 
   await repository.savePlaylistSyncSignature(playlist.slug, syncSignature)
 
