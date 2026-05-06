@@ -50,7 +50,8 @@ interface TmdbDiscoverResponse {
 const TMDB_DISCOVER_PAGE_SIZE = 20
 const MAX_PLAYLIST_LIMIT = 5000
 const TMDB_DISCOVER_MAX_PAGE = 500
-const WATCH_CACHE_TTL_MS = 6 * 60 * 60 * 1000
+const WATCH_CACHE_TTL_MS = 12 * 60 * 60 * 1000
+const WATCH_CACHE_REFRESH_LEAD_MS = 2 * 60 * 60 * 1000
 
 interface EmbyRefreshPreviewItem {
   tmdbId: number
@@ -87,6 +88,13 @@ interface EmbyRefreshStepOptions {
   persistPartialCache: boolean
 }
 
+interface EmbyRefreshCandidate {
+  playlist: EmbyManagedPlaylist
+  cachedGeneratedAt: string | null
+  refreshStatus: string | null
+  shouldRestart: boolean
+}
+
 const CRON_REFRESH_PAGE_BUDGET = 5
 const PREVIEW_REFRESH_PAGE_BUDGET = 12
 const PUBLIC_FEED_REFRESH_PAGE_BUDGET = 5
@@ -110,6 +118,33 @@ function parseDateTime(value: string): number {
 function isWatchCacheFresh(generatedAt: string): boolean {
   const timestamp = parseDateTime(generatedAt)
   return timestamp > 0 && Date.now() - timestamp < WATCH_CACHE_TTL_MS
+}
+
+function shouldStartRefreshCycle(generatedAt: string): boolean {
+  const timestamp = parseDateTime(generatedAt)
+  if (timestamp <= 0) {
+    return true
+  }
+
+  return Date.now() - timestamp >= WATCH_CACHE_TTL_MS - WATCH_CACHE_REFRESH_LEAD_MS
+}
+
+function compareRefreshCandidates(left: EmbyRefreshCandidate, right: EmbyRefreshCandidate): number {
+  const leftRefreshing = left.refreshStatus === "refreshing"
+  const rightRefreshing = right.refreshStatus === "refreshing"
+  if (leftRefreshing !== rightRefreshing) {
+    return leftRefreshing ? -1 : 1
+  }
+
+  const leftMissingCache = left.cachedGeneratedAt === null
+  const rightMissingCache = right.cachedGeneratedAt === null
+  if (leftMissingCache !== rightMissingCache) {
+    return leftMissingCache ? -1 : 1
+  }
+
+  const leftTimestamp = left.cachedGeneratedAt ? parseDateTime(left.cachedGeneratedAt) : 0
+  const rightTimestamp = right.cachedGeneratedAt ? parseDateTime(right.cachedGeneratedAt) : 0
+  return leftTimestamp - rightTimestamp
 }
 
 function refreshWatchCacheInBackground(
@@ -593,21 +628,35 @@ async function refreshEnabledPlaylistCaches(): Promise<void> {
   }
 
   const enabledPlaylists = config.playlists.filter((playlist) => playlist.enabled)
+  const candidates: EmbyRefreshCandidate[] = []
 
   for (const playlist of enabledPlaylists) {
     const cached = await repository.getWatchCache(playlist.slug)
     const refreshTask = await repository.getWatchRefreshTask(playlist.slug)
-    const shouldRestart = !cached || !isWatchCacheFresh(cached.generatedAt) || refreshTask?.status === "failed"
+    const shouldRestart = !cached || shouldStartRefreshCycle(cached.generatedAt) || refreshTask?.status === "failed"
     if (!shouldRestart && refreshTask?.status !== "refreshing") {
       continue
     }
 
-    await advancePlaylistRefresh(config, playlist, {
-      pageBudget: CRON_REFRESH_PAGE_BUDGET,
-      restart: shouldRestart,
-      persistPartialCache: !cached,
+    candidates.push({
+      playlist,
+      cachedGeneratedAt: cached?.generatedAt ?? null,
+      refreshStatus: refreshTask?.status ?? null,
+      shouldRestart,
     })
   }
+
+  const nextCandidate = candidates.sort(compareRefreshCandidates)[0]
+  if (!nextCandidate) {
+    return
+  }
+
+  const cached = nextCandidate.cachedGeneratedAt
+  await advancePlaylistRefresh(config, nextCandidate.playlist, {
+    pageBudget: CRON_REFRESH_PAGE_BUDGET,
+    restart: nextCandidate.shouldRestart,
+    persistPartialCache: !cached,
+  })
 }
 
 async function syncPlaylistToEmos(
@@ -775,7 +824,7 @@ serverEmby.get("/watch/:slug", async (c) => {
     const cached = await repository.getWatchCache(slug)
     const refreshTask = await repository.getWatchRefreshTask(slug)
     if (cached) {
-      if (!isWatchCacheFresh(cached.generatedAt) || refreshTask?.status === "refreshing") {
+      if (shouldStartRefreshCycle(cached.generatedAt) || refreshTask?.status === "refreshing") {
         refreshWatchCacheInBackground(c, config, playlist)
       }
 

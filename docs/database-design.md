@@ -113,7 +113,7 @@ Thunder 当前使用 Prisma ORM 访问关系型数据库。项目已切换到 Po
 | created_at | TEXT NOT NULL | 创建时间 |
 | updated_at | TEXT NOT NULL | 更新时间 |
 
-Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKey）从环境变量读取，数据库中不再存储这些敏感信息。片单配置通过环境变量配置，页面上不允许修改。Emby 热门片单缓存通过 `emby_watch_cache` 与 `emby_watch_refresh_task` 两张专用表管理，不复用 `app_settings`。
+Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKey）从环境变量读取，数据库中不再存储这些敏感信息。片单配置通过环境变量配置，页面上不允许修改。Emby 热门片单缓存通过 `emby_watch_cache` 与 `emby_watch_refresh_task` 两张专用表管理，不复用 `app_settings`。刷新任务每 10 分钟推进一次，并会在现有缓存 12 小时有效期到达前提前开启新一轮刷新，确保旧缓存可继续服务，直到新缓存完整生成。每次定时推进只处理 1 个片单，优先续跑未完成任务，避免多个片单在同一次 Cloudflare Worker 调用中叠加 TMDB 子请求。
 
 ## Vault 安全约束
 
