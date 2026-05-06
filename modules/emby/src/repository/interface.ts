@@ -6,9 +6,20 @@ export interface EmbyWatchCache {
   count: number
 }
 
+export interface EmbyWatchRefreshTask {
+  slug: EmbyPlaylistSlug
+  status: string
+  stateJson: string
+  errorMessage: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface IEmbyRepository {
   getConfig(): Promise<EmbyConfig | null>
   saveConfig(config: EmbyConfig): Promise<EmbyConfig>
   getWatchCache(slug: EmbyPlaylistSlug): Promise<EmbyWatchCache | null>
   saveWatchCache(slug: EmbyPlaylistSlug, feed: EmbyDynamicWatchFeed): Promise<void>
+  getWatchRefreshTask(slug: EmbyPlaylistSlug): Promise<EmbyWatchRefreshTask | null>
+  saveWatchRefreshTask(task: EmbyWatchRefreshTask): Promise<void>
 }

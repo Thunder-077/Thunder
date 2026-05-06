@@ -70,6 +70,17 @@ model EmbyWatchCacheRecord {
   @@map("emby_watch_cache")
 }
 
+model EmbyWatchRefreshTaskRecord {
+  slug         String  @id
+  status       String
+  stateJson    String  @map("state_json")
+  errorMessage String? @map("error_message")
+  createdAt    String  @map("created_at")
+  updatedAt    String  @map("updated_at")
+
+  @@map("emby_watch_refresh_task")
+}
+
 model VaultMetadata {
   id                   String  @id
   kdfJson              String  @map("kdf_json")

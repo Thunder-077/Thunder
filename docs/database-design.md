@@ -91,7 +91,29 @@ Thunder 当前使用 Prisma ORM 访问关系型数据库。项目已切换到 Po
 | created_at | TEXT NOT NULL | 创建时间 |
 | updated_at | TEXT NOT NULL | 更新时间 |
 
-Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKey）从环境变量读取，数据库中不再存储这些敏感信息。片单配置通过环境变量配置，页面上不允许修改。
+### emby_watch_cache
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| slug | TEXT PRIMARY KEY | 片单标识 |
+| feed_json | TEXT NOT NULL | 当前缓存的动态片单 JSON |
+| count | INTEGER NOT NULL | 当前缓存的视频数量 |
+| generated_at | TEXT NOT NULL | 当前缓存生成时间 |
+| created_at | TEXT NOT NULL | 创建时间 |
+| updated_at | TEXT NOT NULL | 更新时间 |
+
+### emby_watch_refresh_task
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| slug | TEXT PRIMARY KEY | 片单标识 |
+| status | TEXT NOT NULL | 刷新状态（refreshing/completed/failed） |
+| state_json | TEXT NOT NULL | 分段刷新游标和已收集结果 |
+| error_message | TEXT | 最近一次刷新错误 |
+| created_at | TEXT NOT NULL | 创建时间 |
+| updated_at | TEXT NOT NULL | 更新时间 |
+
+Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKey）从环境变量读取，数据库中不再存储这些敏感信息。片单配置通过环境变量配置，页面上不允许修改。Emby 热门片单缓存通过 `emby_watch_cache` 与 `emby_watch_refresh_task` 两张专用表管理，不复用 `app_settings`。
 
 ## Vault 安全约束
 

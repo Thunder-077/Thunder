@@ -49,6 +49,9 @@ Thunder 当前按两个 Worker 部署：
 - Emby 不再复用 `app_settings`
 - 已改为专属表：
   - `emby_playlist`
+- `thunder-api` 已配置 Cloudflare Cron，每 6 小时定时刷新一次 Emby 片单缓存
+- Emby 同步到 Emos 时只读取已有缓存，不会在同步请求里直接拉取 TMDB
+- Emby 缓存刷新改为分段续跑：预览刷新、公开 feed 后台刷新、定时任务都会推进同一个刷新任务，避免单次 Worker 调用拉取过多 TMDB 分页
 
 ## 本地环境文件说明
 

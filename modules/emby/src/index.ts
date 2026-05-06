@@ -10,4 +10,4 @@ export type {
   EmbySyncResult,
 } from "./types"
 
-export type { EmbyWatchCache, IEmbyRepository } from "./repository/interface"
+export type { EmbyWatchCache, EmbyWatchRefreshTask, IEmbyRepository } from "./repository/interface"

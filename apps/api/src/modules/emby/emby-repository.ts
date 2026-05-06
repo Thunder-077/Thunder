@@ -1,4 +1,10 @@
-import type { EmbyConfig, EmbyDynamicWatchFeed, EmbyWatchCache, IEmbyRepository } from "@thunder/emby"
+import type {
+  EmbyConfig,
+  EmbyDynamicWatchFeed,
+  EmbyWatchCache,
+  EmbyWatchRefreshTask,
+  IEmbyRepository,
+} from "@thunder/emby"
 import { prisma } from "@thunder/database"
 import type { EmbyManagedPlaylist, EmbyPlaylistSlug } from "@thunder/emby"
 
@@ -230,6 +236,44 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
         feedJson: JSON.stringify(feed),
         count: feed.videos.length,
         generatedAt: feed.updatedAt,
+        updatedAt,
+      },
+    })
+  }
+
+  async getWatchRefreshTask(slug: EmbyPlaylistSlug): Promise<EmbyWatchRefreshTask | null> {
+    const record = await prisma.embyWatchRefreshTaskRecord.findUnique({ where: { slug } })
+    if (!record) {
+      return null
+    }
+
+    return {
+      slug: record.slug as EmbyPlaylistSlug,
+      status: record.status,
+      stateJson: record.stateJson,
+      errorMessage: record.errorMessage,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    }
+  }
+
+  async saveWatchRefreshTask(task: EmbyWatchRefreshTask): Promise<void> {
+    const updatedAt = now()
+
+    await prisma.embyWatchRefreshTaskRecord.upsert({
+      where: { slug: task.slug },
+      create: {
+        slug: task.slug,
+        status: task.status,
+        stateJson: task.stateJson,
+        errorMessage: task.errorMessage,
+        createdAt: task.createdAt,
+        updatedAt,
+      },
+      update: {
+        status: task.status,
+        stateJson: task.stateJson,
+        errorMessage: task.errorMessage,
         updatedAt,
       },
     })

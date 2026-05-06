@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react"
 import { ChevronDown, ChevronUp, Clapperboard, Copy, Info, LoaderCircle, Plus, RefreshCcw, Save, Send, X } from "lucide-react"
 import { EmbyClient, ThunderApiError } from "@thunder/api-client"
-import type { EmbyConfig, EmbyManagedPlaylist, EmbyPlaylistPreview, EmbyPlaylistSlug } from "@thunder/emby"
+import type {
+  EmbyConfig,
+  EmbyManagedPlaylist,
+  EmbyPlaylistPreview,
+  EmbyPlaylistSlug,
+  EmbySyncResult,
+} from "@thunder/emby"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
@@ -35,6 +41,12 @@ function createEmptyConfig(): EmbyConfig {
     tmdbApiKey: "",
     playlists: [],
   }
+}
+
+function buildSyncSuccessMessage(slug: EmbyPlaylistSlug | undefined, results: EmbySyncResult[]): string {
+  return slug
+    ? `片单已同步到 Emos：${results[0]?.name ?? slug}`
+    : `已同步 ${results.length} 个片单到 Emos`
 }
 
 export default function EmbyModulePage() {
@@ -104,13 +116,31 @@ export default function EmbyModulePage() {
       setSyncingSlug(slug ?? "all")
       setError(null)
       setMessage(null)
-      const result = await embyClient.syncPlaylists(slug)
-      setConfig(result.config)
-      setMessage(
-        slug
-          ? `片单已同步到 Emos：${result.results[0]?.name ?? slug}`
-          : `已同步 ${result.results.length} 个片单到 Emos`
-      )
+
+      if (slug) {
+        const result = await embyClient.syncPlaylists(slug)
+        setConfig(result.config)
+        setMessage(buildSyncSuccessMessage(slug, result.results))
+        return
+      }
+
+      const enabledPlaylists = config.playlists.filter((playlist) => playlist.enabled)
+      if (enabledPlaylists.length === 0) {
+        setMessage("当前没有启用的片单，无需同步")
+        return
+      }
+
+      const syncResults: EmbySyncResult[] = []
+
+      // Cloudflare Worker 单次 invocation 对子请求数量有限制，
+      // 全部同步时按片单逐个请求，避免把所有 TMDB/Emos 请求积压到同一次 API 调用里。
+      for (const playlist of enabledPlaylists) {
+        const result = await embyClient.syncPlaylists(playlist.slug)
+        syncResults.push(...result.results)
+        setConfig(result.config)
+      }
+
+      setMessage(buildSyncSuccessMessage(undefined, syncResults))
     } catch (syncError) {
       console.error("[emby-module] sync playlist failed", syncError)
       setError(toDisplayError(syncError, "同步 Emos 片单失败，请检查 Emos 地址、Token 和 TMDB Key"))

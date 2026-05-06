@@ -6,7 +6,6 @@ import type {
   EmbyManagedPlaylist,
   EmbyPlaylistPreview,
   EmbyPlaylistSlug,
-  EmbyPreviewVideo,
   EmbySyncResult,
   EmbyTmdbType,
 } from "@thunder/emby"
@@ -51,13 +50,46 @@ interface TmdbDiscoverResponse {
 const TMDB_DISCOVER_PAGE_SIZE = 20
 const MAX_PLAYLIST_LIMIT = 5000
 const TMDB_DISCOVER_MAX_PAGE = 500
-const TMDB_DISCOVER_PAGE_BATCH_SIZE = 5
 const WATCH_CACHE_TTL_MS = 6 * 60 * 60 * 1000
 
-interface EmosWatchListItem {
-  id: number
-  name: string
+interface EmbyRefreshPreviewItem {
+  tmdbId: number
+  tmdbType: EmbyTmdbType
+  title: string
+  posterUrl: string | null
 }
+
+interface EmbyRefreshSourceState {
+  key: string
+  mediaType: EmbyTmdbType
+  nextPage: number
+  maxPages: number
+  targetCount: number
+  done: boolean
+  params: Record<string, string>
+  items: EmbyRefreshPreviewItem[]
+}
+
+interface EmbyRefreshState {
+  slug: EmbyPlaylistSlug
+  sources: EmbyRefreshSourceState[]
+}
+
+interface EmbyRefreshStepResult {
+  preview: EmbyPlaylistPreview
+  feed: EmbyDynamicWatchFeed
+  completed: boolean
+}
+
+interface EmbyRefreshStepOptions {
+  pageBudget: number
+  restart: boolean
+  persistPartialCache: boolean
+}
+
+const CRON_REFRESH_PAGE_BUDGET = 5
+const PREVIEW_REFRESH_PAGE_BUDGET = 12
+const PUBLIC_FEED_REFRESH_PAGE_BUDGET = 5
 
 function formatDateTime(date = new Date()): string {
   const year = date.getFullYear()
@@ -89,8 +121,15 @@ function refreshWatchCacheInBackground(
   config: EmbyConfig,
   playlist: EmbyManagedPlaylist
 ) {
-  const refreshTask = generatePlaylistFeed(config, playlist)
-    .then((feed) => repository.saveWatchCache(playlist.slug, feed))
+  const refreshTask = advancePlaylistRefresh(
+    config,
+    playlist,
+    {
+      pageBudget: PUBLIC_FEED_REFRESH_PAGE_BUDGET,
+      restart: false,
+      persistPartialCache: false,
+    }
+  )
     .catch((error) => {
       console.error("[emby-server] background cache refresh failed", {
         slug: playlist.slug,
@@ -158,33 +197,6 @@ async function fetchTmdbDiscover(
   return data.results ?? []
 }
 
-async function fetchTmdbDiscoverPages(
-  apiKey: string,
-  mediaType: EmbyTmdbType,
-  searchParams: URLSearchParams,
-  limit: number,
-  maxPages = Math.ceil(limit / TMDB_DISCOVER_PAGE_SIZE)
-): Promise<TmdbDiscoverItem[]> {
-  const pageCount = Math.min(TMDB_DISCOVER_MAX_PAGE, Math.max(1, maxPages))
-  const items: TmdbDiscoverItem[] = []
-
-  for (let page = 1; page <= pageCount && items.length < limit; page += TMDB_DISCOVER_PAGE_BATCH_SIZE) {
-    const pages = Array.from(
-      { length: Math.min(TMDB_DISCOVER_PAGE_BATCH_SIZE, pageCount - page + 1) },
-      (_item, index) => page + index
-    )
-    const results = await Promise.all(pages.map((currentPage) => {
-      const params = new URLSearchParams(searchParams)
-      params.set("page", String(currentPage))
-      return fetchTmdbDiscover(apiKey, mediaType, params)
-    }))
-
-    items.push(...results.flat())
-  }
-
-  return items.slice(0, limit)
-}
-
 function resolvePlaylistLimit(limit: number): number {
   return Math.min(MAX_PLAYLIST_LIMIT, Math.max(limit, 10))
 }
@@ -211,35 +223,7 @@ function toPosterUrl(path: string | null | undefined): string | null {
   return `https://image.tmdb.org/t/p/w342${path}`
 }
 
-function toFeed(
-  config: EmbyConfig,
-  playlist: EmbyManagedPlaylist,
-  items: Array<{ id: number; type: EmbyTmdbType; title: string }>
-): EmbyDynamicWatchFeed {
-  return {
-    name: playlist.name,
-    cover: resolveCover(config, playlist),
-    updatedAt: formatDateTime(),
-    videos: items.slice(0, playlist.limit).map((item, index) => ({
-      tmdbId: item.id,
-      tmdbType: item.type,
-      title: item.title,
-      sort: index + 1,
-    })),
-  }
-}
-
-function dedupeItems(items: Array<{ id: number; type: EmbyTmdbType; title: string }>) {
-  const seen = new Set<string>()
-  return items.filter((item) => {
-    const key = `${item.type}-${item.id}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
-function dedupePreviewItems(items: EmbyPreviewVideo[]) {
+function dedupePreviewItems<T extends { tmdbType: EmbyTmdbType; tmdbId: number }>(items: T[]): T[] {
   const seen = new Set<string>()
   return items.filter((item) => {
     const key = `${item.tmdbType}-${item.tmdbId}`
@@ -249,86 +233,106 @@ function dedupePreviewItems(items: EmbyPreviewVideo[]) {
   })
 }
 
-async function generatePlaylistFeed(
-  config: EmbyConfig,
-  playlist: EmbyManagedPlaylist
-): Promise<EmbyDynamicWatchFeed> {
-  const apiKey = config.tmdbApiKey.trim()
-  if (!apiKey) {
-    throw new Error("TMDB API key is missing")
-  }
+function toParamsRecord(params: URLSearchParams): Record<string, string> {
+  return Object.fromEntries(params.entries())
+}
 
+function toParams(record: Record<string, string>): URLSearchParams {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(record)) {
+    params.set(key, value)
+  }
+  return params
+}
+
+function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
   const limit = resolvePlaylistLimit(playlist.limit)
   const common = new URLSearchParams({
     language: "zh-CN",
     include_adult: "false",
     sort_by: "popularity.desc",
-    page: "1",
   })
 
   if (playlist.slug === "domestic-tv") {
     common.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("with_origin_country", "CN")
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscoverPages(apiKey, "tv", common, limit)
-    return toFeed(
-      config,
-      playlist,
-      items.map((item) => ({
-        id: item.id,
-        type: "tv",
-        title: item.name ?? "",
-      }))
-    )
+    return {
+      slug: playlist.slug,
+      sources: [
+        {
+          key: "domestic-tv",
+          mediaType: "tv",
+          nextPage: 1,
+          maxPages: Math.ceil(limit / TMDB_DISCOVER_PAGE_SIZE),
+          targetCount: limit,
+          done: false,
+          params: toParamsRecord(common),
+          items: [],
+        },
+      ],
+    }
   }
 
   if (playlist.slug === "domestic-movie") {
     common.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("with_origin_country", "CN")
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscoverPages(apiKey, "movie", common, limit)
-    return toFeed(
-      config,
-      playlist,
-      items.map((item) => ({
-        id: item.id,
-        type: "movie",
-        title: item.title ?? "",
-      }))
-    )
+    return {
+      slug: playlist.slug,
+      sources: [
+        {
+          key: "domestic-movie",
+          mediaType: "movie",
+          nextPage: 1,
+          maxPages: Math.ceil(limit / TMDB_DISCOVER_PAGE_SIZE),
+          targetCount: limit,
+          done: false,
+          params: toParamsRecord(common),
+          items: [],
+        },
+      ],
+    }
   }
 
   if (playlist.slug === "foreign-tv") {
     common.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscoverPages(apiKey, "tv", common, limit * 2)
-    const filtered = items
-      .filter((item) => !(item.origin_country ?? []).includes("CN"))
-      .slice(0, limit)
-      .map((item) => ({
-        id: item.id,
-        type: "tv" as const,
-        title: item.name ?? "",
-      }))
-    return toFeed(config, playlist, filtered)
+    return {
+      slug: playlist.slug,
+      sources: [
+        {
+          key: "foreign-tv",
+          mediaType: "tv",
+          nextPage: 1,
+          maxPages: TMDB_DISCOVER_MAX_PAGE,
+          targetCount: limit,
+          done: false,
+          params: toParamsRecord(common),
+          items: [],
+        },
+      ],
+    }
   }
 
   if (playlist.slug === "foreign-movie") {
     common.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("without_genres", "16")
-    const items = await fetchTmdbDiscoverPages(apiKey, "movie", common, limit * 2)
-    return toFeed(
-      config,
-      playlist,
-      items
-        .filter((item) => item.original_language !== "zh")
-        .slice(0, limit)
-        .map((item) => ({
-        id: item.id,
-        type: "movie",
-        title: item.title ?? "",
-      }))
-    )
+    return {
+      slug: playlist.slug,
+      sources: [
+        {
+          key: "foreign-movie",
+          mediaType: "movie",
+          nextPage: 1,
+          maxPages: TMDB_DISCOVER_MAX_PAGE,
+          targetCount: limit,
+          done: false,
+          params: toParamsRecord(common),
+          items: [],
+        },
+      ],
+    }
   }
 
   const animeTvParams = new URLSearchParams(common)
@@ -339,146 +343,211 @@ async function generatePlaylistFeed(
   animeMovieParams.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
   animeMovieParams.set("with_genres", "16")
 
-  const [tvItems, movieItems] = await Promise.all([
-    fetchTmdbDiscoverPages(apiKey, "tv", animeTvParams, Math.ceil(limit / 2)),
-    fetchTmdbDiscoverPages(apiKey, "movie", animeMovieParams, Math.ceil(limit / 2)),
-  ])
-
-  const merged = dedupeItems([
-    ...tvItems.map((item) => ({
-      id: item.id,
-      type: "tv" as const,
-      title: item.name ?? "",
-    })),
-    ...movieItems.map((item) => ({
-      id: item.id,
-      type: "movie" as const,
-      title: item.title ?? "",
-    })),
-  ]).slice(0, limit)
-
-  return toFeed(config, playlist, merged)
+  return {
+    slug: playlist.slug,
+    sources: [
+      {
+        key: "anime-tv",
+        mediaType: "tv",
+        nextPage: 1,
+        maxPages: Math.ceil(Math.ceil(limit / 2) / TMDB_DISCOVER_PAGE_SIZE),
+        targetCount: Math.ceil(limit / 2),
+        done: false,
+        params: toParamsRecord(animeTvParams),
+        items: [],
+      },
+      {
+        key: "anime-movie",
+        mediaType: "movie",
+        nextPage: 1,
+        maxPages: Math.ceil(Math.ceil(limit / 2) / TMDB_DISCOVER_PAGE_SIZE),
+        targetCount: Math.ceil(limit / 2),
+        done: false,
+        params: toParamsRecord(animeMovieParams),
+        items: [],
+      },
+    ],
+  }
 }
 
-async function generatePlaylistPreview(
+async function advancePlaylistRefresh(
   config: EmbyConfig,
-  playlist: EmbyManagedPlaylist
-): Promise<EmbyPlaylistPreview> {
+  playlist: EmbyManagedPlaylist,
+  options: EmbyRefreshStepOptions
+): Promise<EmbyRefreshStepResult> {
   const apiKey = config.tmdbApiKey.trim()
   if (!apiKey) {
     throw new Error("TMDB API key is missing")
   }
 
-  const limit = resolvePlaylistLimit(playlist.limit)
-  const common = new URLSearchParams({
-    language: "zh-CN",
-    include_adult: "false",
-    sort_by: "popularity.desc",
-    page: "1",
-  })
+  const existingTask = await repository.getWatchRefreshTask(playlist.slug)
+  const existingCache = await repository.getWatchCache(playlist.slug)
+  const restarting = options.restart || !existingTask || existingTask.status !== "refreshing"
+  const state = restarting
+    ? createRefreshState(playlist)
+    : parseRefreshState(existingTask.stateJson, playlist)
 
-  let previewVideos: EmbyPreviewVideo[] = []
+  const nowTimestamp = new Date().toISOString()
 
-  if (playlist.slug === "domestic-tv") {
-    common.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
-    common.set("with_origin_country", "CN")
-    common.set("without_genres", "16")
-    const items = await fetchTmdbDiscoverPages(apiKey, "tv", common, limit)
-    previewVideos = items.map((item, index) => ({
-      tmdbId: item.id,
-      tmdbType: "tv",
-      title: item.name ?? "",
-      sort: index + 1,
-      posterUrl: toPosterUrl(item.poster_path),
-    }))
-  } else if (playlist.slug === "domestic-movie") {
-    common.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
-    common.set("with_origin_country", "CN")
-    common.set("without_genres", "16")
-    const items = await fetchTmdbDiscoverPages(apiKey, "movie", common, limit)
-    previewVideos = items.map((item, index) => ({
-      tmdbId: item.id,
-      tmdbType: "movie",
-      title: item.title ?? "",
-      sort: index + 1,
-      posterUrl: toPosterUrl(item.poster_path),
-    }))
-  } else if (playlist.slug === "foreign-tv") {
-    common.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
-    common.set("without_genres", "16")
-    const items = await fetchTmdbDiscoverPages(apiKey, "tv", common, limit * 2)
-    previewVideos = items
-      .filter((item) => !(item.origin_country ?? []).includes("CN"))
-      .slice(0, limit)
-      .map((item, index) => ({
-        tmdbId: item.id,
-        tmdbType: "tv",
-        title: item.name ?? "",
-        sort: index + 1,
-        posterUrl: toPosterUrl(item.poster_path),
-      }))
-  } else if (playlist.slug === "foreign-movie") {
-    common.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
-    common.set("without_genres", "16")
-    const items = await fetchTmdbDiscoverPages(apiKey, "movie", common, limit * 2)
-    previewVideos = items
-      .filter((item) => item.original_language !== "zh")
-      .slice(0, limit)
-      .map((item, index) => ({
-        tmdbId: item.id,
-        tmdbType: "movie",
-        title: item.title ?? "",
-        sort: index + 1,
-        posterUrl: toPosterUrl(item.poster_path),
-      }))
-  } else {
-    const animeTvParams = new URLSearchParams(common)
-    animeTvParams.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
-    animeTvParams.set("with_genres", "16")
+  try {
+    let remainingBudget = Math.max(1, options.pageBudget)
 
-    const animeMovieParams = new URLSearchParams(common)
-    animeMovieParams.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
-    animeMovieParams.set("with_genres", "16")
+    while (remainingBudget > 0) {
+      const source = pickNextRefreshSource(state.sources)
+      if (!source) {
+        break
+      }
 
-    const [tvItems, movieItems] = await Promise.all([
-      fetchTmdbDiscoverPages(apiKey, "tv", animeTvParams, Math.ceil(limit / 2)),
-      fetchTmdbDiscoverPages(apiKey, "movie", animeMovieParams, Math.ceil(limit / 2)),
-    ])
+      if (source.items.length >= source.targetCount || source.nextPage > source.maxPages) {
+        source.done = true
+        continue
+      }
 
-    previewVideos = dedupePreviewItems([
-      ...tvItems.map((item, index) => ({
-        tmdbId: item.id,
-        tmdbType: "tv" as const,
-        title: item.name ?? "",
-        sort: index + 1,
-        posterUrl: toPosterUrl(item.poster_path),
-      })),
-      ...movieItems.map((item, index) => ({
-        tmdbId: item.id,
-        tmdbType: "movie" as const,
-        title: item.title ?? "",
-        sort: tvItems.length + index + 1,
-        posterUrl: toPosterUrl(item.poster_path),
-      })),
-    ])
-      .slice(0, limit)
-      .map((item, index) => ({
-        tmdbId: item.tmdbId,
-        tmdbType: item.tmdbType,
-        title: item.title,
-        sort: index + 1,
-        posterUrl: item.posterUrl,
-      }))
+      const params = toParams(source.params)
+      params.set("page", String(source.nextPage))
+      const pageItems = await fetchTmdbDiscover(apiKey, source.mediaType, params)
+
+      appendRefreshItems(playlist, source, pageItems)
+      source.nextPage += 1
+      remainingBudget -= 1
+
+      if (
+        pageItems.length < TMDB_DISCOVER_PAGE_SIZE ||
+        source.items.length >= source.targetCount ||
+        source.nextPage > source.maxPages
+      ) {
+        source.done = true
+      }
+    }
+
+    const preview = buildPreviewFromRefreshState(config, playlist, state)
+    const completed = state.sources.every((source) => source.done || source.items.length >= source.targetCount)
+
+    if (completed || options.persistPartialCache || !existingCache) {
+      await repository.saveWatchCache(playlist.slug, preview.feed)
+    }
+
+    await repository.saveWatchRefreshTask({
+      slug: playlist.slug,
+      status: completed ? "completed" : "refreshing",
+      stateJson: JSON.stringify(state),
+      errorMessage: null,
+      createdAt: existingTask?.createdAt ?? nowTimestamp,
+      updatedAt: nowTimestamp,
+    })
+
+    return {
+      preview,
+      feed: preview.feed,
+      completed,
+    }
+  } catch (error) {
+    await repository.saveWatchRefreshTask({
+      slug: playlist.slug,
+      status: "failed",
+      stateJson: JSON.stringify(state),
+      errorMessage: getErrorMessage(error, "unknown error"),
+      createdAt: existingTask?.createdAt ?? nowTimestamp,
+      updatedAt: nowTimestamp,
+    })
+
+    throw error
   }
+}
+
+function parseRefreshState(raw: string, playlist: EmbyManagedPlaylist): EmbyRefreshState {
+  try {
+    const parsed = JSON.parse(raw) as EmbyRefreshState
+    if (parsed.slug === playlist.slug && Array.isArray(parsed.sources)) {
+      return parsed
+    }
+  } catch {
+    // fall through to reset invalid state
+  }
+
+  return createRefreshState(playlist)
+}
+
+function shouldKeepRefreshItem(playlist: EmbyManagedPlaylist, item: TmdbDiscoverItem): boolean {
+  if (playlist.slug === "foreign-tv") {
+    return !(item.origin_country ?? []).includes("CN")
+  }
+
+  if (playlist.slug === "foreign-movie") {
+    return item.original_language !== "zh"
+  }
+
+  return true
+}
+
+function appendRefreshItems(
+  playlist: EmbyManagedPlaylist,
+  source: EmbyRefreshSourceState,
+  items: TmdbDiscoverItem[]
+) {
+  const seen = new Set(source.items.map((item) => `${item.tmdbType}-${item.tmdbId}`))
+
+  for (const item of items) {
+    if (!shouldKeepRefreshItem(playlist, item)) {
+      continue
+    }
+
+    const title = source.mediaType === "tv" ? (item.name ?? "") : (item.title ?? "")
+    const previewItem: EmbyRefreshPreviewItem = {
+      tmdbId: item.id,
+      tmdbType: source.mediaType,
+      title,
+      posterUrl: toPosterUrl(item.poster_path),
+    }
+    const key = `${previewItem.tmdbType}-${previewItem.tmdbId}`
+
+    if (seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    source.items.push(previewItem)
+  }
+}
+
+function pickNextRefreshSource(sources: EmbyRefreshSourceState[]): EmbyRefreshSourceState | null {
+  const candidates = sources.filter((source) => !source.done)
+  if (candidates.length === 0) {
+    return null
+  }
+
+  return candidates.reduce((current, candidate) => (
+    candidate.nextPage < current.nextPage ? candidate : current
+  ))
+}
+
+function buildPreviewFromRefreshState(
+  config: EmbyConfig,
+  playlist: EmbyManagedPlaylist,
+  state: EmbyRefreshState
+): EmbyPlaylistPreview {
+  const limit = resolvePlaylistLimit(playlist.limit)
+
+  const merged = dedupePreviewItems(
+    state.sources.flatMap((source) => source.items)
+  )
+    .slice(0, limit)
+    .map((item, index) => ({
+      tmdbId: item.tmdbId,
+      tmdbType: item.tmdbType,
+      title: item.title,
+      sort: index + 1,
+      posterUrl: item.posterUrl,
+    }))
 
   return {
     feed: {
       name: playlist.name,
       cover: resolveCover(config, playlist),
       updatedAt: formatDateTime(),
-      videos: previewVideos.map(({ posterUrl: _posterUrl, ...video }) => video),
+      videos: merged.map(({ posterUrl: _posterUrl, ...video }) => video),
     },
-    videos: previewVideos,
+    videos: merged,
   }
 }
 
@@ -517,12 +586,35 @@ async function emosRequest<T>(
   return res.json() as Promise<T>
 }
 
+async function refreshEnabledPlaylistCaches(): Promise<void> {
+  const config = await repository.getConfig()
+  if (!config) {
+    return
+  }
+
+  const enabledPlaylists = config.playlists.filter((playlist) => playlist.enabled)
+
+  for (const playlist of enabledPlaylists) {
+    const cached = await repository.getWatchCache(playlist.slug)
+    const refreshTask = await repository.getWatchRefreshTask(playlist.slug)
+    const shouldRestart = !cached || !isWatchCacheFresh(cached.generatedAt) || refreshTask?.status === "failed"
+    if (!shouldRestart && refreshTask?.status !== "refreshing") {
+      continue
+    }
+
+    await advancePlaylistRefresh(config, playlist, {
+      pageBudget: CRON_REFRESH_PAGE_BUDGET,
+      restart: shouldRestart,
+      persistPartialCache: !cached,
+    })
+  }
+}
+
 async function syncPlaylistToEmos(
   config: EmbyConfig,
-  playlist: EmbyManagedPlaylist
+  playlist: EmbyManagedPlaylist,
+  feed: EmbyDynamicWatchFeed
 ): Promise<EmbySyncResult> {
-  const feed = await generatePlaylistFeed(config, playlist)
-  await repository.saveWatchCache(playlist.slug, feed)
   const watchId = playlist.remoteWatchId
 
   const watchResponse = await emosRequest<{ watch_id: number }>(config, "/api/watch", {
@@ -601,8 +693,14 @@ emby.get("/playlists/:slug/preview", async (c) => {
       return c.json(apiError("EMBY_DYNAMIC_WATCH_NOT_FOUND", "片单不存在"), 404)
     }
 
-    const preview = await generatePlaylistPreview(config, playlist)
-    await repository.saveWatchCache(slug, preview.feed)
+    const refreshTask = await repository.getWatchRefreshTask(slug)
+    const result = await advancePlaylistRefresh(config, playlist, {
+      pageBudget: PREVIEW_REFRESH_PAGE_BUDGET,
+      restart: refreshTask?.status !== "refreshing",
+      persistPartialCache: !(await repository.getWatchCache(slug)),
+    })
+
+    const preview = result.preview
     return c.json(apiSuccess({ preview }))
   } catch (error) {
     console.error("[emby-api] GET /playlists/:slug/preview failed", error)
@@ -626,7 +724,22 @@ emby.post("/sync", async (c) => {
     const updatedPlaylists = [...config.playlists]
 
     for (const playlist of targets) {
-      const result = await syncPlaylistToEmos(config, playlist)
+      const cached = await repository.getWatchCache(playlist.slug)
+      const refreshTask = await repository.getWatchRefreshTask(playlist.slug)
+      if (!cached) {
+        return c.json(
+          apiError("VALIDATION_ERROR", `片单 ${playlist.name} 暂无缓存，请先刷新预览或等待定时任务更新缓存`),
+          400
+        )
+      }
+      if (refreshTask?.status === "refreshing") {
+        return c.json(
+          apiError("VALIDATION_ERROR", `片单 ${playlist.name} 缓存仍在更新中，请稍后再同步到 Emos`),
+          409
+        )
+      }
+
+      const result = await syncPlaylistToEmos(config, playlist, cached.feed)
       results.push(result)
       const index = updatedPlaylists.findIndex((item) => item.slug === playlist.slug)
       if (index >= 0) {
@@ -660,21 +773,25 @@ serverEmby.get("/watch/:slug", async (c) => {
     }
 
     const cached = await repository.getWatchCache(slug)
+    const refreshTask = await repository.getWatchRefreshTask(slug)
     if (cached) {
-      if (!isWatchCacheFresh(cached.generatedAt)) {
+      if (!isWatchCacheFresh(cached.generatedAt) || refreshTask?.status === "refreshing") {
         refreshWatchCacheInBackground(c, config, playlist)
       }
 
       return c.json(toExternalFeed(cached.feed))
     }
 
-    const feed = await generatePlaylistFeed(config, playlist)
-    await repository.saveWatchCache(slug, feed)
-    return c.json(toExternalFeed(feed))
+    const result = await advancePlaylistRefresh(config, playlist, {
+      pageBudget: PUBLIC_FEED_REFRESH_PAGE_BUDGET,
+      restart: true,
+      persistPartialCache: true,
+    })
+    return c.json(toExternalFeed(result.feed))
   } catch (error) {
     console.error("[emby-server] GET /watch/:slug failed", error)
     return c.json({ message: "failed to generate playlist" }, 500)
   }
 })
 
-export { emby, serverEmby }
+export { emby, refreshEnabledPlaylistCaches, serverEmby }
