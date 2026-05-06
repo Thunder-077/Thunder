@@ -101,7 +101,8 @@ function Select({
         <SelectPrimitive.ScrollUpArrow className="flex h-4 items-center justify-center text-muted-foreground" />
         <SelectPrimitive.Popup
           className={cn(
-            "surface-panel relative z-[calc(var(--z-dropdown)+1)] pointer-events-auto min-w-[var(--anchor-width)] overflow-hidden rounded-2xl border border-panel-border p-1.5 shadow-lg",
+            // 下拉面板使用实底，避免在不同环境里把页面内容透出来。
+            "relative z-[calc(var(--z-dropdown)+1)] pointer-events-auto min-w-[var(--anchor-width)] overflow-hidden rounded-2xl border border-border/80 bg-popover text-popover-foreground p-1.5 shadow-lg",
             "data-[side=bottom]:animate-in data-[side=bottom]:slide-in-from-top-1.5 data-[side=top]:animate-in data-[side=top]:slide-in-from-bottom-1.5",
             contentClassName
           )}

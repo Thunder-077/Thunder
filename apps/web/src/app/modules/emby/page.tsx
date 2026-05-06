@@ -159,6 +159,24 @@ function getRefreshStatusVariant(status: EmbyPlaylistRefreshStatus["status"]): "
   return "neutral"
 }
 
+type PlaylistNumericField = "remoteWatchId" | "limit" | "releaseWindowDays" | "point"
+
+interface PlaylistNumericDrafts {
+  remoteWatchId: string
+  limit: string
+  releaseWindowDays: string
+  point: string
+}
+
+function toPlaylistNumericDrafts(playlist: EmbyManagedPlaylist | null): PlaylistNumericDrafts {
+  return {
+    remoteWatchId: playlist?.remoteWatchId === null || playlist?.remoteWatchId === undefined ? "" : String(playlist.remoteWatchId),
+    limit: playlist ? String(playlist.limit) : "",
+    releaseWindowDays: playlist ? String(playlist.releaseWindowDays) : "",
+    point: playlist ? String(playlist.point) : "",
+  }
+}
+
 export default function EmbyModulePage() {
   const [config, setConfig] = useState<EmbyConfig>(createEmptyConfig())
   const [previewMap, setPreviewMap] = useState<Record<string, EmbyPlaylistPreview | null>>({})
@@ -170,6 +188,7 @@ export default function EmbyModulePage() {
   const [collapsedPreviewMap, setCollapsedPreviewMap] = useState<Record<string, boolean>>({})
   const [selectedSlug, setSelectedSlug] = useState<EmbyPlaylistSlug>("domestic-tv")
   const [tagInput, setTagInput] = useState("")
+  const [numericDrafts, setNumericDrafts] = useState<PlaylistNumericDrafts>(toPlaylistNumericDrafts(null))
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const selectedPlaylist = config.playlists.find((playlist) => playlist.slug === selectedSlug) ?? null
@@ -205,6 +224,16 @@ export default function EmbyModulePage() {
   useEffect(() => {
     setTagInput("")
   }, [selectedSlug])
+
+  useEffect(() => {
+    setNumericDrafts(toPlaylistNumericDrafts(selectedPlaylist))
+  }, [
+    selectedPlaylist?.slug,
+    selectedPlaylist?.remoteWatchId,
+    selectedPlaylist?.limit,
+    selectedPlaylist?.releaseWindowDays,
+    selectedPlaylist?.point,
+  ])
 
   useEffect(() => {
     if (!selectedPlaylist) {
@@ -327,6 +356,39 @@ export default function EmbyModulePage() {
     }))
   }
 
+  const updateNumericField = (
+    field: PlaylistNumericField,
+    value: string,
+    parser: (input: string) => number | null
+  ) => {
+    setNumericDrafts((current) => ({
+      ...current,
+      [field]: value,
+    }))
+
+    if (!selectedPlaylist || value === "") {
+      return
+    }
+
+    const parsed = parser(value)
+    if (parsed === null) {
+      return
+    }
+
+    updateSelectedPlaylist({ [field]: parsed } as Partial<EmbyManagedPlaylist>)
+  }
+
+  const resetNumericFieldDraft = (field: PlaylistNumericField) => {
+    if (!selectedPlaylist) {
+      return
+    }
+
+    setNumericDrafts((current) => ({
+      ...current,
+      [field]: toPlaylistNumericDrafts(selectedPlaylist)[field],
+    }))
+  }
+
   const addTag = () => {
     const tag = tagInput.trim()
     if (!selectedPlaylist || !tag || selectedPlaylist.tags.includes(tag)) {
@@ -375,7 +437,6 @@ export default function EmbyModulePage() {
     <div>
       <PageHeader
         title="Emby 片单"
-        description="基于全网热门规则生成 5 个预设片单，并通过 Emos 官方接口自动新增或更新远端片单。"
         actions={(
           <Button
             variant="outline"
@@ -431,6 +492,8 @@ export default function EmbyModulePage() {
                           options={playlistOptions}
                           onChange={(value) => setSelectedSlug(value as EmbyPlaylistSlug)}
                           placeholder="选择片单"
+                          showDescription={false}
+                          contentClassName="bg-background"
                         />
                       </div>
                       {selectedPlaylist && (
@@ -457,7 +520,6 @@ export default function EmbyModulePage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-lg font-semibold text-foreground">{selectedPlaylist.name}</div>
-                      <div className="mt-1 text-sm text-muted-foreground">{selectedPlaylist.description}</div>
                     </div>
                     <Button
                       variant="outline"
@@ -485,11 +547,15 @@ export default function EmbyModulePage() {
                       <label htmlFor="emby-remote-id" className="text-sm font-medium text-foreground">远端片单 ID</label>
                       <Input
                         id="emby-remote-id"
-                        value={selectedPlaylist.remoteWatchId ?? ""}
+                        value={numericDrafts.remoteWatchId}
                         onChange={(event) => {
                           const value = event.target.value.trim()
-                          updateSelectedPlaylist({ remoteWatchId: value ? Number(value) : null })
+                          updateNumericField("remoteWatchId", value, (input) => {
+                            const parsed = Number(input)
+                            return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+                          })
                         }}
+                        onBlur={() => resetNumericFieldDraft("remoteWatchId")}
                         placeholder="不填则同步时新建"
                         className={inputClassName}
                       />
@@ -520,8 +586,14 @@ export default function EmbyModulePage() {
                         type="number"
                         min={1}
                         max={5000}
-                        value={selectedPlaylist.limit}
-                        onChange={(event) => updateSelectedPlaylist({ limit: Number(event.target.value) })}
+                        value={numericDrafts.limit}
+                        onChange={(event) => {
+                          updateNumericField("limit", event.target.value, (input) => {
+                            const parsed = Number(input)
+                            return Number.isFinite(parsed) ? parsed : null
+                          })
+                        }}
+                        onBlur={() => resetNumericFieldDraft("limit")}
                         placeholder="最高 5000"
                         className={inputClassName}
                       />
@@ -533,8 +605,14 @@ export default function EmbyModulePage() {
                         type="number"
                         min={1}
                         max={3650}
-                        value={selectedPlaylist.releaseWindowDays}
-                        onChange={(event) => updateSelectedPlaylist({ releaseWindowDays: Number(event.target.value) })}
+                        value={numericDrafts.releaseWindowDays}
+                        onChange={(event) => {
+                          updateNumericField("releaseWindowDays", event.target.value, (input) => {
+                            const parsed = Number(input)
+                            return Number.isFinite(parsed) ? parsed : null
+                          })
+                        }}
+                        onBlur={() => resetNumericFieldDraft("releaseWindowDays")}
                         className={inputClassName}
                       />
                     </div>
@@ -545,8 +623,14 @@ export default function EmbyModulePage() {
                         type="number"
                         min={0}
                         max={999999}
-                        value={selectedPlaylist.point}
-                        onChange={(event) => updateSelectedPlaylist({ point: Number(event.target.value) })}
+                        value={numericDrafts.point}
+                        onChange={(event) => {
+                          updateNumericField("point", event.target.value, (input) => {
+                            const parsed = Number(input)
+                            return Number.isFinite(parsed) ? parsed : null
+                          })
+                        }}
+                        onBlur={() => resetNumericFieldDraft("point")}
                         placeholder="0 表示免费订阅"
                         className={inputClassName}
                       />
