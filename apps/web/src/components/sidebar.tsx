@@ -220,7 +220,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
       </ScrollArea>
 
       <div className="border-t border-sidebar-border/80 p-2.5">
-        <div className="grid grid-cols-3 gap-1.5 bg-sidebar/70">
+        <div className="grid grid-cols-3 gap-1.5">
           <button
             type="button"
             onClick={() => setCommandPaletteOpen(true)}

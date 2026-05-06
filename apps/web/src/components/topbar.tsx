@@ -21,11 +21,10 @@ function NotificationButton() {
   return (
     <Button
       variant="ghost"
-      size="icon"
-      className="h-8 w-8 rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted/60 hover:text-foreground active:scale-95"
+      className="h-10 w-10 rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted/60 hover:text-foreground active:scale-95"
       aria-label="通知"
     >
-      <Bell className="h-4 w-4" strokeWidth={2.1} />
+      <Bell className="size-5" strokeWidth={2.1} />
     </Button>
   )
 }
