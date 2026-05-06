@@ -23,7 +23,7 @@ function shouldReuseGlobalPrismaClient(): boolean {
   // Cloudflare Workers 会复用 isolate，但不允许把带 Native I/O 的对象跨请求复用。
   // 这里在 Worker 环境禁用全局 PrismaClient 复用，避免出现
   // “Cannot perform I/O on behalf of a different request”。
-  return typeof WebSocketPair === "undefined"
+  return !("WebSocketPair" in globalThis)
 }
 
 export function getPrismaClient(): PrismaClient {

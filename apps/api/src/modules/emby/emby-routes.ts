@@ -5,6 +5,7 @@ import type {
   EmbyDynamicWatchFeed,
   EmbyManagedPlaylist,
   EmbyPlaylistPreview,
+  EmbyPlaylistPreviewPage,
   EmbyPlaylistRefreshStatus,
   EmbyPlaylistSlug,
   EmbySyncResult,
@@ -48,6 +49,10 @@ interface TmdbDiscoverItem {
 
 interface TmdbDiscoverResponse {
   results: TmdbDiscoverItem[]
+}
+
+interface TmdbDetailResponse {
+  poster_path?: string | null
 }
 
 const TMDB_DISCOVER_PAGE_SIZE = 20
@@ -324,6 +329,25 @@ async function fetchTmdbDiscover(
 
   const data = await res.json() as TmdbDiscoverResponse
   return data.results ?? []
+}
+
+async function fetchTmdbPosterUrl(
+  apiKey: string,
+  mediaType: EmbyTmdbType,
+  tmdbId: number
+): Promise<string | null> {
+  const endpoint = mediaType === "movie" ? "movie" : "tv"
+  const url = `https://api.themoviedb.org/3/${endpoint}/${tmdbId}?language=zh-CN`
+  const res = await fetch(url, {
+    headers: getTmdbHeaders(apiKey),
+  })
+
+  if (!res.ok) {
+    return null
+  }
+
+  const data = await res.json() as TmdbDetailResponse
+  return toPosterUrl(data.poster_path)
 }
 
 function resolvePlaylistLimit(limit: number): number {
@@ -686,6 +710,57 @@ function buildPreviewFromRefreshState(
   }
 }
 
+async function buildPreviewFromCache(
+  feed: EmbyDynamicWatchFeed,
+  refreshTask: EmbyWatchRefreshTask | null,
+  playlist: EmbyManagedPlaylist,
+  apiKey: string,
+  page: number,
+  pageSize: number
+): Promise<EmbyPlaylistPreviewPage> {
+  const state = refreshTask ? parseRefreshState(refreshTask.stateJson, playlist) : null
+  const posterMap = new Map(
+    state
+      ? state.sources.flatMap((source) => source.items).map((item) => [
+        `${item.tmdbType}-${item.tmdbId}`,
+        item.posterUrl,
+      ])
+      : []
+  )
+
+  const totalCount = feed.videos.length
+  const normalizedPage = Math.max(1, page)
+  const normalizedPageSize = Math.max(1, pageSize)
+  const pageVideos = feed.videos.slice(
+    (normalizedPage - 1) * normalizedPageSize,
+    normalizedPage * normalizedPageSize
+  )
+
+  const videos = await Promise.all(pageVideos.map(async (video) => {
+    const key = `${video.tmdbType}-${video.tmdbId}`
+    const cachedPosterUrl = posterMap.get(key)
+    const posterUrl = cachedPosterUrl ?? await fetchTmdbPosterUrl(apiKey, video.tmdbType, video.tmdbId)
+
+    return {
+      ...video,
+      posterUrl,
+    }
+  }))
+
+  return {
+    preview: {
+      feed: {
+        ...feed,
+        videos: pageVideos,
+      },
+      videos,
+    },
+    totalCount,
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+  }
+}
+
 function toRefreshStatus(
   playlist: EmbyManagedPlaylist,
   refreshTask: EmbyWatchRefreshTask | null,
@@ -942,6 +1017,47 @@ emby.get("/playlists/:slug/preview", async (c) => {
   } catch (error) {
     console.error("[emby-api] GET /playlists/:slug/preview failed", error)
     return c.json(apiError("INTERNAL_ERROR", getErrorMessage(error, "生成热门片单预览失败")), 500)
+  }
+})
+
+emby.get("/playlists/:slug/cache", async (c) => {
+  try {
+    const slug = c.req.param("slug") as EmbyPlaylistSlug
+    const config = await repository.getConfig()
+    const playlist = config?.playlists.find((item) => item.slug === slug)
+    const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1)
+    const pageSize = Math.max(1, Math.min(50, Number(c.req.query("pageSize") ?? "20") || 20))
+
+    if (!config || !playlist) {
+      return c.json(apiError("EMBY_DYNAMIC_WATCH_NOT_FOUND", "片单不存在"), 404)
+    }
+
+    const [cache, refreshTask] = await Promise.all([
+      repository.getWatchCache(slug),
+      repository.getWatchRefreshTask(slug),
+    ])
+    if (!cache) {
+      return c.json(apiSuccess({
+        preview: null,
+        totalCount: 0,
+        page,
+        pageSize,
+      }))
+    }
+
+    const previewPage = await buildPreviewFromCache(
+      cache.feed,
+      refreshTask,
+      playlist,
+      config.tmdbApiKey.trim(),
+      page,
+      pageSize
+    )
+
+    return c.json(apiSuccess(previewPage))
+  } catch (error) {
+    console.error("[emby-api] GET /playlists/:slug/cache failed", error)
+    return c.json(apiError("INTERNAL_ERROR", getErrorMessage(error, "获取当前缓存片单失败")), 500)
   }
 })
 

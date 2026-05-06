@@ -1,19 +1,60 @@
+"use client"
+
+import { useEffect } from "react"
+import { TopActions } from "@/components/topbar"
+import { useAppShellFooter } from "@/components/app-shell"
+import { cn } from "@/lib/utils"
+
 interface PageHeaderProps {
   title: string
   description?: string
   actions?: React.ReactNode
+  children?: React.ReactNode
+  className?: string
+  titleClassName?: string
+  descriptionClassName?: string
 }
 
-export function PageHeader({ title, description, actions }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  description,
+  actions,
+  children,
+  className,
+  titleClassName,
+  descriptionClassName,
+}: PageHeaderProps) {
+  const { setHasPageHeader, onToggleSidebar } = useAppShellFooter()
+
+  useEffect(() => {
+    setHasPageHeader(true)
+    return () => {
+      setHasPageHeader(false)
+    }
+  }, [setHasPageHeader])
+
   return (
-    <div className="mb-6 flex flex-col gap-4 border-b border-border/70 pb-5 sm:flex-row sm:items-end sm:justify-between">
-      <div className="max-w-3xl">
-        <h1 className="text-[1.4rem] font-semibold tracking-tight text-foreground">{title}</h1>
+    <header
+      className={cn(
+        "mb-8 flex flex-col gap-4 border-b border-border/50 pb-6 sm:flex-row sm:items-start sm:justify-between",
+        className
+      )}
+    >
+      <div className="min-w-0 max-w-3xl">
+        <h1 className={cn("text-3xl font-semibold tracking-tight text-foreground", titleClassName)}>
+          {title}
+        </h1>
         {description && (
-          <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{description}</p>
+          <p className={cn("mt-2 text-sm leading-6 text-muted-foreground", descriptionClassName)}>
+            {description}
+          </p>
         )}
+        {children}
       </div>
-      {actions && <div className="flex items-center gap-2 self-start sm:self-auto">{actions}</div>}
-    </div>
+      <div className="flex shrink-0 items-center gap-2 self-start sm:pt-0.5">
+        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        <TopActions onToggleSidebar={onToggleSidebar} />
+      </div>
+    </header>
   )
 }

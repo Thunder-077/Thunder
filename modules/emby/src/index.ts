@@ -5,6 +5,7 @@ export type {
   EmbyDynamicWatchFeed,
   EmbyPreviewVideo,
   EmbyPlaylistPreview,
+  EmbyPlaylistPreviewPage,
   EmbyPlaylistRefreshStatus,
   EmbyManagedPlaylist,
   EmbyConfig,

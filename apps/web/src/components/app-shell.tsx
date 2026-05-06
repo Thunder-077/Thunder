@@ -3,13 +3,16 @@
 import { createContext, useContext, useState } from "react"
 import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/sidebar"
-import { Topbar } from "@/components/topbar"
+import { AppChrome } from "@/components/topbar"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 
 type AppShellFooterContextValue = {
   footer: React.ReactNode
   setFooter: (footer: React.ReactNode) => void
+  hasPageHeader: boolean
+  setHasPageHeader: (value: boolean) => void
+  onToggleSidebar: () => void
 }
 
 const AppShellFooterContext = createContext<AppShellFooterContextValue | null>(null)
@@ -26,13 +29,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [footer, setFooter] = useState<React.ReactNode>(null)
+  const [hasPageHeader, setHasPageHeader] = useState(false)
 
   if (pathname === "/login") {
     return <>{children}</>
   }
 
   return (
-    <AppShellFooterContext.Provider value={{ footer, setFooter }}>
+    <AppShellFooterContext.Provider
+      value={{
+        footer,
+        setFooter,
+        hasPageHeader,
+        setHasPageHeader,
+        onToggleSidebar: () => setMobileSidebarOpen(true),
+      }}
+    >
       <div className="surface-shell relative flex h-screen overflow-hidden bg-background">
         <AppSidebar
           className={cn(
@@ -52,18 +64,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
           <main className="flex-1 overflow-y-auto">
-            <div className="w-full px-4 sm:px-6 xl:px-8">
-              <Topbar onToggleSidebar={() => setMobileSidebarOpen(true)} />
-              <div className="pb-5 pt-1">
-                {children}
+            <div className="w-full py-4 sm:py-5">
+              <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 xl:px-8">
+                <div className="relative">
+                  {!hasPageHeader && (
+                    <div className="mb-6 flex justify-end md:absolute md:top-0 md:right-0 md:z-[var(--z-sticky)] md:mb-0">
+                      <AppChrome onToggleSidebar={() => setMobileSidebarOpen(true)} />
+                    </div>
+                  )}
+                  <div className="pb-5">
+                    {children}
+                    {footer && (
+                      <div className="pt-6">
+                        {footer}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </main>
-          {footer && (
-            <div className="shrink-0 px-4 pb-4 sm:px-6 xl:px-8 bg-background">
-              {footer}
-            </div>
-          )}
         </div>
       </div>
     </AppShellFooterContext.Provider>

@@ -111,7 +111,7 @@ function WeatherIcon({ text }: { text: string }) {
   return <CloudSun className="h-5 w-5 text-amber-400/85" />
 }
 
-export function WeatherWidget() {
+export function WeatherSummary() {
   const [weather, setWeather] = useState<WeatherNow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -161,18 +161,22 @@ export function WeatherWidget() {
 
   return (
     <div
-      className="flex h-8 items-center gap-2"
+      className="flex items-center gap-2 text-sm font-medium text-foreground/85"
       title={`${weather.text} ${weather.temp}°`}
     >
       <WeatherIcon text={weather.text} />
 
-      <span className="text-[15px] font-semibold tabular-nums text-foreground/85">
+      <span className="tabular-nums">
         {weather.temp}°
       </span>
 
-      <span className="text-[15px] font-medium text-foreground/75">
+      <span className="text-muted-foreground">
         {weather.text}
       </span>
     </div>
   )
+}
+
+export function WeatherWidget() {
+  return <WeatherSummary />
 }

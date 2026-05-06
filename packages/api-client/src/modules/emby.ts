@@ -1,6 +1,7 @@
 import type {
   EmbyConfig,
   EmbyPlaylistPreview,
+  EmbyPlaylistPreviewPage,
   EmbyPlaylistRefreshStatus,
   EmbyPlaylistSlug,
   EmbySyncResult,
@@ -23,6 +24,18 @@ export class EmbyClient extends ThunderClient {
       `/emby/playlists/${encodeURIComponent(slug)}/preview`
     )
     return res.data.preview
+  }
+
+  async getCachedPlaylist(
+    slug: EmbyPlaylistSlug,
+    page = 1,
+    pageSize = 20
+  ): Promise<EmbyPlaylistPreviewPage> {
+    const query = `?page=${encodeURIComponent(String(page))}&pageSize=${encodeURIComponent(String(pageSize))}`
+    const res = await this.get<{ ok: boolean; data: EmbyPlaylistPreviewPage }>(
+      `/emby/playlists/${encodeURIComponent(slug)}/cache${query}`
+    )
+    return res.data
   }
 
   async getPlaylistRefreshStatus(slug: EmbyPlaylistSlug): Promise<EmbyPlaylistRefreshStatus> {

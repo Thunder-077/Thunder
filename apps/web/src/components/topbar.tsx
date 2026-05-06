@@ -1,7 +1,7 @@
 "use client"
 
-import { type ChangeEvent, type PointerEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { type ChangeEvent, type PointerEvent, type WheelEvent, useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Bell, Camera, LogOut, Menu, Palette, Settings, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,69 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { WeatherWidget } from "@/components/weather-widget"
+import { WeatherSummary } from "@/components/weather-widget"
 
-const rainbowQuotes = [
-  "专注当下，效率加倍。",
-  "今天的你，比昨天更强大。",
-  "保持热爱，奔赴山海。",
-  "每一个小进步，都是大胜利。",
-  "你的努力，时光都看得见。",
-  "相信自己，你比想象中更优秀。",
-  "新的一天，新的可能。",
-  "慢慢来，好戏都在烟火里。",
-  "星光不问赶路人，时光不负有心人。",
-  "愿你眼中有光，心中有爱。",
-  "今天的咖啡格外香，因为你很棒。",
-  "万事开头难，但你已经开始了。",
-  "你的坚持，终将美好。",
-  "生活明朗，万物可爱。",
-  "做最好的自己，其他的交给时间。",
-]
-
-interface TopbarProps {
+interface TopActionsProps {
   onToggleSidebar?: () => void
-}
-
-function getGreeting(): string {
-  const hour = new Date().getHours()
-
-  if (hour < 6) {
-    return "夜深了"
-  }
-
-  if (hour < 12) {
-    return "上午好"
-  }
-
-  if (hour < 14) {
-    return "中午好"
-  }
-
-  if (hour < 18) {
-    return "下午好"
-  }
-
-  return "晚上好"
-}
-
-function getTodayDate(): string {
-  const date = new Date()
-  const weekdays = ["日", "一", "二", "三", "四", "五", "六"]
-  const year = date.getFullYear()
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  const weekday = weekdays[date.getDay()]
-
-  return `${year}年${month}月${day}日 星期${weekday}`
-}
-
-function getDailyQuote(): string {
-  const date = new Date()
-  const seed = date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate()
-  const index = seed % rainbowQuotes.length
-
-  return rainbowQuotes[index]
 }
 
 function NotificationButton() {
@@ -81,16 +22,10 @@ function NotificationButton() {
     <Button
       variant="ghost"
       size="icon"
-      className="
-    h-8 w-8 rounded-full
-    text-muted-foreground/60
-    transition-all duration-150
-    hover:bg-muted/70 hover:text-foreground
-    active:scale-95
-  "
+      className="h-8 w-8 rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted/60 hover:text-foreground active:scale-95"
       aria-label="通知"
     >
-      <Bell className="size-5" strokeWidth={2.2} />
+      <Bell className="h-4 w-4" strokeWidth={2.1} />
     </Button>
   )
 }
@@ -109,17 +44,8 @@ function AvatarButton({
   className?: string
 }) {
   return (
-    <span
-      className={`
-        flex shrink-0 items-center justify-center rounded-full
-        bg-[conic-gradient(#4285f4_0_25%,#34a853_0_50%,#fbbc05_0_75%,#ea4335_0_100%)]
-        p-[3px]
-        shadow-sm shadow-brand/20
-        ${className}
-      `}
-      aria-hidden="true"
-    >
-      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-brand text-sm font-semibold text-primary-foreground ring-1 ring-background">
+    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-sm font-semibold text-foreground ring-1 ring-border/60 ${className}`} aria-hidden="true">
+      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-brand-subtle text-foreground">
         {avatarUrl ? (
           <img src={avatarUrl} alt="" className="h-full w-full object-cover" decoding="async" />
         ) : (
@@ -402,13 +328,7 @@ function UserAvatarMenu() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          className="
-            rounded-full outline-none
-            transition-transform duration-150
-            hover:scale-[1.04]
-            focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
-            active:scale-95
-          "
+          className="ml-1 rounded-full outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
           aria-label="打开用户菜单"
         >
           <AvatarButton username={username} avatarUrl={avatarUrl} className="h-10 w-10" />
@@ -478,90 +398,32 @@ function UserAvatarMenu() {
   )
 }
 
-function TopbarActions({ isHomePage }: { isHomePage: boolean }) {
+export function TopActions({ onToggleSidebar }: TopActionsProps) {
   return (
-    <div
-      className={
-        isHomePage
-          ? "flex shrink-0 items-center gap-3 pt-1"
-          : "flex shrink-0 items-center gap-3"
-      }
-    >
-      <WeatherWidget />
+    <div className="flex h-10 shrink-0 items-center gap-1 text-foreground/85">
+      {onToggleSidebar && (
+        <>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-lg md:hidden"
+            onClick={onToggleSidebar}
+            aria-label="打开导航"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+            <div className="mx-1 h-4 w-px bg-border/60 md:hidden" />
+          </>
+        )}
 
-      <div className="h-6 w-px bg-border" />
+        <WeatherSummary />
+        <div className="mx-1 h-4 w-px bg-border/50" />
+        <NotificationButton />
+        <UserAvatarMenu />
+      </div>
+    )
+  }
 
-      <NotificationButton />
-
-      <UserAvatarMenu />
-    </div>
-  )
-}
-
-export function Topbar({ onToggleSidebar }: TopbarProps) {
-  const pathname = usePathname()
-  const isHomePage = pathname === "/"
-
-  const homeGreeting = useMemo(() => {
-    if (!isHomePage) {
-      return {
-        greeting: "",
-        todayDate: "",
-        quote: "",
-      }
-    }
-
-    return {
-      greeting: getGreeting(),
-      todayDate: getTodayDate(),
-      quote: getDailyQuote(),
-    }
-  }, [isHomePage])
-
-  return (
-    <div
-      className={
-        isHomePage
-          ? "flex items-start justify-between gap-6 py-4"
-          : "flex items-center justify-between gap-3 py-3"
-      }
-    >
-      {isHomePage ? (
-        <div className="min-w-0 flex-1">
-          <p className="text-sm text-muted-foreground">
-            {homeGreeting.todayDate}
-          </p>
-
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-            {homeGreeting.greeting}，
-            <br />
-            <span className="text-brand">欢迎回来</span>
-          </h1>
-
-          <div className="mt-5 flex items-center gap-4">
-            <span className="h-[3px] w-10 rounded-full bg-brand shrink-0" />
-            <p className="text-sm text-muted-foreground">
-              {homeGreeting.quote || "专注当下，效率加倍。"}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="flex min-w-0 flex-1 items-center">
-          {onToggleSidebar && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 md:hidden"
-              onClick={onToggleSidebar}
-              aria-label="打开导航"
-            >
-              <Menu className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      )}
-
-      <TopbarActions isHomePage={isHomePage} />
-    </div>
-  )
+export function AppChrome({ onToggleSidebar }: TopActionsProps) {
+  return <TopActions onToggleSidebar={onToggleSidebar} />
 }

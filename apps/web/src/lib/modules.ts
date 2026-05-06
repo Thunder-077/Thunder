@@ -43,9 +43,9 @@ export const mockModules: ModuleManifest[] = [
   },
   {
     id: "emby",
-    name: "Emby 片单",
-    description: "维护对外提供给 Emos 抓取的动态片单",
-    icon: "Clapperboard",
+    name: "Emby",
+    description: "Emby 影视模块",
+    icon: "Film",
     route: "/modules/emby",
     category: "tools",
     order: 5,

@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  Film,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
@@ -30,6 +31,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Lock,
   Brain,
   Timer,
+  Film,
 }
 
 const categoryLabels: Record<ModuleCategory, string> = {

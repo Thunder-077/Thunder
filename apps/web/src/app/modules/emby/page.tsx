@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ChevronDown, ChevronUp, Clapperboard, Copy, Info, LoaderCircle, Plus, RefreshCcw, Save, Send, X } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clapperboard, Copy, Eye, Info, LoaderCircle, Plus, RefreshCcw, Save, Send, X } from "lucide-react"
 import { EmbyClient, ThunderApiError } from "@thunder/api-client"
 import type {
   EmbyConfig,
@@ -21,9 +21,10 @@ import { Select } from "@/components/ui/select"
 
 const embyClient = new EmbyClient()
 const inputClassName = "placeholder:text-muted-foreground/55"
-const PREVIEW_DISPLAY_LIMIT = 100
+const PREVIEW_PAGE_SIZE = 20
 const REFRESH_LEAD_HOURS = 10
 const CRON_INTERVAL_MINUTES = 10
+type PlaylistPreviewSource = "updated" | "cache"
 
 function toDisplayError(error: unknown, fallback: string): string {
   if (error instanceof ThunderApiError && error.message.trim()) {
@@ -45,10 +46,6 @@ function createEmptyConfig(): EmbyConfig {
     tmdbApiKey: "",
     playlists: [],
   }
-}
-
-function buildSyncSuccessMessage(slug: EmbyPlaylistSlug, results: EmbySyncResult[]): string {
-  return `片单已同步到 Emos：${results[0]?.name ?? slug}`
 }
 
 function mergeRemoteWatchIds(config: EmbyConfig, results: EmbySyncResult[]): EmbyConfig {
@@ -144,10 +141,10 @@ function getNextRefreshStageDescription(status: EmbyPlaylistRefreshStatus): stri
   }
 
   if (status.status === "failed") {
-    return "下阶段执行方式：等待下一次定时推进或手动更新预览"
+    return "下阶段执行方式：等待下一次定时推进或手动更新片单"
   }
 
-  return "下阶段执行方式：点击“更新预览”或等待定时任务启动"
+  return "下阶段执行方式：点击“更新片单”或等待定时任务启动"
 }
 
 function getRefreshStatusVariant(status: EmbyPlaylistRefreshStatus["status"]): "info" | "success" | "warning" | "danger" | "neutral" {
@@ -178,6 +175,9 @@ function toPlaylistNumericDrafts(playlist: EmbyManagedPlaylist | null): Playlist
 export default function EmbyModulePage() {
   const [config, setConfig] = useState<EmbyConfig>(createEmptyConfig())
   const [previewMap, setPreviewMap] = useState<Record<string, EmbyPlaylistPreview | null>>({})
+  const [previewSourceMap, setPreviewSourceMap] = useState<Record<string, PlaylistPreviewSource | null>>({})
+  const [previewPageMap, setPreviewPageMap] = useState<Record<string, number>>({})
+  const [previewTotalCountMap, setPreviewTotalCountMap] = useState<Record<string, number>>({})
   const [refreshStatusMap, setRefreshStatusMap] = useState<Record<string, EmbyPlaylistRefreshStatus | null>>({})
   const [loading, setLoading] = useState(true)
   const [syncingSlug, setSyncingSlug] = useState<string | null>(null)
@@ -188,7 +188,6 @@ export default function EmbyModulePage() {
   const [tagInput, setTagInput] = useState("")
   const [numericDrafts, setNumericDrafts] = useState<PlaylistNumericDrafts>(toPlaylistNumericDrafts(null))
   const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const selectedPlaylist = config.playlists.find((playlist) => playlist.slug === selectedSlug) ?? null
 
   useEffect(() => {
@@ -272,13 +271,98 @@ export default function EmbyModulePage() {
         ...current,
         [slug]: feed,
       }))
+      setPreviewPageMap((current) => ({
+        ...current,
+        [slug]: 1,
+      }))
+      setPreviewTotalCountMap((current) => ({
+        ...current,
+        [slug]: feed.videos.length,
+      }))
+      setPreviewSourceMap((current) => ({
+        ...current,
+        [slug]: "updated",
+      }))
       setRefreshStatusMap((current) => ({
         ...current,
         [slug]: status,
       }))
     } catch (previewError) {
       console.error("[emby-module] preview playlist failed", previewError)
-      setError(toDisplayError(previewError, "生成热门片单预览失败，请检查 TMDB Key"))
+      setError(toDisplayError(previewError, "更新片单失败，请检查 TMDB Key"))
+    } finally {
+      setRefreshingSlug(null)
+    }
+  }
+
+  const loadCachedPlaylist = async (slug: EmbyPlaylistSlug) => {
+    try {
+      setRefreshingSlug(slug)
+      setError(null)
+      const [previewPage, status] = await Promise.all([
+        embyClient.getCachedPlaylist(slug, 1, PREVIEW_PAGE_SIZE),
+        embyClient.getPlaylistRefreshStatus(slug),
+      ])
+
+      setPreviewMap((current) => ({
+        ...current,
+        [slug]: previewPage.preview,
+      }))
+      setPreviewPageMap((current) => ({
+        ...current,
+        [slug]: previewPage.page,
+      }))
+      setPreviewTotalCountMap((current) => ({
+        ...current,
+        [slug]: previewPage.totalCount,
+      }))
+      setPreviewSourceMap((current) => ({
+        ...current,
+        [slug]: previewPage.preview ? "cache" : null,
+      }))
+      setRefreshStatusMap((current) => ({
+        ...current,
+        [slug]: status,
+      }))
+    } catch (cacheError) {
+      console.error("[emby-module] load cached playlist failed", cacheError)
+      setError(toDisplayError(cacheError, "获取当前缓存片单失败"))
+    } finally {
+      setRefreshingSlug(null)
+    }
+  }
+
+  const changePreviewPage = async (nextPage: number) => {
+    if (!selectedPlaylist || !selectedPreviewSource) {
+      return
+    }
+
+    if (selectedPreviewSource === "updated") {
+      setPreviewPageMap((current) => ({
+        ...current,
+        [selectedPlaylist.slug]: nextPage,
+      }))
+      return
+    }
+
+    try {
+      setRefreshingSlug(selectedPlaylist.slug)
+      const previewPage = await embyClient.getCachedPlaylist(selectedPlaylist.slug, nextPage, PREVIEW_PAGE_SIZE)
+      setPreviewMap((current) => ({
+        ...current,
+        [selectedPlaylist.slug]: previewPage.preview,
+      }))
+      setPreviewPageMap((current) => ({
+        ...current,
+        [selectedPlaylist.slug]: previewPage.page,
+      }))
+      setPreviewTotalCountMap((current) => ({
+        ...current,
+        [selectedPlaylist.slug]: previewPage.totalCount,
+      }))
+    } catch (pageError) {
+      console.error("[emby-module] change cached playlist page failed", pageError)
+      setError(toDisplayError(pageError, "切换缓存片单分页失败"))
     } finally {
       setRefreshingSlug(null)
     }
@@ -286,8 +370,7 @@ export default function EmbyModulePage() {
 
   const syncPlaylist = async (slug?: EmbyPlaylistSlug) => {
     if (saving) {
-      setError(null)
-      setMessage("片单配置正在保存，请稍后再同步")
+      setError("片单配置正在保存，请稍后再同步")
       return
     }
 
@@ -299,7 +382,6 @@ export default function EmbyModulePage() {
 
       setSyncingSlug(slug)
       setError(null)
-      setMessage(null)
 
       const result = await embyClient.syncPlaylists(slug)
       setConfig((current) => mergeRemoteWatchIds(current, result.results))
@@ -308,7 +390,6 @@ export default function EmbyModulePage() {
         ...current,
         [slug]: status,
       }))
-      setMessage(buildSyncSuccessMessage(slug, result.results))
     } catch (syncError) {
       console.error("[emby-module] sync playlist failed", syncError)
       setError(toDisplayError(syncError, "同步 Emos 片单失败，请检查 Emos 地址、Token 和 TMDB Key"))
@@ -386,10 +467,8 @@ export default function EmbyModulePage() {
     try {
       setSaving(true)
       setError(null)
-      setMessage(null)
       const saved = await embyClient.saveConfig(config)
       setConfig(saved)
-      setMessage("片单配置已保存")
     } catch (saveError) {
       console.error("[emby-module] save config failed", saveError)
       setError(toDisplayError(saveError, "保存 Emby 片单失败"))
@@ -400,7 +479,18 @@ export default function EmbyModulePage() {
 
   const selectedPreview = selectedPlaylist ? (previewMap[selectedPlaylist.slug] ?? null) : null
   const selectedRefreshStatus = selectedPlaylist ? (refreshStatusMap[selectedPlaylist.slug] ?? null) : null
-  const visiblePreviewVideos = selectedPreview?.videos.slice(0, PREVIEW_DISPLAY_LIMIT) ?? []
+  const selectedPreviewSource = selectedPlaylist ? (previewSourceMap[selectedPlaylist.slug] ?? null) : null
+  const currentPreviewPage = selectedPlaylist ? (previewPageMap[selectedPlaylist.slug] ?? 1) : 1
+  const selectedPreviewTotalCount = selectedPlaylist
+    ? (previewTotalCountMap[selectedPlaylist.slug] ?? selectedPreview?.videos.length ?? 0)
+    : 0
+  const totalPreviewPages = Math.max(1, Math.ceil(selectedPreviewTotalCount / PREVIEW_PAGE_SIZE))
+  const visiblePreviewVideos = selectedPreviewSource === "updated"
+    ? (selectedPreview?.videos.slice(
+      (currentPreviewPage - 1) * PREVIEW_PAGE_SIZE,
+      currentPreviewPage * PREVIEW_PAGE_SIZE
+    ) ?? [])
+    : (selectedPreview?.videos ?? [])
   const isSelectedPreviewCollapsed = selectedPlaylist
     ? (collapsedPreviewMap[selectedPlaylist.slug] ?? false)
     : false
@@ -412,18 +502,14 @@ export default function EmbyModulePage() {
 
   return (
     <div>
-      <PageHeader title="Emby 片单" />
+      <PageHeader
+        title="Emby"
+      />
 
       <div className="space-y-4">
         {error && (
           <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {error}
-          </div>
-        )}
-
-        {message && (
-          <div className="rounded-xl border border-border/70 bg-background px-3 py-2 text-sm text-muted-foreground">
-            {message}
           </div>
         )}
 
@@ -460,11 +546,7 @@ export default function EmbyModulePage() {
                           contentClassName="bg-background"
                         />
                       </div>
-                      {selectedPlaylist && (
-                        <div className="text-sm text-muted-foreground">
-                          {selectedPlaylist.description}
-                        </div>
-                      )}
+                    
                     </div>
                   </div>
                   {selectedPlaylist && (
@@ -678,7 +760,7 @@ export default function EmbyModulePage() {
                 <CardContent className="space-y-4 p-6">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-lg font-semibold text-foreground">预览热门内容</div>
+                      <div className="text-lg font-semibold text-foreground">片单内容</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {selectedPreview && (
@@ -696,11 +778,21 @@ export default function EmbyModulePage() {
                         variant="ghost"
                         size="sm"
                         className="gap-2"
+                        onClick={() => loadCachedPlaylist(selectedPlaylist.slug)}
+                        disabled={refreshingSlug !== null}
+                      >
+                        {refreshingSlug === selectedPlaylist.slug ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                        查看当前缓存片单
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2"
                         onClick={() => previewPlaylist(selectedPlaylist.slug)}
                         disabled={refreshingSlug !== null}
                       >
                         {refreshingSlug === selectedPlaylist.slug ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                        更新预览
+                        更新片单
                       </Button>
                     </div>
                   </div>
@@ -725,11 +817,35 @@ export default function EmbyModulePage() {
                   )}
                   {selectedPreview && !isSelectedPreviewCollapsed ? (
                     <div className="space-y-4">
-                      {selectedPreview.videos.length > PREVIEW_DISPLAY_LIMIT && (
-                        <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                          当前片单共生成 {selectedPreview.videos.length} 条，页面预览仅展示前 {PREVIEW_DISPLAY_LIMIT} 条，Emos 动态接口会读取完整缓存。
+                      <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          当前片单共生成 {selectedPreviewTotalCount} 条，当前第 {currentPreviewPage}/{totalPreviewPages} 页，每页 {PREVIEW_PAGE_SIZE} 条。
                         </div>
-                      )}
+                        {selectedPlaylist && totalPreviewPages > 1 && (
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 px-2 text-xs"
+                              disabled={refreshingSlug !== null || currentPreviewPage <= 1}
+                              onClick={() => void changePreviewPage(Math.max(1, currentPreviewPage - 1))}
+                            >
+                              <ChevronLeft className="h-3 w-3" />
+                              上一页
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 px-2 text-xs"
+                              disabled={refreshingSlug !== null || currentPreviewPage >= totalPreviewPages}
+                              onClick={() => void changePreviewPage(Math.min(totalPreviewPages, currentPreviewPage + 1))}
+                            >
+                              下一页
+                              <ChevronRight className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                         {visiblePreviewVideos.map((video) => (
                           <div key={`${video.tmdbType}-${video.tmdbId}`} className="flex gap-3 overflow-hidden rounded-xl border border-border/70 bg-background p-2 shadow-xs">
@@ -759,27 +875,14 @@ export default function EmbyModulePage() {
                           </div>
                         ))}
                       </div>
-                      <pre className="max-h-[240px] overflow-auto rounded-2xl border border-border/70 bg-muted/30 p-3 text-xs leading-6 text-foreground">
-                        {JSON.stringify({
-                          name: selectedPreview.feed.name,
-                          cover: selectedPreview.feed.cover,
-                          updated_at: selectedPreview.feed.updatedAt,
-                          videos: selectedPreview.feed.videos.slice(0, PREVIEW_DISPLAY_LIMIT).map((video) => ({
-                            tmdb_id: video.tmdbId,
-                            tmdb_type: video.tmdbType,
-                            title: video.title,
-                            sort: video.sort,
-                          })),
-                        }, null, 2)}
-                      </pre>
                     </div>
                   ) : selectedPreview && isSelectedPreviewCollapsed ? (
                     <div className="rounded-2xl border border-dashed border-border/70 px-4 py-6 text-sm text-muted-foreground">
-                      当前预览已收起。点击“展开预览”可再次查看海报和 JSON。
+                      当前片单内容已收起。点击“展开预览”可再次查看海报列表。
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-dashed border-border/70 px-4 py-10 text-sm text-muted-foreground">
-                      点击“更新预览”生成当前分类的实时片单结果。
+                      点击“更新片单”生成最新片单，或点击“查看当前缓存片单”读取已有缓存。
                     </div>
                   )}
                 </CardContent>
