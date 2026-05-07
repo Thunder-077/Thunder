@@ -648,22 +648,22 @@ async function renderCardsVariant(input: GeneratePosterInput, width: number, hei
 
   const background = await createBackground(input, width, height)
 
-  // 卡片布局参考 Jellyfin 海报模板：中间轻微突出，两侧横向展开。
+  // 卡片布局参考 Jellyfin 海报模板：整体下压、轻微外展，并通过重叠形成向中心收拢的舞台感。
   // 索引对应: 0=左2, 1=左1, 2=中间, 3=右1, 4=右2。
   const layoutConfig = [
-    { scale: 0.92, rotation: 4, offsetX: -610, offsetY: -8 },
-    { scale: 0.99, rotation: 3, offsetX: -315, offsetY: 0 },
-    { scale: 1.06, rotation: 0, offsetX: 0, offsetY: 18 },
-    { scale: 0.99, rotation: -3, offsetX: 315, offsetY: 0 },
-    { scale: 0.92, rotation: -4, offsetX: 610, offsetY: -8 },
+    { scale: 0.88, rotation: 4, offsetX: -620, offsetY: -28 },
+    { scale: 0.97, rotation: 3, offsetX: -330, offsetY: -8 },
+    { scale: 1.02, rotation: 0, offsetX: 0, offsetY: 10 },
+    { scale: 0.97, rotation: -3, offsetX: 330, offsetY: -8 },
+    { scale: 0.88, rotation: -4, offsetX: 620, offsetY: -28 },
   ]
 
   // 以 2:3 海报比例为基准，避免中间卡片过高导致遮挡两侧内容。
-  const baseWidth = 400
-  const baseHeight = 590
+  const baseWidth = 420
+  const baseHeight = 600
   const centerX = Math.floor(width / 2)
   // 底部锚点留出少量安全边距，旋转后的阴影不会被画布裁切。
-  const bottomY = height - 15
+  const bottomY = height - 45
   const overlays: OverlayInput[] = []
 
   // 从外向内渲染（先渲染两侧，最后渲染中间，确保中间在最上层）
@@ -728,7 +728,7 @@ function createCardsTitleOverlay(input: GeneratePosterInput, width: number, heig
   const { boxWidth, boxHeight, gap, fontSize } = titleConfig
   const titleWidth = input.title.length * boxWidth + Math.max(0, input.title.length - 1) * gap
   const titleX = Math.round(width / 2 - titleWidth / 2)
-  const titleY = 120 // 标题下移，给卡片区保留接近参考图的视觉重心。
+  const titleY = 95 // 标题略微上移，保持与卡片区的留白。
 
   // 方框：白色描边 + 很轻的白色透明填充
   const boxes = [...input.title].map((char, index) => {

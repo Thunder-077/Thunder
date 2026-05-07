@@ -94,16 +94,6 @@ export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) 
           </span>
         )}
       </div>
-      {password && (
-        <p className="text-xs text-muted-foreground">
-          {feedback}
-          {crackTime && (
-            <span className="ml-1 text-muted-foreground/70">
-              (预计破解时间: {crackTime})
-            </span>
-          )}
-        </p>
-      )}
       {!password && (
         <p className="text-xs text-muted-foreground">
           建议至少 8 位，避免使用常见单词和简单模式

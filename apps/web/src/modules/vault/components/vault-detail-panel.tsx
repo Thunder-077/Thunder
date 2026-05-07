@@ -245,7 +245,7 @@ export function VaultDetailPanel({
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-semibold truncate">{item.title}</h2>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-normal bg-purple-50 text-purple-600">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-normal bg-purple-50 text-purple-600 whitespace-nowrap shrink-0">
                     {VAULT_ITEM_TYPE_LABELS[inferVaultItemType(item)]}
                   </span>
                 </div>
