@@ -312,17 +312,16 @@ async function createBackground(input: GeneratePosterInput, width: number, heigh
     return createMaskedGradient(width, height, toRgbaColor(input.background.leftColor), toRgbaColor(input.background.rightColor))
   }
 
-  if (input.variant === "cards") {
-    return createMaskedGradient(width, height, toRgbaColor([219, 93, 93, 255]), toRgbaColor([77, 196, 219, 255]))
-  }
-
   const firstPoster = input.posters[0] ? toUint8Array(input.posters[0]) : null
   const posterColors = input.colors
     ? input.colors.map((color) => ({ color: toRgbaColor(color), count: 1 }))
     : firstPoster
       ? await getDominantPosterColors(firstPoster)
       : []
-  const random = createSeededRandom(resolveSeed(input, "columns-background"))
+
+  // cards 和 columns 布局都支持动态提取海报颜色
+  const seedSuffix = input.variant === "cards" ? "cards-background" : "columns-background"
+  const random = createSeededRandom(resolveSeed(input, seedSuffix))
   const selected = chooseThemeColor(posterColors)
     ?? hslToRgb(random() * 360, 0.5 + random() * 0.5, 0.5 + random() * 0.3)
   const left = darken(selected)
@@ -636,51 +635,75 @@ function createColumnsTitleOverlay(input: GeneratePosterInput, width: number, he
 
 async function createCardPoster(input: Uint8Array, width: number, height: number): Promise<Buffer> {
   const roundedPoster = await createRoundedPoster(input, width, height, Math.round(width * 0.07))
-  return addShadow(roundedPoster, 8, 12, 12, 120)
+  // 加强阴影：更柔、更大、向下偏移更多
+  return addShadow(roundedPoster, 10, 16, 24, 70)
 }
 
 async function renderCardsVariant(input: GeneratePosterInput, width: number, height: number): Promise<Buffer> {
-  const posters = input.posters.slice(0, 3).map(toUint8Array)
+  // 最多使用5张海报，实现扇形布局
+  const posters = input.posters.slice(0, 5).map(toUint8Array)
   if (posters.length === 0) {
     throw new Error("generatePoster requires at least one poster image")
   }
 
   const background = await createBackground(input, width, height)
-  const baseWidth = 420
-  const baseHeight = 600
+
+  // 卡片布局参考 Jellyfin 海报模板：中间轻微突出，两侧横向展开。
+  // 索引对应: 0=左2, 1=左1, 2=中间, 3=右1, 4=右2。
+  const layoutConfig = [
+    { scale: 0.92, rotation: 4, offsetX: -610, offsetY: -8 },
+    { scale: 0.99, rotation: 3, offsetX: -315, offsetY: 0 },
+    { scale: 1.06, rotation: 0, offsetX: 0, offsetY: 18 },
+    { scale: 0.99, rotation: -3, offsetX: 315, offsetY: 0 },
+    { scale: 0.92, rotation: -4, offsetX: 610, offsetY: -8 },
+  ]
+
+  // 以 2:3 海报比例为基准，避免中间卡片过高导致遮挡两侧内容。
+  const baseWidth = 400
+  const baseHeight = 590
   const centerX = Math.floor(width / 2)
-  const y = height - baseHeight
+  // 底部锚点留出少量安全边距，旋转后的阴影不会被画布裁切。
+  const bottomY = height - 15
   const overlays: OverlayInput[] = []
 
-  if (posters[1]) {
-    const leftCard = await sharp(await createCardPoster(posters[1], baseWidth, baseHeight))
-      .rotate(toSharpRotationAngle(10), { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png()
-      .toBuffer()
-    overlays.push({
-      input: leftCard,
-      left: Math.round(centerX - baseWidth - baseWidth / 2 + 50),
-      top: y + 70,
-    })
+  // 从外向内渲染（先渲染两侧，最后渲染中间，确保中间在最上层）
+  const renderOrder = posters.length === 1 ? [2] :
+    posters.length === 2 ? [1, 3] :
+    posters.length === 3 ? [1, 3, 2] :
+    posters.length === 4 ? [0, 3, 1, 2] :
+    [0, 4, 1, 3, 2]
+
+  for (const layoutIndex of renderOrder) {
+    if (layoutIndex >= posters.length) continue
+
+    const poster = posters[layoutIndex]
+    const config = layoutConfig[layoutIndex]
+
+    const cardWidth = Math.round(baseWidth * config.scale)
+    const cardHeight = Math.round(baseHeight * config.scale)
+
+    // 创建卡片（带圆角和阴影）
+    let card = await createCardPoster(poster, cardWidth, cardHeight)
+
+    // 应用旋转
+    if (config.rotation !== 0) {
+      card = await sharp(card)
+        .rotate(toSharpRotationAngle(config.rotation), { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toBuffer()
+    }
+
+    const cardMetadata = await sharp(card).metadata()
+    const cardActualWidth = cardMetadata.width ?? cardWidth
+    const cardActualHeight = cardMetadata.height ?? cardHeight
+
+    // 计算位置：底部对齐 + offsetY 微调（两侧海报稍微上移）
+    const left = Math.round(centerX + config.offsetX - cardActualWidth / 2)
+    const top = Math.round(bottomY + config.offsetY - cardActualHeight)
+
+    overlays.push({ input: card, left, top })
   }
 
-  if (posters[2]) {
-    const rightCard = await sharp(await createCardPoster(posters[2], baseWidth, baseHeight))
-      .rotate(toSharpRotationAngle(-10), { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png()
-      .toBuffer()
-    overlays.push({
-      input: rightCard,
-      left: Math.round(centerX + baseWidth / 2 - 150),
-      top: y + 70,
-    })
-  }
-
-  overlays.push({
-    input: await createCardPoster(posters[0], baseWidth, baseHeight),
-    left: Math.round(centerX - baseWidth / 2),
-    top: y + 20,
-  })
   overlays.push({
     input: createCardsTitleOverlay(input, width, height),
     left: 0,
@@ -693,26 +716,55 @@ async function renderCardsVariant(input: GeneratePosterInput, width: number, hei
 function createCardsTitleOverlay(input: GeneratePosterInput, width: number, height: number): Buffer {
   const titleFamily = input.titleFont?.family ?? "serif"
   const subtitleFamily = input.subtitleFont?.family ?? "sans-serif"
-  const titleFontSize = 120
-  const charSpacing = 20
-  const padding = 20
-  const boxSize = titleFontSize + padding * 2
-  const titleWidth = input.title.length * boxSize + Math.max(0, input.title.length - 1) * charSpacing
+
+  // 标题配置：参考图风格 - 标题在画面上半部分
+  const titleConfig = {
+    boxWidth: 200,
+    boxHeight: 195,
+    gap: 20,
+    fontSize: 120,
+  }
+
+  const { boxWidth, boxHeight, gap, fontSize } = titleConfig
+  const titleWidth = input.title.length * boxWidth + Math.max(0, input.title.length - 1) * gap
   const titleX = Math.round(width / 2 - titleWidth / 2)
-  const titleY = 60
+  const titleY = 120 // 标题下移，给卡片区保留接近参考图的视觉重心。
+
+  // 方框：白色描边 + 很轻的白色透明填充
   const boxes = [...input.title].map((char, index) => {
-    const x = titleX + index * (boxSize + charSpacing)
+    const x = titleX + index * (boxWidth + gap)
     return `
-      <rect x="${x}" y="${titleY}" width="${boxSize}" height="${boxSize}"
-        fill="rgba(255,255,255,0.3137)" stroke="rgba(255,255,255,0.7843)" stroke-width="2" />
-      <text x="${x + boxSize / 2}" y="${titleY + boxSize / 2 + titleFontSize * 0.36}"
-        text-anchor="middle" font-family="${escapeXml(titleFamily)}" font-size="${titleFontSize}" fill="#fff">${escapeXml(char)}</text>
+      <rect x="${x}" y="${titleY}" width="${boxWidth}" height="${boxHeight}"
+        fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.75)" stroke-width="2" />
+      <text x="${x + boxWidth / 2}" y="${titleY + boxHeight / 2 + fontSize * 0.36}"
+        text-anchor="middle" font-family="${escapeXml(titleFamily)}" font-size="${fontSize}" fill="#fff">${escapeXml(char)}</text>
     `
   }).join("")
+
+  // 英文副标题：带两侧装饰横线
   const subtitle = input.subtitle?.trim()
+  const subtitleY = titleY + 230
+  const subtitleFontSize = 44
+  const letterSpacing = 8
+  // SVG 中无法直接测量字体宽度，这里按标题字符数估算安全半宽，避免横线穿过英文标题。
+  const subtitleHalfWidth = Math.round(((subtitle?.length ?? 0) * subtitleFontSize * 0.6 + Math.max(0, (subtitle?.length ?? 0) - 1) * letterSpacing) / 2)
+  const lineInnerX = subtitleHalfWidth + 45
+  const lineWidth = 150
+  const lineOpacity = 0.8
+
   const subtitleOverlay = subtitle ? `
-    <text x="${width / 2}" y="${titleY + 210}" text-anchor="middle"
-      font-family="${escapeXml(subtitleFamily)}" font-size="60" fill="#fff">${escapeXml(subtitle)}</text>
+    <g transform="translate(${width / 2}, ${subtitleY})">
+      <!-- 左侧横线 - 与文字垂直居中 -->
+      <line x1="-${lineInnerX + lineWidth}" y1="${subtitleFontSize * 0.36}" x2="-${lineInnerX}" y2="${subtitleFontSize * 0.36}"
+        stroke="rgba(255,255,255,${lineOpacity})" stroke-width="1.5" />
+      <!-- 英文副标题 -->
+      <text x="0" y="${subtitleFontSize * 0.36}" text-anchor="middle" dominant-baseline="middle"
+        font-family="${escapeXml(subtitleFamily)}" font-size="${subtitleFontSize}"
+        fill="#fff" letter-spacing="${letterSpacing}">${escapeXml(subtitle)}</text>
+      <!-- 右侧横线 - 与文字垂直居中 -->
+      <line x1="${lineInnerX}" y1="${subtitleFontSize * 0.36}" x2="${lineInnerX + lineWidth}" y2="${subtitleFontSize * 0.36}"
+        stroke="rgba(255,255,255,${lineOpacity})" stroke-width="1.5" />
+    </g>
   ` : ""
 
   return createSvg(width, height, `${boxes}${subtitleOverlay}`, [input.titleFont, input.subtitleFont].filter((font): font is PosterFontInput => Boolean(font)))
