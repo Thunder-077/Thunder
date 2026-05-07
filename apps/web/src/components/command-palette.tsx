@@ -86,9 +86,9 @@ function useCommands(): Command[] {
     },
     {
       id: "emby",
-      label: "打开 Emby 片单",
+      label: "打开 Emby 影视模块",
       icon: Clapperboard,
-      keywords: ["emby", "emos", "片单", "动态片单"],
+      keywords: ["emby", "emos", "影视"],
       action: () => router.push("/modules/emby"),
     },
     {

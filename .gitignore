@@ -11,3 +11,4 @@ dist
 !.dev.vars.example
 .DS_Store
 data/
+.trae
