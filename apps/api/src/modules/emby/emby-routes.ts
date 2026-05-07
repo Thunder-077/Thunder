@@ -482,6 +482,10 @@ function flattenRefreshItems(groupedItems: Map<string, EmbyRefreshPreviewItem[]>
   return Array.from(groupedItems.values()).flat()
 }
 
+function getStateJsonBytes(state: EmbyRefreshState): number {
+  return new TextEncoder().encode(JSON.stringify(state)).length
+}
+
 function buildRefreshItemsFromLegacyState(
   playlist: EmbyManagedPlaylist,
   runId: string,
@@ -658,14 +662,18 @@ async function advancePlaylistRefresh(
   for (const source of state.sources) {
     source.collectedCount = sourceItems.get(source.key)?.length ?? 0
   }
+  const refreshItemCount = storedItems.length
   const logPrefix = `[emby-cache] ${playlist.slug}`
 
   console.info(`${logPrefix} 开始刷新`, {
     mode: restarting ? "全新刷新" : "继续刷新",
+    runId,
     pageBudget: options.pageBudget,
     sourcesCount: state.sources.length,
     existingStatus: existingTask?.status ?? "无",
     existingCache: existingCache ? `有(${existingCache.count}条)` : "无",
+    refreshItemCount,
+    stateJsonBytes: getStateJsonBytes(state),
   })
 
   try {
@@ -696,6 +704,9 @@ async function advancePlaylistRefresh(
         mediaType: source.mediaType,
         page: source.nextPage,
         remainingBudget,
+        runId,
+        collectedCountBefore: source.collectedCount,
+        stateJsonBytes: getStateJsonBytes(state),
       })
 
       const pageItems = await fetchTmdbDiscover(apiKey, source.mediaType, params)
@@ -729,6 +740,9 @@ async function advancePlaylistRefresh(
         addedCount,
         totalInSource: source.collectedCount,
         targetCount: source.targetCount,
+        runId,
+        refreshItemCount: flattenRefreshItems(sourceItems).length,
+        stateJsonBytes: getStateJsonBytes(state),
       })
 
       source.nextPage += 1
@@ -746,17 +760,22 @@ async function advancePlaylistRefresh(
           reason: pageItems.length < TMDB_DISCOVER_PAGE_SIZE ? "无更多数据" :
             source.collectedCount >= source.targetCount ? "达到目标数量" : "达到最大页数",
           finalCount: source.collectedCount,
+          runId,
         })
       }
     }
 
     const preview = buildPreviewFromRefreshState(config, playlist, flattenRefreshItems(sourceItems))
     const completed = state.sources.every((source) => source.done || source.collectedCount >= source.targetCount)
+    const stateJson = JSON.stringify(state)
 
     console.info(`${logPrefix} 刷新进度`, {
       completed,
       totalFetchedPages,
       finalCount: preview.feed.videos.length,
+      runId,
+      refreshItemCount: flattenRefreshItems(sourceItems).length,
+      stateJsonBytes: new TextEncoder().encode(stateJson).length,
       sourcesStatus: state.sources.map((s) => ({
         key: s.key,
         done: s.done,
@@ -769,6 +788,7 @@ async function advancePlaylistRefresh(
       console.info(`${logPrefix} 缓存已保存`, {
         count: preview.feed.videos.length,
         generatedAt: preview.feed.updatedAt,
+        runId,
       })
     }
 
@@ -776,7 +796,7 @@ async function advancePlaylistRefresh(
       slug: playlist.slug,
       runId,
       status: completed ? "completed" : "refreshing",
-      stateJson: JSON.stringify(state),
+      stateJson,
       errorMessage: null,
       createdAt: existingTask?.createdAt ?? nowTimestamp,
       updatedAt: nowTimestamp,
@@ -785,6 +805,9 @@ async function advancePlaylistRefresh(
     console.info(`${logPrefix} 刷新${completed ? "完成" : "待继续"}`, {
       status: completed ? "completed" : "refreshing",
       totalVideos: preview.feed.videos.length,
+      runId,
+      refreshItemCount: flattenRefreshItems(sourceItems).length,
+      stateJsonBytes: new TextEncoder().encode(stateJson).length,
     })
 
     return {
@@ -796,6 +819,9 @@ async function advancePlaylistRefresh(
     const errorMessage = getErrorMessage(error, "unknown error")
     console.error(`${logPrefix} 刷新失败`, {
       error: errorMessage,
+      runId,
+      refreshItemCount: flattenRefreshItems(sourceItems).length,
+      stateJsonBytes: getStateJsonBytes(state),
       currentState: {
         sources: state.sources.map((s) => ({
           key: s.key,
