@@ -11,6 +11,7 @@ import type {
   EmbySyncResult,
   EmbyTmdbType,
   EmbyWatchCache,
+  EmbyWatchRefreshItem,
   EmbyWatchRefreshTask,
 } from "@thunder/emby"
 import { EmbyRepositorySQLite } from "./emby-repository"
@@ -74,14 +75,18 @@ interface EmbyRefreshSourceState {
   nextPage: number
   maxPages: number
   targetCount: number
+  collectedCount: number
   done: boolean
   params: Record<string, string>
-  items: EmbyRefreshPreviewItem[]
 }
 
 interface EmbyRefreshState {
-  slug: EmbyPlaylistSlug
+  version: number
   sources: EmbyRefreshSourceState[]
+}
+
+interface EmbyLegacyRefreshSourceState extends Omit<EmbyRefreshSourceState, "collectedCount"> {
+  items: EmbyRefreshPreviewItem[]
 }
 
 interface EmbyRefreshStepResult {
@@ -101,8 +106,6 @@ interface EmbyRefreshCandidate {
   cachedGeneratedAt: string | null
   refreshStatus: string | null
   shouldRestart: boolean
-  shouldContinue: boolean
-  reason: string
 }
 
 function isValidRefreshSourceState(value: unknown): value is EmbyRefreshSourceState {
@@ -120,6 +123,29 @@ function isValidRefreshSourceState(value: unknown): value is EmbyRefreshSourceSt
     Number.isFinite(source.maxPages) &&
     typeof source.targetCount === "number" &&
     Number.isFinite(source.targetCount) &&
+    typeof source.collectedCount === "number" &&
+    Number.isFinite(source.collectedCount) &&
+    typeof source.done === "boolean" &&
+    !!source.params &&
+    typeof source.params === "object"
+  )
+}
+
+function isValidLegacyRefreshSourceState(value: unknown): value is EmbyLegacyRefreshSourceState {
+  if (!value || typeof value !== "object") {
+    return false
+  }
+
+  const source = value as Partial<EmbyLegacyRefreshSourceState>
+  return (
+    typeof source.key === "string" &&
+    (source.mediaType === "movie" || source.mediaType === "tv") &&
+    typeof source.nextPage === "number" &&
+    Number.isFinite(source.nextPage) &&
+    typeof source.maxPages === "number" &&
+    Number.isFinite(source.maxPages) &&
+    typeof source.targetCount === "number" &&
+    Number.isFinite(source.targetCount) &&
     typeof source.done === "boolean" &&
     !!source.params &&
     typeof source.params === "object" &&
@@ -128,7 +154,7 @@ function isValidRefreshSourceState(value: unknown): value is EmbyRefreshSourceSt
 }
 
 const CRON_REFRESH_PAGE_BUDGET = 5
-const PREVIEW_REFRESH_PAGE_BUDGET = 12
+const PREVIEW_REFRESH_PAGE_BUDGET = 5
 const PUBLIC_FEED_REFRESH_PAGE_BUDGET = 5
 
 function formatDateTime(date = new Date()): string {
@@ -145,31 +171,6 @@ function parseDateTime(value: string): number {
   const normalized = value.includes("T") ? value : value.replace(" ", "T")
   const timestamp = new Date(normalized).getTime()
   return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-function getCacheAgeMinutes(generatedAt: string | null): number | null {
-  if (!generatedAt) {
-    return null
-  }
-
-  const timestamp = parseDateTime(generatedAt)
-  if (timestamp <= 0) {
-    return null
-  }
-
-  return Math.round((Date.now() - timestamp) / 1000 / 60)
-}
-
-function summarizeRefreshState(state: EmbyRefreshState) {
-  return state.sources.map((source) => ({
-    key: source.key,
-    mediaType: source.mediaType,
-    nextPage: source.nextPage,
-    maxPages: source.maxPages,
-    targetCount: source.targetCount,
-    collectedCount: source.items.length,
-    done: source.done,
-  }))
 }
 
 function isWatchCacheFresh(generatedAt: string): boolean {
@@ -347,16 +348,20 @@ async function fetchTmdbDiscover(
   const endpoint = mediaType === "movie" ? "movie" : "tv"
   const url = `https://api.themoviedb.org/3/discover/${endpoint}?${searchParams.toString()}`
 
+  console.info("[emby-tmdb] 请求", {
+    endpoint,
+    url: url.replace(/api_key=[^&]+/, "api_key=***"),
+    params: Object.fromEntries(searchParams.entries()),
+  })
+
   const res = await fetch(url, {
     headers: getTmdbHeaders(apiKey),
   })
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "")
-    console.error("[emby-refresh] tmdb discover request failed", {
+    console.error("[emby-tmdb] 请求失败", {
       endpoint,
-      url: url.replace(/api_key=[^&]+/, "api_key=***"),
-      params: Object.fromEntries(searchParams.entries()),
       status: res.status,
       statusText: res.statusText,
       error: errorText.slice(0, 500),
@@ -365,6 +370,11 @@ async function fetchTmdbDiscover(
   }
 
   const data = await res.json() as TmdbDiscoverResponse
+  console.info("[emby-tmdb] 响应", {
+    endpoint,
+    totalResults: data.results?.length ?? 0,
+  })
+
   return data.results ?? []
 }
 
@@ -435,6 +445,62 @@ function toParams(record: Record<string, string>): URLSearchParams {
   return params
 }
 
+function createRefreshRunId(date = new Date()): string {
+  return date.toISOString()
+}
+
+function toRefreshPreviewItem(item: EmbyWatchRefreshItem): EmbyRefreshPreviewItem {
+  return {
+    tmdbId: item.tmdbId,
+    tmdbType: item.tmdbType,
+    title: item.title,
+    posterUrl: item.posterUrl,
+  }
+}
+
+function groupRefreshItemsBySource(
+  state: EmbyRefreshState,
+  items: EmbyWatchRefreshItem[]
+): Map<string, EmbyRefreshPreviewItem[]> {
+  const grouped = new Map<string, EmbyRefreshPreviewItem[]>(
+    state.sources.map((source) => [source.key, []])
+  )
+
+  for (const item of items) {
+    const sourceItems = grouped.get(item.sourceKey)
+    if (!sourceItems) {
+      continue
+    }
+
+    sourceItems.push(toRefreshPreviewItem(item))
+  }
+
+  return grouped
+}
+
+function flattenRefreshItems(groupedItems: Map<string, EmbyRefreshPreviewItem[]>): EmbyRefreshPreviewItem[] {
+  return Array.from(groupedItems.values()).flat()
+}
+
+function buildRefreshItemsFromLegacyState(
+  playlist: EmbyManagedPlaylist,
+  runId: string,
+  sources: EmbyLegacyRefreshSourceState[]
+): EmbyWatchRefreshItem[] {
+  return sources.flatMap((source) => dedupePreviewItems(source.items).map((item) => ({
+    slug: playlist.slug,
+    runId,
+    sourceKey: source.key,
+    tmdbId: item.tmdbId,
+    tmdbType: item.tmdbType,
+    title: item.title,
+    posterUrl: item.posterUrl,
+    fetchedPage: Math.max(0, source.nextPage - 1),
+    createdAt: runId,
+    updatedAt: runId,
+  })))
+}
+
 function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
   const limit = resolvePlaylistLimit(playlist.limit)
   const common = new URLSearchParams({
@@ -448,7 +514,7 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
     common.set("with_origin_country", "CN")
     common.set("without_genres", "16")
     return {
-      slug: playlist.slug,
+      version: 1,
       sources: [
         {
           key: "domestic-tv",
@@ -456,9 +522,9 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
           nextPage: 1,
           maxPages: Math.ceil(limit / TMDB_DISCOVER_PAGE_SIZE),
           targetCount: limit,
+          collectedCount: 0,
           done: false,
           params: toParamsRecord(common),
-          items: [],
         },
       ],
     }
@@ -469,7 +535,7 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
     common.set("with_origin_country", "CN")
     common.set("without_genres", "16")
     return {
-      slug: playlist.slug,
+      version: 1,
       sources: [
         {
           key: "domestic-movie",
@@ -477,9 +543,9 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
           nextPage: 1,
           maxPages: Math.ceil(limit / TMDB_DISCOVER_PAGE_SIZE),
           targetCount: limit,
+          collectedCount: 0,
           done: false,
           params: toParamsRecord(common),
-          items: [],
         },
       ],
     }
@@ -489,7 +555,7 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
     common.set("first_air_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("without_genres", "16")
     return {
-      slug: playlist.slug,
+      version: 1,
       sources: [
         {
           key: "foreign-tv",
@@ -497,9 +563,9 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
           nextPage: 1,
           maxPages: TMDB_DISCOVER_MAX_PAGE,
           targetCount: limit,
+          collectedCount: 0,
           done: false,
           params: toParamsRecord(common),
-          items: [],
         },
       ],
     }
@@ -509,7 +575,7 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
     common.set("primary_release_date.gte", daysAgo(playlist.releaseWindowDays))
     common.set("without_genres", "16")
     return {
-      slug: playlist.slug,
+      version: 1,
       sources: [
         {
           key: "foreign-movie",
@@ -517,9 +583,9 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
           nextPage: 1,
           maxPages: TMDB_DISCOVER_MAX_PAGE,
           targetCount: limit,
+          collectedCount: 0,
           done: false,
           params: toParamsRecord(common),
-          items: [],
         },
       ],
     }
@@ -534,7 +600,7 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
   animeMovieParams.set("with_genres", "16")
 
   return {
-    slug: playlist.slug,
+    version: 1,
     sources: [
       {
         key: "anime-tv",
@@ -542,9 +608,9 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
         nextPage: 1,
         maxPages: Math.ceil(Math.ceil(limit / 2) / TMDB_DISCOVER_PAGE_SIZE),
         targetCount: Math.ceil(limit / 2),
+        collectedCount: 0,
         done: false,
         params: toParamsRecord(animeTvParams),
-        items: [],
       },
       {
         key: "anime-movie",
@@ -552,9 +618,9 @@ function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
         nextPage: 1,
         maxPages: Math.ceil(Math.ceil(limit / 2) / TMDB_DISCOVER_PAGE_SIZE),
         targetCount: Math.ceil(limit / 2),
+        collectedCount: 0,
         done: false,
         params: toParamsRecord(animeMovieParams),
-        items: [],
       },
     ],
   }
@@ -573,23 +639,33 @@ async function advancePlaylistRefresh(
   const existingTask = await repository.getWatchRefreshTask(playlist.slug)
   const existingCache = await repository.getWatchCache(playlist.slug)
   const restarting = options.restart || !existingTask || existingTask.status !== "refreshing"
-  const state = restarting
-    ? createRefreshState(playlist)
-    : parseRefreshState(existingTask.stateJson, playlist)
-
   const nowTimestamp = new Date().toISOString()
-  const cacheAgeMinutes = getCacheAgeMinutes(existingCache?.generatedAt ?? null)
+  const runId = restarting ? createRefreshRunId() : existingTask.runId
+  if (restarting) {
+    await repository.deleteWatchRefreshItems(playlist.slug)
+  }
 
-  console.info("[emby-refresh] run started", {
-    slug: playlist.slug,
-    mode: restarting ? "restart" : "continue",
+  const parsedSnapshot = restarting
+    ? { state: createRefreshState(playlist), items: [] as EmbyWatchRefreshItem[] }
+    : parseRefreshStateSnapshot(existingTask.stateJson, playlist, runId)
+  const state = parsedSnapshot.state
+  let storedItems = await repository.listWatchRefreshItems(playlist.slug, runId)
+  if (!restarting && storedItems.length === 0 && parsedSnapshot.items.length > 0) {
+    await repository.saveWatchRefreshItems(parsedSnapshot.items)
+    storedItems = parsedSnapshot.items
+  }
+  const sourceItems = groupRefreshItemsBySource(state, storedItems)
+  for (const source of state.sources) {
+    source.collectedCount = sourceItems.get(source.key)?.length ?? 0
+  }
+  const logPrefix = `[emby-cache] ${playlist.slug}`
+
+  console.info(`${logPrefix} 开始刷新`, {
+    mode: restarting ? "全新刷新" : "继续刷新",
     pageBudget: options.pageBudget,
-    persistPartialCache: options.persistPartialCache,
-    taskStatusBefore: existingTask?.status ?? "none",
-    cacheCountBefore: existingCache?.count ?? 0,
-    cacheGeneratedAtBefore: existingCache?.generatedAt ?? null,
-    cacheAgeMinutes,
-    sources: summarizeRefreshState(state),
+    sourcesCount: state.sources.length,
+    existingStatus: existingTask?.status ?? "无",
+    existingCache: existingCache ? `有(${existingCache.count}条)` : "无",
   })
 
   try {
@@ -599,57 +675,59 @@ async function advancePlaylistRefresh(
     while (remainingBudget > 0) {
       const source = pickNextRefreshSource(state.sources)
       if (!source) {
-        console.info("[emby-refresh] no runnable source", {
-          slug: playlist.slug,
+        console.info(`${logPrefix} 所有源已完成`, {
           totalFetchedPages,
-          remainingBudget,
-          sources: summarizeRefreshState(state),
         })
         break
       }
 
-      if (source.items.length >= source.targetCount || source.nextPage > source.maxPages) {
+      const currentSourceItems = sourceItems.get(source.key) ?? []
+      source.collectedCount = currentSourceItems.length
+      if (source.collectedCount >= source.targetCount || source.nextPage > source.maxPages) {
         source.done = true
-        console.info("[emby-refresh] source marked done before fetch", {
-          slug: playlist.slug,
-          source: source.key,
-          nextPage: source.nextPage,
-          maxPages: source.maxPages,
-          collectedCount: source.items.length,
-          targetCount: source.targetCount,
-          reason: source.items.length >= source.targetCount ? "target-reached" : "page-limit-exceeded",
-        })
         continue
       }
 
       const params = toParams(source.params)
       params.set("page", String(source.nextPage))
 
-      console.info("[emby-refresh] source fetch started", {
-        slug: playlist.slug,
+      console.info(`${logPrefix} 请求TMDB`, {
         source: source.key,
         mediaType: source.mediaType,
         page: source.nextPage,
-        maxPages: source.maxPages,
-        collectedCountBefore: source.items.length,
-        targetCount: source.targetCount,
         remainingBudget,
-        params: Object.fromEntries(params.entries()),
       })
 
       const pageItems = await fetchTmdbDiscover(apiKey, source.mediaType, params)
 
-      const beforeCount = source.items.length
-      appendRefreshItems(playlist, source, pageItems)
-      const addedCount = source.items.length - beforeCount
+      const appendedItems = appendRefreshItems(playlist, source, currentSourceItems, pageItems)
+      if (appendedItems.length > 0) {
+        const itemTimestamp = new Date().toISOString()
+        await repository.saveWatchRefreshItems(
+          appendedItems.map((item) => ({
+            slug: playlist.slug,
+            runId,
+            sourceKey: source.key,
+            tmdbId: item.tmdbId,
+            tmdbType: item.tmdbType,
+            title: item.title,
+            posterUrl: item.posterUrl,
+            fetchedPage: source.nextPage,
+            createdAt: itemTimestamp,
+            updatedAt: itemTimestamp,
+          }))
+        )
+        currentSourceItems.push(...appendedItems)
+      }
+      source.collectedCount = currentSourceItems.length
+      const addedCount = appendedItems.length
 
-      console.info("[emby-refresh] source fetch completed", {
-        slug: playlist.slug,
+      console.info(`${logPrefix} 获取到数据`, {
         source: source.key,
         page: source.nextPage,
         returnedCount: pageItems.length,
         addedCount,
-        collectedCountAfter: source.items.length,
+        totalInSource: source.collectedCount,
         targetCount: source.targetCount,
       })
 
@@ -659,45 +737,44 @@ async function advancePlaylistRefresh(
 
       if (
         pageItems.length < TMDB_DISCOVER_PAGE_SIZE ||
-        source.items.length >= source.targetCount ||
+        source.collectedCount >= source.targetCount ||
         source.nextPage > source.maxPages
       ) {
         source.done = true
-        console.info("[emby-refresh] source completed", {
-          slug: playlist.slug,
+        console.info(`${logPrefix} 源已完成`, {
           source: source.key,
           reason: pageItems.length < TMDB_DISCOVER_PAGE_SIZE ? "无更多数据" :
-            source.items.length >= source.targetCount ? "达到目标数量" : "达到最大页数",
-          collectedCount: source.items.length,
-          nextPage: source.nextPage,
-          maxPages: source.maxPages,
+            source.collectedCount >= source.targetCount ? "达到目标数量" : "达到最大页数",
+          finalCount: source.collectedCount,
         })
       }
     }
 
-    const preview = buildPreviewFromRefreshState(config, playlist, state)
-    const completed = state.sources.every((source) => source.done || source.items.length >= source.targetCount)
+    const preview = buildPreviewFromRefreshState(config, playlist, flattenRefreshItems(sourceItems))
+    const completed = state.sources.every((source) => source.done || source.collectedCount >= source.targetCount)
 
-    console.info("[emby-refresh] run progress", {
-      slug: playlist.slug,
-      status: completed ? "completed" : "refreshing",
+    console.info(`${logPrefix} 刷新进度`, {
+      completed,
       totalFetchedPages,
-      previewCount: preview.feed.videos.length,
-      sources: summarizeRefreshState(state),
+      finalCount: preview.feed.videos.length,
+      sourcesStatus: state.sources.map((s) => ({
+        key: s.key,
+        done: s.done,
+        count: s.collectedCount,
+      })),
     })
 
     if (completed || options.persistPartialCache || !existingCache) {
       await repository.saveWatchCache(playlist.slug, preview.feed)
-      console.info("[emby-refresh] cache persisted", {
-        slug: playlist.slug,
+      console.info(`${logPrefix} 缓存已保存`, {
         count: preview.feed.videos.length,
         generatedAt: preview.feed.updatedAt,
-        persistedReason: completed ? "completed" : options.persistPartialCache ? "persist-partial-cache" : "missing-cache",
       })
     }
 
     await repository.saveWatchRefreshTask({
       slug: playlist.slug,
+      runId,
       status: completed ? "completed" : "refreshing",
       stateJson: JSON.stringify(state),
       errorMessage: null,
@@ -705,12 +782,9 @@ async function advancePlaylistRefresh(
       updatedAt: nowTimestamp,
     })
 
-    console.info("[emby-refresh] run finished", {
-      slug: playlist.slug,
+    console.info(`${logPrefix} 刷新${completed ? "完成" : "待继续"}`, {
       status: completed ? "completed" : "refreshing",
-      previewCount: preview.feed.videos.length,
-      totalFetchedPages,
-      sources: summarizeRefreshState(state),
+      totalVideos: preview.feed.videos.length,
     })
 
     return {
@@ -720,15 +794,21 @@ async function advancePlaylistRefresh(
     }
   } catch (error) {
     const errorMessage = getErrorMessage(error, "unknown error")
-    console.error("[emby-refresh] run failed", {
-      slug: playlist.slug,
+    console.error(`${logPrefix} 刷新失败`, {
       error: errorMessage,
-      mode: restarting ? "restart" : "continue",
-      sources: summarizeRefreshState(state),
+      currentState: {
+        sources: state.sources.map((s) => ({
+          key: s.key,
+          nextPage: s.nextPage,
+          itemsCount: s.collectedCount,
+          done: s.done,
+        })),
+      },
     })
 
     await repository.saveWatchRefreshTask({
       slug: playlist.slug,
+      runId,
       status: "failed",
       stateJson: JSON.stringify(state),
       errorMessage,
@@ -740,23 +820,63 @@ async function advancePlaylistRefresh(
   }
 }
 
-function parseRefreshState(raw: string, playlist: EmbyManagedPlaylist): EmbyRefreshState {
+function parseRefreshStateSnapshot(
+  raw: string,
+  playlist: EmbyManagedPlaylist,
+  runId: string
+): { state: EmbyRefreshState; items: EmbyWatchRefreshItem[] } {
   try {
-    const parsed = JSON.parse(raw) as EmbyRefreshState
-    // 持久化任务可能来自旧结构或异常写入，这里必须校验每个 source，
-    // 避免 refresh-status 在读取 items/nextPage 时直接把 Worker 打崩。
+    const parsed = JSON.parse(raw) as {
+      version?: number
+      sources?: unknown[]
+      slug?: string
+    }
     if (
-      parsed.slug === playlist.slug &&
+      typeof parsed.version === "number" &&
       Array.isArray(parsed.sources) &&
       parsed.sources.every((source) => isValidRefreshSourceState(source))
     ) {
-      return parsed
+      return {
+        state: parsed as EmbyRefreshState,
+        items: [],
+      }
+    }
+
+    if (
+      parsed.slug === playlist.slug &&
+      Array.isArray(parsed.sources) &&
+      parsed.sources.every((source) => isValidLegacyRefreshSourceState(source))
+    ) {
+      const sources = parsed.sources as EmbyLegacyRefreshSourceState[]
+      return {
+        state: {
+          version: 1,
+          sources: sources.map((source) => ({
+            key: source.key,
+            mediaType: source.mediaType,
+            nextPage: source.nextPage,
+            maxPages: source.maxPages,
+            targetCount: source.targetCount,
+            collectedCount: dedupePreviewItems(source.items).length,
+            done: source.done,
+            params: source.params,
+          })),
+        },
+        items: buildRefreshItemsFromLegacyState(playlist, runId, sources),
+      }
     }
   } catch {
     // fall through to reset invalid state
   }
 
-  return createRefreshState(playlist)
+  return {
+    state: createRefreshState(playlist),
+    items: [],
+  }
+}
+
+function parseRefreshState(raw: string, playlist: EmbyManagedPlaylist, runId: string): EmbyRefreshState {
+  return parseRefreshStateSnapshot(raw, playlist, runId).state
 }
 
 function shouldKeepRefreshItem(playlist: EmbyManagedPlaylist, item: TmdbDiscoverItem): boolean {
@@ -773,10 +893,12 @@ function shouldKeepRefreshItem(playlist: EmbyManagedPlaylist, item: TmdbDiscover
 
 function appendRefreshItems(
   playlist: EmbyManagedPlaylist,
-  source: EmbyRefreshSourceState,
+  source: Pick<EmbyRefreshSourceState, "mediaType">,
+  existingItems: EmbyRefreshPreviewItem[],
   items: TmdbDiscoverItem[]
-) {
-  const seen = new Set(source.items.map((item) => `${item.tmdbType}-${item.tmdbId}`))
+): EmbyRefreshPreviewItem[] {
+  const seen = new Set(existingItems.map((item) => `${item.tmdbType}-${item.tmdbId}`))
+  const appended: EmbyRefreshPreviewItem[] = []
 
   for (const item of items) {
     if (!shouldKeepRefreshItem(playlist, item)) {
@@ -797,8 +919,10 @@ function appendRefreshItems(
     }
 
     seen.add(key)
-    source.items.push(previewItem)
+    appended.push(previewItem)
   }
+
+  return appended
 }
 
 function pickNextRefreshSource(sources: EmbyRefreshSourceState[]): EmbyRefreshSourceState | null {
@@ -815,13 +939,11 @@ function pickNextRefreshSource(sources: EmbyRefreshSourceState[]): EmbyRefreshSo
 function buildPreviewFromRefreshState(
   config: EmbyConfig,
   playlist: EmbyManagedPlaylist,
-  state: EmbyRefreshState
+  items: EmbyRefreshPreviewItem[]
 ): EmbyPlaylistPreview {
   const limit = resolvePlaylistLimit(playlist.limit)
 
-  const merged = dedupePreviewItems(
-    state.sources.flatMap((source) => source.items)
-  )
+  const merged = dedupePreviewItems(items)
     .slice(0, limit)
     .map((item, index) => ({
       tmdbId: item.tmdbId,
@@ -844,20 +966,16 @@ function buildPreviewFromRefreshState(
 
 async function buildPreviewFromCache(
   feed: EmbyDynamicWatchFeed,
-  refreshTask: EmbyWatchRefreshTask | null,
-  playlist: EmbyManagedPlaylist,
+  refreshItems: EmbyWatchRefreshItem[],
   apiKey: string,
   page: number,
   pageSize: number
 ): Promise<EmbyPlaylistPreviewPage> {
-  const state = refreshTask ? parseRefreshState(refreshTask.stateJson, playlist) : null
   const posterMap = new Map(
-    state
-      ? state.sources.flatMap((source) => source.items).map((item) => [
-        `${item.tmdbType}-${item.tmdbId}`,
-        item.posterUrl,
-      ])
-      : []
+    refreshItems.map((item) => [
+      `${item.tmdbType}-${item.tmdbId}`,
+      item.posterUrl,
+    ])
   )
 
   const totalCount = feed.videos.length
@@ -896,7 +1014,8 @@ async function buildPreviewFromCache(
 function toRefreshStatus(
   playlist: EmbyManagedPlaylist,
   refreshTask: EmbyWatchRefreshTask | null,
-  cache: EmbyWatchCache | null
+  cache: EmbyWatchCache | null,
+  refreshItems: EmbyWatchRefreshItem[]
 ): EmbyPlaylistRefreshStatus {
   if (!refreshTask) {
     return {
@@ -914,8 +1033,11 @@ function toRefreshStatus(
     }
   }
 
-  const state = parseRefreshState(refreshTask.stateJson, playlist)
-  const mergedItems = dedupePreviewItems(state.sources.flatMap((source) => source.items))
+  const snapshot = parseRefreshStateSnapshot(refreshTask.stateJson, playlist, refreshTask.runId)
+  const state = snapshot.state
+  const mergedItems = dedupePreviewItems(
+    (refreshItems.length > 0 ? refreshItems : snapshot.items).map(toRefreshPreviewItem)
+  )
 
   return {
     slug: playlist.slug,
@@ -924,7 +1046,7 @@ function toRefreshStatus(
     totalPages: state.sources.reduce((total, source) => total + source.maxPages, 0),
     collectedCount: mergedItems.length,
     targetCount: resolvePlaylistLimit(playlist.limit),
-    completedSources: state.sources.filter((source) => source.done || source.items.length >= source.targetCount).length,
+    completedSources: state.sources.filter((source) => source.done || source.collectedCount >= source.targetCount).length,
     totalSources: state.sources.length,
     cacheGeneratedAt: cache?.generatedAt ?? null,
     updatedAt: refreshTask.updatedAt,
@@ -985,16 +1107,16 @@ async function emosRequest<T>(
 }
 
 async function refreshEnabledPlaylistCaches(): Promise<void> {
-  console.info("[emby-refresh-cron] run started")
+  console.info("[emby-cron] 定时任务开始执行")
 
   const config = await repository.getConfig()
   if (!config) {
-    console.info("[emby-refresh-cron] skipped: config missing")
+    console.info("[emby-cron] 无配置，跳过")
     return
   }
 
   const enabledPlaylists = config.playlists.filter((playlist) => playlist.enabled)
-  console.info("[emby-refresh-cron] playlists loaded", {
+  console.info("[emby-cron] 检查片单", {
     totalPlaylists: config.playlists.length,
     enabledPlaylists: enabledPlaylists.length,
   })
@@ -1004,32 +1126,17 @@ async function refreshEnabledPlaylistCaches(): Promise<void> {
   for (const playlist of enabledPlaylists) {
     const cached = await repository.getWatchCache(playlist.slug)
     const refreshTask = await repository.getWatchRefreshTask(playlist.slug)
-    const cacheAgeMinutes = getCacheAgeMinutes(cached?.generatedAt ?? null)
-    const isRefreshing = refreshTask?.status === "refreshing"
-    const cacheMissing = !cached
-    const cacheExpiredForRefresh = cached ? shouldStartRefreshCycle(cached.generatedAt) : false
-    const taskFailed = refreshTask?.status === "failed"
-    const shouldRestart = !isRefreshing && (cacheMissing || cacheExpiredForRefresh || taskFailed)
-    const shouldContinue = isRefreshing || shouldRestart
-    const reason = isRefreshing ? "resume-refreshing-task" :
-      cacheMissing ? "missing-cache" :
-      taskFailed ? "retry-failed-task" :
-      cacheExpiredForRefresh ? "cache-reached-refresh-window" :
-      "up-to-date"
+    const shouldRestart = !cached || shouldStartRefreshCycle(cached.generatedAt) || refreshTask?.status === "failed"
 
-    console.info("[emby-refresh-cron] playlist evaluated", {
-      slug: playlist.slug,
+    console.info(`[emby-cron] ${playlist.slug} 状态`, {
       hasCache: !!cached,
-      cacheCount: cached?.count ?? 0,
-      cacheGeneratedAt: cached?.generatedAt ?? null,
-      cacheAgeMinutes,
-      currentStatus: refreshTask?.status ?? "none",
+      cacheAge: cached ? `${Math.round((Date.now() - parseDateTime(cached.generatedAt)) / 1000 / 60)}分钟` : "无",
+      currentStatus: refreshTask?.status ?? "无",
       shouldRestart,
-      shouldContinue,
-      reason,
+      shouldContinue: shouldRestart || refreshTask?.status === "refreshing",
     })
 
-    if (!shouldContinue) {
+    if (!shouldRestart && refreshTask?.status !== "refreshing") {
       continue
     }
 
@@ -1038,23 +1145,19 @@ async function refreshEnabledPlaylistCaches(): Promise<void> {
       cachedGeneratedAt: cached?.generatedAt ?? null,
       refreshStatus: refreshTask?.status ?? null,
       shouldRestart,
-      shouldContinue,
-      reason,
     })
   }
 
   if (candidates.length === 0) {
-    console.info("[emby-refresh-cron] no candidate")
+    console.info("[emby-cron] 无需要刷新的片单")
     return
   }
 
   const nextCandidate = candidates.sort(compareRefreshCandidates)[0]
-  console.info("[emby-refresh-cron] candidate selected", {
+  console.info("[emby-cron] 选择片单进行刷新", {
     slug: nextCandidate.playlist.slug,
     shouldRestart: nextCandidate.shouldRestart,
-    shouldContinue: nextCandidate.shouldContinue,
     refreshStatus: nextCandidate.refreshStatus,
-    reason: nextCandidate.reason,
     candidatesCount: candidates.length,
   })
 
@@ -1065,11 +1168,7 @@ async function refreshEnabledPlaylistCaches(): Promise<void> {
     persistPartialCache: !cached,
   })
 
-  console.info("[emby-refresh-cron] run finished", {
-    slug: nextCandidate.playlist.slug,
-    mode: nextCandidate.shouldRestart ? "restart" : "continue",
-    reason: nextCandidate.reason,
-  })
+  console.info("[emby-cron] 定时任务执行完成")
 }
 
 async function syncPlaylistToEmos(
@@ -1218,6 +1317,9 @@ emby.get("/playlists/:slug/cache", async (c) => {
       repository.getWatchCache(slug),
       repository.getWatchRefreshTask(slug),
     ])
+    const refreshItems = refreshTask
+      ? await repository.listWatchRefreshItems(slug, refreshTask.runId)
+      : []
     if (!cache) {
       return c.json(apiSuccess({
         preview: null,
@@ -1229,8 +1331,7 @@ emby.get("/playlists/:slug/cache", async (c) => {
 
     const previewPage = await buildPreviewFromCache(
       cache.feed,
-      refreshTask,
-      playlist,
+      refreshItems,
       config.tmdbApiKey.trim(),
       page,
       pageSize
@@ -1257,9 +1358,12 @@ emby.get("/playlists/:slug/refresh-status", async (c) => {
       repository.getWatchCache(slug),
       repository.getWatchRefreshTask(slug),
     ])
+    const refreshItems = refreshTask
+      ? await repository.listWatchRefreshItems(slug, refreshTask.runId)
+      : []
 
     return c.json(apiSuccess({
-      status: toRefreshStatus(playlist, refreshTask, cache),
+      status: toRefreshStatus(playlist, refreshTask, cache, refreshItems),
     }))
   } catch (error) {
     console.error("[emby-api] GET /playlists/:slug/refresh-status failed", error)

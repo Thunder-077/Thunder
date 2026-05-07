@@ -8,9 +8,23 @@ export interface EmbyWatchCache {
 
 export interface EmbyWatchRefreshTask {
   slug: EmbyPlaylistSlug
+  runId: string
   status: string
   stateJson: string
   errorMessage: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EmbyWatchRefreshItem {
+  slug: EmbyPlaylistSlug
+  runId: string
+  sourceKey: string
+  tmdbId: number
+  tmdbType: "movie" | "tv"
+  title: string
+  posterUrl: string | null
+  fetchedPage: number
   createdAt: string
   updatedAt: string
 }
@@ -22,4 +36,7 @@ export interface IEmbyRepository {
   saveWatchCache(slug: EmbyPlaylistSlug, feed: EmbyDynamicWatchFeed): Promise<void>
   getWatchRefreshTask(slug: EmbyPlaylistSlug): Promise<EmbyWatchRefreshTask | null>
   saveWatchRefreshTask(task: EmbyWatchRefreshTask): Promise<void>
+  listWatchRefreshItems(slug: EmbyPlaylistSlug, runId: string): Promise<EmbyWatchRefreshItem[]>
+  saveWatchRefreshItems(items: EmbyWatchRefreshItem[]): Promise<void>
+  deleteWatchRefreshItems(slug: EmbyPlaylistSlug, runId?: string): Promise<void>
 }

@@ -73,6 +73,7 @@ model EmbyWatchCacheRecord {
 
 model EmbyWatchRefreshTaskRecord {
   slug         String  @id
+  runId        String  @map("run_id")
   status       String
   stateJson    String  @map("state_json")
   errorMessage String? @map("error_message")
@@ -80,6 +81,23 @@ model EmbyWatchRefreshTaskRecord {
   updatedAt    String  @map("updated_at")
 
   @@map("emby_watch_refresh_task")
+}
+
+model EmbyWatchRefreshItemRecord {
+  slug        String
+  runId       String  @map("run_id")
+  sourceKey   String  @map("source_key")
+  tmdbId      Int     @map("tmdb_id")
+  tmdbType    String  @map("tmdb_type")
+  title       String
+  posterUrl   String? @map("poster_url")
+  fetchedPage Int     @map("fetched_page")
+  createdAt   String  @map("created_at")
+  updatedAt   String  @map("updated_at")
+
+  @@id([slug, runId, sourceKey, tmdbType, tmdbId])
+  @@index([slug, runId])
+  @@map("emby_watch_refresh_item")
 }
 
 model VaultMetadata {

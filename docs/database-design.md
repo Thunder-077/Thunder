@@ -108,13 +108,31 @@ Thunder 当前使用 Prisma ORM 访问关系型数据库。项目已切换到 Po
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | slug | TEXT PRIMARY KEY | 片单标识 |
+| run_id | TEXT NOT NULL | 当前刷新轮次标识 |
 | status | TEXT NOT NULL | 刷新状态（refreshing/completed/failed） |
-| state_json | TEXT NOT NULL | 分段刷新游标和已收集结果 |
+| state_json | TEXT NOT NULL | 轻量游标状态（sources 的 nextPage / targetCount / collectedCount / done / params） |
 | error_message | TEXT | 最近一次刷新错误 |
 | created_at | TEXT NOT NULL | 创建时间 |
 | updated_at | TEXT NOT NULL | 更新时间 |
 
-Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKey）从环境变量读取，数据库中不再存储这些敏感信息。片单配置通过环境变量配置，页面上不允许修改。Emby 热门片单缓存通过 `emby_watch_cache` 与 `emby_watch_refresh_task` 两张专用表管理，不复用 `app_settings`。刷新任务每 10 分钟推进一次，并会在现有缓存 12 小时有效期到达前提前开启新一轮刷新，确保旧缓存可继续服务，直到新缓存完整生成。每次定时推进只处理 1 个片单，优先续跑未完成任务，避免多个片单在同一次 Cloudflare Worker 调用中叠加 TMDB 子请求。
+### emby_watch_refresh_item
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| slug | TEXT NOT NULL | 片单标识 |
+| run_id | TEXT NOT NULL | 当前刷新轮次标识 |
+| source_key | TEXT NOT NULL | 刷新源标识 |
+| tmdb_id | INTEGER NOT NULL | TMDB 条目 ID |
+| tmdb_type | TEXT NOT NULL | 媒体类型（movie/tv） |
+| title | TEXT NOT NULL | 预览标题 |
+| poster_url | TEXT | 预览海报地址 |
+| fetched_page | INTEGER NOT NULL | 抓取来源页码 |
+| created_at | TEXT NOT NULL | 创建时间 |
+| updated_at | TEXT NOT NULL | 更新时间 |
+
+主键：`(slug, run_id, source_key, tmdb_type, tmdb_id)`
+
+Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKey）从环境变量读取，数据库中不再存储这些敏感信息。片单配置通过环境变量配置，页面上不允许修改。Emby 热门片单缓存通过 `emby_watch_cache`、`emby_watch_refresh_task` 与 `emby_watch_refresh_item` 三张专用表管理，不复用 `app_settings`。刷新任务每 10 分钟推进一次，并会在现有缓存 12 小时有效期到达前提前开启新一轮刷新，确保旧缓存可继续服务，直到新缓存完整生成。`emby_watch_refresh_task` 只保存游标和统计信息，刷新过程中累计抓到的候选条目落到 `emby_watch_refresh_item`，避免把大体积 `items[]` 整块写回 `state_json`。每次定时推进只处理 1 个片单，优先续跑未完成任务，避免多个片单在同一次 Cloudflare Worker 调用中叠加 TMDB 子请求。
 
 ## Vault 安全约束
 

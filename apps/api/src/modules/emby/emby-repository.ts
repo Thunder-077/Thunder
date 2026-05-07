@@ -2,6 +2,7 @@ import type {
   EmbyConfig,
   EmbyDynamicWatchFeed,
   EmbyWatchCache,
+  EmbyWatchRefreshItem,
   EmbyWatchRefreshTask,
   IEmbyRepository,
 } from "@thunder/emby"
@@ -242,41 +243,154 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
   }
 
   async getWatchRefreshTask(slug: EmbyPlaylistSlug): Promise<EmbyWatchRefreshTask | null> {
-    const record = await prisma.embyWatchRefreshTaskRecord.findUnique({ where: { slug } })
+    const rows = await prisma.$queryRaw<Array<{
+      slug: string
+      run_id: string
+      status: string
+      state_json: string
+      error_message: string | null
+      created_at: string
+      updated_at: string
+    }>>`
+      SELECT slug, run_id, status, state_json, error_message, created_at, updated_at
+      FROM emby_watch_refresh_task
+      WHERE slug = ${slug}
+      LIMIT 1
+    `
+    const record = rows[0]
     if (!record) {
       return null
     }
 
     return {
       slug: record.slug as EmbyPlaylistSlug,
+      runId: record.run_id,
       status: record.status,
-      stateJson: record.stateJson,
-      errorMessage: record.errorMessage,
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt,
+      stateJson: record.state_json,
+      errorMessage: record.error_message,
+      createdAt: record.created_at,
+      updatedAt: record.updated_at,
     }
   }
 
   async saveWatchRefreshTask(task: EmbyWatchRefreshTask): Promise<void> {
     const updatedAt = now()
+    await prisma.$executeRaw`
+      INSERT INTO emby_watch_refresh_task (
+        slug,
+        run_id,
+        status,
+        state_json,
+        error_message,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${task.slug},
+        ${task.runId},
+        ${task.status},
+        ${task.stateJson},
+        ${task.errorMessage},
+        ${task.createdAt},
+        ${updatedAt}
+      )
+      ON CONFLICT (slug)
+      DO UPDATE SET
+        run_id = EXCLUDED.run_id,
+        status = EXCLUDED.status,
+        state_json = EXCLUDED.state_json,
+        error_message = EXCLUDED.error_message,
+        updated_at = EXCLUDED.updated_at
+    `
+  }
 
-    await prisma.embyWatchRefreshTaskRecord.upsert({
-      where: { slug: task.slug },
-      create: {
-        slug: task.slug,
-        status: task.status,
-        stateJson: task.stateJson,
-        errorMessage: task.errorMessage,
-        createdAt: task.createdAt,
-        updatedAt,
-      },
-      update: {
-        status: task.status,
-        stateJson: task.stateJson,
-        errorMessage: task.errorMessage,
-        updatedAt,
-      },
-    })
+  async listWatchRefreshItems(slug: EmbyPlaylistSlug, runId: string): Promise<EmbyWatchRefreshItem[]> {
+    const records = await prisma.$queryRaw<Array<{
+      slug: string
+      run_id: string
+      source_key: string
+      tmdb_id: number
+      tmdb_type: string
+      title: string
+      poster_url: string | null
+      fetched_page: number
+      created_at: string
+      updated_at: string
+    }>>`
+      SELECT slug, run_id, source_key, tmdb_id, tmdb_type, title, poster_url, fetched_page, created_at, updated_at
+      FROM emby_watch_refresh_item
+      WHERE slug = ${slug} AND run_id = ${runId}
+      ORDER BY source_key ASC, fetched_page ASC, tmdb_id ASC
+    `
+
+    return records.map((record): EmbyWatchRefreshItem => ({
+      slug: record.slug as EmbyPlaylistSlug,
+      runId: record.run_id,
+      sourceKey: record.source_key,
+      tmdbId: record.tmdb_id,
+      tmdbType: record.tmdb_type as "movie" | "tv",
+      title: record.title,
+      posterUrl: record.poster_url,
+      fetchedPage: record.fetched_page,
+      createdAt: record.created_at,
+      updatedAt: record.updated_at,
+    }))
+  }
+
+  async saveWatchRefreshItems(items: EmbyWatchRefreshItem[]): Promise<void> {
+    if (items.length === 0) {
+      return
+    }
+
+    for (const item of items) {
+      await prisma.$executeRaw`
+        INSERT INTO emby_watch_refresh_item (
+          slug,
+          run_id,
+          source_key,
+          tmdb_id,
+          tmdb_type,
+          title,
+          poster_url,
+          fetched_page,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ${item.slug},
+          ${item.runId},
+          ${item.sourceKey},
+          ${item.tmdbId},
+          ${item.tmdbType},
+          ${item.title},
+          ${item.posterUrl},
+          ${item.fetchedPage},
+          ${item.createdAt},
+          ${item.updatedAt}
+        )
+        ON CONFLICT (slug, run_id, source_key, tmdb_type, tmdb_id)
+        DO UPDATE SET
+          title = EXCLUDED.title,
+          poster_url = EXCLUDED.poster_url,
+          fetched_page = EXCLUDED.fetched_page,
+          updated_at = EXCLUDED.updated_at
+      `
+    }
+  }
+
+  async deleteWatchRefreshItems(slug: EmbyPlaylistSlug, runId?: string): Promise<void> {
+    if (runId) {
+      await prisma.$executeRaw`
+        DELETE FROM emby_watch_refresh_item
+        WHERE slug = ${slug} AND run_id = ${runId}
+      `
+      return
+    }
+
+    await prisma.$executeRaw`
+      DELETE FROM emby_watch_refresh_item
+      WHERE slug = ${slug}
+    `
   }
 
   async getPlaylistSyncSignature(slug: EmbyPlaylistSlug): Promise<string | null> {

@@ -12,7 +12,12 @@ export type {
   EmbySyncResult,
 } from "./types"
 
-export type { EmbyWatchCache, EmbyWatchRefreshTask, IEmbyRepository } from "./repository/interface"
+export type {
+  EmbyWatchCache,
+  EmbyWatchRefreshItem,
+  EmbyWatchRefreshTask,
+  IEmbyRepository,
+} from "./repository/interface"
 
 export { generatePoster } from "./poster-generator"
 export { generatePosterWithDefaultFonts, loadDefaultPosterFonts } from "./poster-generator.node"
