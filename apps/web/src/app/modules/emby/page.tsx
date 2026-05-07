@@ -24,6 +24,7 @@ const inputClassName = "placeholder:text-muted-foreground/55"
 const PREVIEW_PAGE_SIZE = 20
 const REFRESH_LEAD_HOURS = 10
 const CRON_INTERVAL_MINUTES = 10
+const DISPLAY_TIME_ZONE = "Asia/Shanghai"
 type PlaylistPreviewSource = "updated" | "cache"
 
 function toDisplayError(error: unknown, fallback: string): string {
@@ -86,13 +87,22 @@ function formatDisplayDateTime(value: string | null): string | null {
     return null
   }
 
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, "0")
-  const day = `${date.getDate()}`.padStart(2, "0")
-  const hours = `${date.getHours()}`.padStart(2, "0")
-  const minutes = `${date.getMinutes()}`.padStart(2, "0")
-  const seconds = `${date.getSeconds()}`.padStart(2, "0")
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  const formatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: DISPLAY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+
+  const parts = formatter.formatToParts(date)
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ""
+
+  return `${getPart("year")}-${getPart("month")}-${getPart("day")} ${getPart("hour")}:${getPart("minute")}:${getPart("second")}`
 }
 
 function formatDisplayTime(value: string | null): string | null {
@@ -105,10 +115,19 @@ function formatDisplayTime(value: string | null): string | null {
     return null
   }
 
-  const hours = `${date.getHours()}`.padStart(2, "0")
-  const minutes = `${date.getMinutes()}`.padStart(2, "0")
-  const seconds = `${date.getSeconds()}`.padStart(2, "0")
-  return `${hours}:${minutes}:${seconds}`
+  const formatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: DISPLAY_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+
+  const parts = formatter.formatToParts(date)
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ""
+
+  return `${getPart("hour")}:${getPart("minute")}:${getPart("second")}`
 }
 
 function addMinutes(value: string, minutes: number): string | null {
@@ -447,20 +466,109 @@ export default function EmbyModulePage() {
     }))
   }
 
-  const addTag = () => {
+  const addTag = (insertIndex?: number) => {
     const tag = tagInput.trim()
     if (!selectedPlaylist || !tag || selectedPlaylist.tags.includes(tag)) {
       setTagInput("")
       return
     }
 
-    updateSelectedPlaylist({ tags: [...selectedPlaylist.tags, tag] })
+    const newTags = [...selectedPlaylist.tags]
+    if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newTags.length) {
+      newTags.splice(insertIndex, 0, tag)
+    } else {
+      newTags.push(tag)
+    }
+
+    updateSelectedPlaylist({ tags: newTags })
     setTagInput("")
   }
 
   const removeTag = (tag: string) => {
     if (!selectedPlaylist) return
     updateSelectedPlaylist({ tags: selectedPlaylist.tags.filter((item) => item !== tag) })
+  }
+
+  const [editingTag, setEditingTag] = useState<string | null>(null)
+  const [editingTagValue, setEditingTagValue] = useState("")
+  const [draggedTag, setDraggedTag] = useState<string | null>(null)
+  const [dragOverTag, setDragOverTag] = useState<string | null>(null)
+
+  const startEditTag = (tag: string) => {
+    setEditingTag(tag)
+    setEditingTagValue(tag)
+  }
+
+  const cancelEditTag = () => {
+    setEditingTag(null)
+    setEditingTagValue("")
+  }
+
+  const saveEditTag = () => {
+    if (!selectedPlaylist || !editingTag) return
+
+    const newTag = editingTagValue.trim()
+    if (!newTag || newTag === editingTag) {
+      cancelEditTag()
+      return
+    }
+
+    if (selectedPlaylist.tags.includes(newTag)) {
+      cancelEditTag()
+      return
+    }
+
+    updateSelectedPlaylist({
+      tags: selectedPlaylist.tags.map((tag) => (tag === editingTag ? newTag : tag)),
+    })
+    setEditingTag(null)
+    setEditingTagValue("")
+  }
+
+  const handleDragStart = (tag: string) => {
+    setDraggedTag(tag)
+  }
+
+  const handleDragOver = (event: React.DragEvent, tag: string) => {
+    event.preventDefault()
+    if (draggedTag && draggedTag !== tag) {
+      setDragOverTag(tag)
+    }
+  }
+
+  const handleDragLeave = () => {
+    setDragOverTag(null)
+  }
+
+  const handleDrop = (event: React.DragEvent, targetTag: string) => {
+    event.preventDefault()
+    if (!selectedPlaylist || !draggedTag || draggedTag === targetTag) {
+      setDraggedTag(null)
+      setDragOverTag(null)
+      return
+    }
+
+    const tags = [...selectedPlaylist.tags]
+    const draggedIndex = tags.indexOf(draggedTag)
+    const targetIndex = tags.indexOf(targetTag)
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedTag(null)
+      setDragOverTag(null)
+      return
+    }
+
+    tags.splice(draggedIndex, 1)
+    tags.splice(targetIndex, 0, draggedTag)
+
+    updateSelectedPlaylist({ tags })
+    setDraggedTag(null)
+    setDragOverTag(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedTag(null)
+    setDragOverTag(null)
   }
 
   const saveConfig = async () => {
@@ -684,20 +792,63 @@ export default function EmbyModulePage() {
                     <div className="space-y-2 md:col-span-2">
                       <div className="text-sm font-medium text-foreground">标签</div>
                       <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-background px-2 py-2">
-                        {selectedPlaylist.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="inline-flex h-7 items-center gap-1 rounded-full bg-muted px-2.5 text-xs font-medium text-muted-foreground"
-                          >
-                            {tag}
+                        {selectedPlaylist.tags.map((tag, index) => (
+                          <span key={`tag-group-${tag}`} className="contents">
                             <button
                               type="button"
-                              onClick={() => removeTag(tag)}
-                              className="rounded-full text-muted-foreground/70 hover:text-foreground"
-                              aria-label={`删除标签 ${tag}`}
+                              onClick={() => addTag(index)}
+                              disabled={!tagInput.trim()}
+                              className="group flex h-5 w-2 items-center justify-center rounded-full transition-all hover:w-4 hover:bg-primary/20 disabled:opacity-0"
+                              title={tagInput.trim() ? `在 ${tag} 前插入"${tagInput.trim()}"` : "输入标签名后点击插入"}
                             >
-                              <X className="h-3 w-3" />
+                              <span className="h-1 w-1 rounded-full bg-primary/0 group-hover:bg-primary/60" />
                             </button>
+                            <span
+                              draggable={editingTag !== tag}
+                              onDragStart={() => handleDragStart(tag)}
+                              onDragOver={(event) => handleDragOver(event, tag)}
+                              onDragLeave={handleDragLeave}
+                              onDrop={(event) => handleDrop(event, tag)}
+                              onDragEnd={handleDragEnd}
+                              className={`inline-flex h-7 items-center gap-1 rounded-full bg-muted px-2.5 text-xs font-medium text-muted-foreground transition-all ${
+                                draggedTag === tag ? "opacity-50" : ""
+                              } ${
+                                dragOverTag === tag && draggedTag !== tag ? "ring-2 ring-primary ring-offset-1" : ""
+                              } ${editingTag !== tag ? "cursor-move" : ""}`}
+                              onDoubleClick={() => startEditTag(tag)}
+                              title={editingTag !== tag ? "双击编辑，拖拽排序" : ""}
+                            >
+                              {editingTag === tag ? (
+                                <Input
+                                  value={editingTagValue}
+                                  onChange={(event) => setEditingTagValue(event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault()
+                                      saveEditTag()
+                                    }
+                                    if (event.key === "Escape") {
+                                      cancelEditTag()
+                                    }
+                                  }}
+                                  onBlur={saveEditTag}
+                                  autoFocus
+                                  className="h-5 w-20 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
+                                />
+                              ) : (
+                                <>
+                                  <span className="cursor-pointer select-none">{tag}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeTag(tag)}
+                                    className="rounded-full text-muted-foreground/70 hover:text-foreground"
+                                    aria-label={`删除标签 ${tag}`}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </>
+                              )}
+                            </span>
                           </span>
                         ))}
                         <div className="flex min-w-[160px] flex-1 items-center gap-2">
@@ -718,7 +869,7 @@ export default function EmbyModulePage() {
                             variant="outline"
                             size="xs"
                             className="h-7 shrink-0 gap-1 rounded-full border-dashed"
-                            onClick={addTag}
+                            onClick={() => addTag()}
                           >
                             <Plus className="h-3 w-3" />
                             添加标签
