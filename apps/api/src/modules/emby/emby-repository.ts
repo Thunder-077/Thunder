@@ -7,6 +7,7 @@ import type {
   IEmbyRepository,
 } from "@thunder/emby"
 import { prisma } from "@thunder/database"
+import { Prisma } from "@prisma/client"
 import type { EmbyManagedPlaylist, EmbyPlaylistSlug } from "@thunder/emby"
 
 function defaultPlaylists(): EmbyConfig["playlists"] {
@@ -97,6 +98,8 @@ function getConfigFromEnv(): EmbyConfig {
 function now(): string {
   return new Date().toISOString()
 }
+
+const REFRESH_ITEM_BATCH_SIZE = 100
 
 function playlistSortValue(slug: EmbyPlaylistSlug): number {
   const order: EmbyPlaylistSlug[] = [
@@ -342,7 +345,25 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
       return
     }
 
-    for (const item of items) {
+    for (let index = 0; index < items.length; index += REFRESH_ITEM_BATCH_SIZE) {
+      const batch = items.slice(index, index + REFRESH_ITEM_BATCH_SIZE)
+      const values = Prisma.join(
+        batch.map((item) => Prisma.sql`
+          (
+            ${item.slug},
+            ${item.runId},
+            ${item.sourceKey},
+            ${item.tmdbId},
+            ${item.tmdbType},
+            ${item.title},
+            ${item.posterUrl},
+            ${item.fetchedPage},
+            ${item.createdAt},
+            ${item.updatedAt}
+          )
+        `)
+      )
+
       await prisma.$executeRaw`
         INSERT INTO emby_watch_refresh_item (
           slug,
@@ -356,18 +377,7 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
           created_at,
           updated_at
         )
-        VALUES (
-          ${item.slug},
-          ${item.runId},
-          ${item.sourceKey},
-          ${item.tmdbId},
-          ${item.tmdbType},
-          ${item.title},
-          ${item.posterUrl},
-          ${item.fetchedPage},
-          ${item.createdAt},
-          ${item.updatedAt}
-        )
+        VALUES ${values}
         ON CONFLICT (slug, run_id, source_key, tmdb_type, tmdb_id)
         DO UPDATE SET
           title = EXCLUDED.title,
