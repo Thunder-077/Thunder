@@ -679,6 +679,7 @@ async function advancePlaylistRefresh(
   try {
     let remainingBudget = Math.max(1, options.pageBudget)
     let totalFetchedPages = 0
+    const pendingItems: EmbyWatchRefreshItem[] = []
 
     while (remainingBudget > 0) {
       const source = pickNextRefreshSource(state.sources)
@@ -714,8 +715,8 @@ async function advancePlaylistRefresh(
       const appendedItems = appendRefreshItems(playlist, source, currentSourceItems, pageItems)
       if (appendedItems.length > 0) {
         const itemTimestamp = new Date().toISOString()
-        await repository.saveWatchRefreshItems(
-          appendedItems.map((item) => ({
+        pendingItems.push(
+          ...appendedItems.map((item) => ({
             slug: playlist.slug,
             runId,
             sourceKey: source.key,
@@ -763,6 +764,10 @@ async function advancePlaylistRefresh(
           runId,
         })
       }
+    }
+
+    if (pendingItems.length > 0) {
+      await repository.saveWatchRefreshItems(pendingItems)
     }
 
     const preview = buildPreviewFromRefreshState(config, playlist, flattenRefreshItems(sourceItems))
