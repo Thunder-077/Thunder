@@ -3,7 +3,8 @@ import type { VaultItemPlain, VaultItemType } from "@thunder/vault"
 export function getFaviconUrl(url: string): string {
   try {
     const urlObj = new URL(url)
-    return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`
+    // 使用 DuckDuckGo 的 favicon 服务，对某些网站（如 Apple）支持更好
+    return `https://icons.duckduckgo.com/ip3/${urlObj.hostname}.ico`
   } catch {
     return ""
   }

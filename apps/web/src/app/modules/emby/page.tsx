@@ -660,15 +660,15 @@ export default function EmbyModulePage() {
         ) : (
           <div className="space-y-4">
             <Card>
-              <CardContent className="p-6">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex min-w-0 items-center gap-5">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand">
-                      <Clapperboard className="h-8 w-8" />
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand">
+                      <Clapperboard className="h-6 w-6" />
                     </div>
-                    <div className="min-w-0 space-y-2">
-                      <div className="text-lg font-semibold text-foreground">当前片单</div>
-                      <div className="w-full max-w-[360px]">
+                    <div className="min-w-0 space-y-1">
+                      <div className="text-base font-semibold text-foreground">当前片单</div>
+                      <div className="w-full max-w-[280px]">
                         <Select
                           value={selectedSlug}
                           options={playlistOptions}
@@ -995,7 +995,7 @@ export default function EmbyModulePage() {
                     <Callout
                       variant={getRefreshStatusVariant(selectedRefreshStatus.status)}
                       title={toRefreshStatusLabel(selectedRefreshStatus.status)}
-                      className="px-4 py-4"
+                      className="px-3 py-2"
                     >
                         <p>
                           进度 {selectedRefreshStatus.processedPages}/{selectedRefreshStatus.totalPages} 页，
@@ -1076,7 +1076,7 @@ export default function EmbyModulePage() {
                       当前片单内容已收起。点击“展开预览”可再次查看海报列表。
                     </div>
                   ) : (
-                    <div className="rounded-2xl border border-dashed border-border/70 px-4 py-10 text-sm text-muted-foreground">
+                    <div className="rounded-2xl border border-dashed border-border/70 px-4 py-4 text-sm text-muted-foreground">
                       点击“更新片单”生成最新片单，或点击“查看当前缓存片单”读取已有缓存。
                     </div>
                   )}
