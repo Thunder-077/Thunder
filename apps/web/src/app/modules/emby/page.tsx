@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clapperboard, Copy, Eye, Info, LoaderCircle, Plus, RefreshCcw, Save, Send, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clapperboard, Copy, Eye, Info, LoaderCircle, RefreshCcw, Save, Send, X } from "lucide-react"
 import { EmbyClient, ThunderApiError } from "@thunder/api-client"
 import type {
   EmbyConfig,
@@ -174,6 +174,7 @@ function getRefreshStatusVariant(status: EmbyPlaylistRefreshStatus["status"]): "
 }
 
 type PlaylistNumericField = "remoteWatchId" | "limit" | "releaseWindowDays" | "point"
+type TagInsertPositionValue = `at:${number}`
 
 interface PlaylistNumericDrafts {
   remoteWatchId: string
@@ -191,6 +192,27 @@ function toPlaylistNumericDrafts(playlist: EmbyManagedPlaylist | null): Playlist
   }
 }
 
+function normalizeTagName(tag: string): string {
+  return tag.trim().toLowerCase()
+}
+
+function hasTag(tags: string[], tag: string): boolean {
+  const normalizedTag = normalizeTagName(tag)
+  return tags.some((item) => normalizeTagName(item) === normalizedTag)
+}
+
+function resolveTagInsertIndex(
+  tags: string[],
+  insertPosition: TagInsertPositionValue
+): number {
+  const rawIndex = Number(insertPosition.replace("at:", ""))
+  if (!Number.isInteger(rawIndex) || rawIndex < 0 || rawIndex > tags.length) {
+    return tags.length
+  }
+
+  return rawIndex
+}
+
 export default function EmbyModulePage() {
   const [config, setConfig] = useState<EmbyConfig>(createEmptyConfig())
   const [previewMap, setPreviewMap] = useState<Record<string, EmbyPlaylistPreview | null>>({})
@@ -205,8 +227,10 @@ export default function EmbyModulePage() {
   const [collapsedPreviewMap, setCollapsedPreviewMap] = useState<Record<string, boolean>>({})
   const [selectedSlug, setSelectedSlug] = useState<EmbyPlaylistSlug>("domestic-tv")
   const [tagInput, setTagInput] = useState("")
+  const [tagInsertPosition, setTagInsertPosition] = useState<TagInsertPositionValue>("at:0")
   const [numericDrafts, setNumericDrafts] = useState<PlaylistNumericDrafts>(toPlaylistNumericDrafts(null))
   const [error, setError] = useState<string | null>(null)
+  const tagInputRef = useRef<HTMLInputElement | null>(null)
   const selectedPlaylist = config.playlists.find((playlist) => playlist.slug === selectedSlug) ?? null
 
   useEffect(() => {
@@ -236,10 +260,6 @@ export default function EmbyModulePage() {
       cancelled = true
     }
   }, [])
-
-  useEffect(() => {
-    setTagInput("")
-  }, [selectedSlug])
 
   useEffect(() => {
     setNumericDrafts(toPlaylistNumericDrafts(selectedPlaylist))
@@ -466,22 +486,25 @@ export default function EmbyModulePage() {
     }))
   }
 
-  const addTag = (insertIndex?: number) => {
+  const addTag = (insertPosition: TagInsertPositionValue = tagInsertPosition) => {
     const tag = tagInput.trim()
-    if (!selectedPlaylist || !tag || selectedPlaylist.tags.includes(tag)) {
+    if (!selectedPlaylist || !tag || hasTag(selectedPlaylist.tags, tag)) {
       setTagInput("")
       return
     }
 
     const newTags = [...selectedPlaylist.tags]
-    if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newTags.length) {
-      newTags.splice(insertIndex, 0, tag)
-    } else {
-      newTags.push(tag)
-    }
+    const insertIndex = resolveTagInsertIndex(newTags, insertPosition)
+    newTags.splice(insertIndex, 0, tag)
 
     updateSelectedPlaylist({ tags: newTags })
     setTagInput("")
+    setTagInsertPosition(`at:${newTags.length}`)
+  }
+
+  const activateTagInsertPosition = (index: number) => {
+    setTagInsertPosition(`at:${index}`)
+    tagInputRef.current?.focus()
   }
 
   const removeTag = (tag: string) => {
@@ -513,7 +536,7 @@ export default function EmbyModulePage() {
       return
     }
 
-    if (selectedPlaylist.tags.includes(newTag)) {
+    if (hasTag(selectedPlaylist.tags.filter((tag) => tag !== editingTag), newTag)) {
       cancelEditTag()
       return
     }
@@ -559,7 +582,8 @@ export default function EmbyModulePage() {
     }
 
     tags.splice(draggedIndex, 1)
-    tags.splice(targetIndex, 0, draggedTag)
+    const nextTargetIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex
+    tags.splice(nextTargetIndex, 0, draggedTag)
 
     updateSelectedPlaylist({ tags })
     setDraggedTag(null)
@@ -648,7 +672,13 @@ export default function EmbyModulePage() {
                         <Select
                           value={selectedSlug}
                           options={playlistOptions}
-                          onChange={(value) => setSelectedSlug(value as EmbyPlaylistSlug)}
+                          onChange={(value) => {
+                            const nextSlug = value as EmbyPlaylistSlug
+                            const nextPlaylist = config.playlists.find((playlist) => playlist.slug === nextSlug)
+                            setSelectedSlug(value as EmbyPlaylistSlug)
+                            setTagInput("")
+                            setTagInsertPosition(`at:${nextPlaylist?.tags.length ?? 0}`)
+                          }}
                           placeholder="选择片单"
                           showDescription={false}
                           contentClassName="bg-background"
@@ -796,12 +826,18 @@ export default function EmbyModulePage() {
                           <span key={`tag-group-${tag}`} className="contents">
                             <button
                               type="button"
-                              onClick={() => addTag(index)}
-                              disabled={!tagInput.trim()}
-                              className="group flex h-5 w-2 items-center justify-center rounded-full transition-all hover:w-4 hover:bg-primary/20 disabled:opacity-0"
-                              title={tagInput.trim() ? `在 ${tag} 前插入"${tagInput.trim()}"` : "输入标签名后点击插入"}
+                              onClick={() => activateTagInsertPosition(index)}
+                              className={`group flex h-7 w-3 items-center justify-center rounded-full transition-all ${
+                                tagInsertPosition === `at:${index}` ? "bg-primary/12" : "hover:bg-primary/10"
+                              }`}
+                              title={`在当前位置插入标签`}
+                              aria-label={`在标签 ${tag} 前插入`}
                             >
-                              <span className="h-1 w-1 rounded-full bg-primary/0 group-hover:bg-primary/60" />
+                              <span
+                                className={`w-px rounded-full transition-all ${
+                                  tagInsertPosition === `at:${index}` ? "h-4 bg-primary" : "h-3 bg-border group-hover:bg-primary/55"
+                                }`}
+                              />
                             </button>
                             <span
                               draggable={editingTag !== tag}
@@ -852,7 +888,25 @@ export default function EmbyModulePage() {
                           </span>
                         ))}
                         <div className="flex min-w-[160px] flex-1 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => activateTagInsertPosition(selectedPlaylist.tags.length)}
+                            className={`group flex h-7 w-3 shrink-0 items-center justify-center rounded-full transition-all ${
+                              tagInsertPosition === `at:${selectedPlaylist.tags.length}` ? "bg-primary/12" : "hover:bg-primary/10"
+                            }`}
+                            title="在末尾插入标签"
+                            aria-label="在标签末尾插入"
+                          >
+                            <span
+                              className={`w-px rounded-full transition-all ${
+                                tagInsertPosition === `at:${selectedPlaylist.tags.length}`
+                                  ? "h-4 bg-primary"
+                                  : "h-3 bg-border group-hover:bg-primary/55"
+                              }`}
+                            />
+                          </button>
                           <Input
+                            ref={tagInputRef}
                             value={tagInput}
                             onChange={(event) => setTagInput(event.target.value)}
                             onKeyDown={(event) => {
@@ -864,16 +918,6 @@ export default function EmbyModulePage() {
                             placeholder="添加标签"
                             className="h-7 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/55"
                           />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            className="h-7 shrink-0 gap-1 rounded-full border-dashed"
-                            onClick={() => addTag()}
-                          >
-                            <Plus className="h-3 w-3" />
-                            添加标签
-                          </Button>
                         </div>
                       </div>
                     </div>

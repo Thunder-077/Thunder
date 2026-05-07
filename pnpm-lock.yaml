@@ -153,7 +153,14 @@ importers:
         version: 4.87.0
 
   modules/emby:
+    dependencies:
+      sharp:
+        specifier: ^0.34.5
+        version: 0.34.5
     devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
       typescript:
         specifier: ^5
         version: 5.9.3
