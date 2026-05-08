@@ -1,34 +1,121 @@
 "use client"
 
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/sidebar"
 import { AppChrome } from "@/components/topbar"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 
-type AppShellFooterContextValue = {
-  footer: React.ReactNode
-  setFooter: (footer: React.ReactNode) => void
+type AppShellContextValue = {
   hasPageHeader: boolean
   setHasPageHeader: (value: boolean) => void
   onToggleSidebar: () => void
 }
 
-const AppShellFooterContext = createContext<AppShellFooterContextValue | null>(null)
+const AppShellContext = createContext<AppShellContextValue | null>(null)
 
 export function useAppShellFooter() {
-  const ctx = useContext(AppShellFooterContext)
+  const ctx = useContext(AppShellContext)
   if (!ctx) {
     throw new Error("useAppShellFooter must be used within <AppShell>")
   }
   return ctx
 }
 
+// --- 一言语录 ---
+
+interface HitokotoData {
+  hitokoto: string
+  from?: string
+  from_who?: string | null
+}
+
+const fallbackQuotes = [
+  "专注当下，效率加倍。",
+  "今天的你，比昨天更强大。",
+  "保持热爱，奔赴山海。",
+  "每一个小进步，都是大胜利。",
+  "你的努力，时光都看得见。",
+  "相信自己，你比想象中更优秀。",
+  "新的一天，新的可能。",
+  "慢慢来，好戏都在烟火里。",
+  "星光不问赶路人，时光不负有心人。",
+  "愿你眼中有光，心中有爱。",
+  "今天的咖啡格外香，因为你很棒的。",
+  "万事开头难，但你已经开始了。",
+  "你的坚持，终将美好。",
+  "生活明朗，万物可爱。",
+  "做最好的自己，其他的交给时间。",
+]
+
+function getRandomFallbackQuote(): string {
+  return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)]
+}
+
+function useHitokoto() {
+  const [quote, setQuote] = useState("")
+  const [quoteFrom, setQuoteFrom] = useState("")
+
+  useEffect(() => {
+    let ignore = false
+
+    async function fetchQuote() {
+      try {
+        const response = await fetch("https://v1.hitokoto.cn?c=a&c=b&c=c&c=d&c=h&encode=json")
+        if (!response.ok) throw new Error("API failed")
+
+        const data: HitokotoData = await response.json()
+        if (ignore) return
+
+        setQuote(data.hitokoto)
+        if (data.from) {
+          setQuoteFrom(data.from_who ? `${data.from} · ${data.from_who}` : data.from)
+        }
+      } catch {
+        if (!ignore) {
+          setQuote(getRandomFallbackQuote())
+          setQuoteFrom("")
+        }
+      }
+    }
+
+    void fetchQuote()
+
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  return { quote: quote || getRandomFallbackQuote(), quoteFrom }
+}
+
+function HitokotoFooter() {
+  const { quote, quoteFrom } = useHitokoto()
+
+  return (
+    <div className="shrink-0 px-4 pb-3 pt-1 sm:px-6 xl:px-8">
+      <div className="mx-auto w-full max-w-[1280px]">
+        <div className="text-center">
+          <p className="group inline text-sm text-muted-foreground/70 transition-colors duration-200 hover:text-muted-foreground">
+            {`「 ${quote} 」`}
+            {quoteFrom && (
+              <span className="ml-1.5 text-xs text-muted-foreground/0 transition-colors duration-200 group-hover:text-muted-foreground/50">
+                —{quoteFrom}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// --- AppShell ---
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const [footer, setFooter] = useState<React.ReactNode>(null)
   const [hasPageHeader, setHasPageHeader] = useState(false)
 
   if (pathname === "/login") {
@@ -36,10 +123,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AppShellFooterContext.Provider
+    <AppShellContext.Provider
       value={{
-        footer,
-        setFooter,
         hasPageHeader,
         setHasPageHeader,
         onToggleSidebar: () => setMobileSidebarOpen(true),
@@ -64,28 +149,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
           <main className="flex-1 overflow-y-auto">
-            <div className="w-full py-4 sm:py-5">
-              <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 xl:px-8">
-                <div className="relative">
-                  {!hasPageHeader && (
-                    <div className="mb-6 flex justify-end md:absolute md:top-0 md:right-0 md:z-[var(--z-sticky)] md:mb-0">
-                      <AppChrome onToggleSidebar={() => setMobileSidebarOpen(true)} />
-                    </div>
-                  )}
-                  <div className="pb-5">
-                    {children}
-                    {footer && (
-                      <div className="pt-6">
-                        {footer}
-                      </div>
-                    )}
+            {!hasPageHeader && (
+              <div className="sticky top-0 z-[var(--z-sticky)] pointer-events-none">
+                <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 xl:px-8">
+                  <div className="flex justify-end pt-4 sm:pt-5 pb-0 pointer-events-auto">
+                    <AppChrome onToggleSidebar={() => setMobileSidebarOpen(true)} />
                   </div>
+                </div>
+              </div>
+            )}
+            <div className={`w-full ${hasPageHeader ? 'py-4 sm:py-5' : 'pt-0 pb-4 sm:pb-5'}`}>
+              <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 xl:px-8">
+                <div className="pb-5">
+                  {children}
                 </div>
               </div>
             </div>
           </main>
+          <HitokotoFooter />
         </div>
       </div>
-    </AppShellFooterContext.Provider>
+    </AppShellContext.Provider>
   )
 }

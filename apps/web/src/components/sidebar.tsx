@@ -55,7 +55,7 @@ const categoryOrder: ModuleCategory[] = [
 ]
 
 const sidebarToolButtonClass =
-  "flex h-11 items-center justify-center rounded-lg text-sidebar-foreground/64 outline-none transition-all duration-normal ease-default hover:-translate-y-0.5 hover:scale-[1.03] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset active:translate-y-0"
+  "flex h-9 items-center justify-center rounded-lg text-sidebar-foreground/64 outline-none transition-all duration-normal ease-default hover:-translate-y-0.5 hover:scale-[1.03] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset active:translate-y-0"
 
 interface SidebarProps {
   className?: string
@@ -219,8 +219,8 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
         </div>
       </ScrollArea>
 
-      <div className="border-t border-sidebar-border/80 p-2.5">
-        <div className="grid grid-cols-3 gap-1.5">
+      <div className="border-t border-sidebar-border/80 px-2.5 py-1.5">
+        <div className="grid grid-cols-3 gap-1">
           <button
             type="button"
             onClick={() => setCommandPaletteOpen(true)}

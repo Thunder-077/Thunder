@@ -55,7 +55,7 @@
 - 前后端分离：apps/web 只负责 UI，apps/api 只负责 API 和数据访问
 - 独立部署：apps/api 可以独立扩展、独立部署
 - 技术选型灵活：后端可以独立选择框架、中间件、部署方式
-- 数据库隔离：SQLite/Prisma 只在 apps/api 中使用，前端不接触数据库
+- 数据库隔离：PostgreSQL/Prisma 只在 apps/api 中使用，前端不接触数据库
 - 多语言服务接入：未来 Python/Java/Rust 服务只能通过 apps/api 编排
 - Hono 轻量高效：TypeScript 原生、Edge-first、中间件生态丰富
 - Next.js rewrites 代理：前端通过 /api/v1/* 代理到 apps/api，开发体验一致
@@ -70,7 +70,7 @@
 
 **背景**：之前前端代码可以直接导入 @thunder/database 访问 Prisma Client。
 
-**决策**：前端不得直接访问 SQLite / Prisma / 数据库连接，必须通过 API Client 调用 apps/api。
+**决策**：前端不得直接访问 PostgreSQL / Prisma / 数据库连接，必须通过 API Client 调用 apps/api。
 
 **理由**：
 - 安全性：数据库连接字符串、SQL 查询不应暴露给浏览器

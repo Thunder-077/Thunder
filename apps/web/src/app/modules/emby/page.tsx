@@ -646,11 +646,12 @@ export default function EmbyModulePage() {
         )}
 
         {loading ? (
-          <Card>
-            <CardContent className="px-4 py-10 text-sm text-muted-foreground">
-              正在加载 Emby 配置...
-            </CardContent>
-          </Card>
+          <div className="flex min-h-[50vh] items-center justify-center">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <LoaderCircle className="h-6 w-6 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">正在加载 Emby 配置...</p>
+            </div>
+          </div>
         ) : config.playlists.length === 0 ? (
           <EmptyState
             icon={<Clapperboard className="h-6 w-6" />}

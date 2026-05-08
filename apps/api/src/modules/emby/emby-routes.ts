@@ -1,5 +1,6 @@
 import { Hono } from "hono"
 import { apiError, apiSuccess } from "@thunder/contracts"
+import { prisma } from "@thunder/database"
 import type {
   EmbyConfig,
   EmbyDynamicWatchFeed,
@@ -85,10 +86,6 @@ interface EmbyRefreshState {
   sources: EmbyRefreshSourceState[]
 }
 
-interface EmbyLegacyRefreshSourceState extends Omit<EmbyRefreshSourceState, "collectedCount"> {
-  items: EmbyRefreshPreviewItem[]
-}
-
 interface EmbyRefreshStepResult {
   preview: EmbyPlaylistPreview
   feed: EmbyDynamicWatchFeed
@@ -128,28 +125,6 @@ function isValidRefreshSourceState(value: unknown): value is EmbyRefreshSourceSt
     typeof source.done === "boolean" &&
     !!source.params &&
     typeof source.params === "object"
-  )
-}
-
-function isValidLegacyRefreshSourceState(value: unknown): value is EmbyLegacyRefreshSourceState {
-  if (!value || typeof value !== "object") {
-    return false
-  }
-
-  const source = value as Partial<EmbyLegacyRefreshSourceState>
-  return (
-    typeof source.key === "string" &&
-    (source.mediaType === "movie" || source.mediaType === "tv") &&
-    typeof source.nextPage === "number" &&
-    Number.isFinite(source.nextPage) &&
-    typeof source.maxPages === "number" &&
-    Number.isFinite(source.maxPages) &&
-    typeof source.targetCount === "number" &&
-    Number.isFinite(source.targetCount) &&
-    typeof source.done === "boolean" &&
-    !!source.params &&
-    typeof source.params === "object" &&
-    Array.isArray(source.items)
   )
 }
 
@@ -486,25 +461,6 @@ function getStateJsonBytes(state: EmbyRefreshState): number {
   return new TextEncoder().encode(JSON.stringify(state)).length
 }
 
-function buildRefreshItemsFromLegacyState(
-  playlist: EmbyManagedPlaylist,
-  runId: string,
-  sources: EmbyLegacyRefreshSourceState[]
-): EmbyWatchRefreshItem[] {
-  return sources.flatMap((source) => dedupePreviewItems(source.items).map((item) => ({
-    slug: playlist.slug,
-    runId,
-    sourceKey: source.key,
-    tmdbId: item.tmdbId,
-    tmdbType: item.tmdbType,
-    title: item.title,
-    posterUrl: item.posterUrl,
-    fetchedPage: Math.max(0, source.nextPage - 1),
-    createdAt: runId,
-    updatedAt: runId,
-  })))
-}
-
 function createRefreshState(playlist: EmbyManagedPlaylist): EmbyRefreshState {
   const limit = resolvePlaylistLimit(playlist.limit)
   const common = new URLSearchParams({
@@ -642,22 +598,32 @@ async function advancePlaylistRefresh(
 
   const existingTask = await repository.getWatchRefreshTask(playlist.slug)
   const existingCache = await repository.getWatchCache(playlist.slug)
-  const restarting = options.restart || !existingTask || existingTask.status !== "refreshing"
+  const canResume = existingTask && (existingTask.status === "refreshing" || existingTask.status === "failed")
+  const restarting = options.restart || !canResume
   const nowTimestamp = new Date().toISOString()
-  const runId = restarting ? createRefreshRunId() : existingTask.runId
+  const runId = restarting ? createRefreshRunId() : existingTask!.runId
+
   if (restarting) {
-    await repository.deleteWatchRefreshItems(playlist.slug)
+    const state = createRefreshState(playlist)
+    await prisma.$transaction(async (tx) => {
+      await repository.deleteWatchRefreshItems(playlist.slug, undefined, tx)
+      await repository.saveWatchRefreshTask({
+        slug: playlist.slug,
+        runId,
+        status: "refreshing",
+        stateJson: JSON.stringify(state),
+        errorMessage: null,
+        createdAt: nowTimestamp,
+        updatedAt: nowTimestamp,
+      }, tx)
+    })
   }
 
-  const parsedSnapshot = restarting
-    ? { state: createRefreshState(playlist), items: [] as EmbyWatchRefreshItem[] }
-    : parseRefreshStateSnapshot(existingTask.stateJson, playlist, runId)
-  const state = parsedSnapshot.state
+  const state = restarting
+    ? createRefreshState(playlist)
+    : parseRefreshState(existingTask!.stateJson, playlist)
+  const baseStateJson = JSON.stringify(state)
   let storedItems = await repository.listWatchRefreshItems(playlist.slug, runId)
-  if (!restarting && storedItems.length === 0 && parsedSnapshot.items.length > 0) {
-    await repository.saveWatchRefreshItems(parsedSnapshot.items)
-    storedItems = parsedSnapshot.items
-  }
   const sourceItems = groupRefreshItemsBySource(state, storedItems)
   for (const source of state.sources) {
     source.collectedCount = sourceItems.get(source.key)?.length ?? 0
@@ -667,6 +633,7 @@ async function advancePlaylistRefresh(
 
   console.info(`${logPrefix} 开始刷新`, {
     mode: restarting ? "全新刷新" : "继续刷新",
+    previousStatus: existingTask?.status ?? "无",
     runId,
     pageBudget: options.pageBudget,
     sourcesCount: state.sources.length,
@@ -766,10 +733,6 @@ async function advancePlaylistRefresh(
       }
     }
 
-    if (pendingItems.length > 0) {
-      await repository.saveWatchRefreshItems(pendingItems)
-    }
-
     const preview = buildPreviewFromRefreshState(config, playlist, flattenRefreshItems(sourceItems))
     const completed = state.sources.every((source) => source.done || source.collectedCount >= source.targetCount)
     const stateJson = JSON.stringify(state)
@@ -797,14 +760,19 @@ async function advancePlaylistRefresh(
       })
     }
 
-    await repository.saveWatchRefreshTask({
-      slug: playlist.slug,
-      runId,
-      status: completed ? "completed" : "refreshing",
-      stateJson,
-      errorMessage: null,
-      createdAt: existingTask?.createdAt ?? nowTimestamp,
-      updatedAt: nowTimestamp,
+    await prisma.$transaction(async (tx) => {
+      if (pendingItems.length > 0) {
+        await repository.saveWatchRefreshItems(pendingItems, tx)
+      }
+      await repository.saveWatchRefreshTask({
+        slug: playlist.slug,
+        runId,
+        status: completed ? "completed" : "refreshing",
+        stateJson,
+        errorMessage: null,
+        createdAt: existingTask?.createdAt ?? nowTimestamp,
+        updatedAt: nowTimestamp,
+      }, tx)
     })
 
     console.info(`${logPrefix} 刷新${completed ? "完成" : "待继续"}`, {
@@ -841,7 +809,7 @@ async function advancePlaylistRefresh(
       slug: playlist.slug,
       runId,
       status: "failed",
-      stateJson: JSON.stringify(state),
+      stateJson: baseStateJson,
       errorMessage,
       createdAt: existingTask?.createdAt ?? nowTimestamp,
       updatedAt: nowTimestamp,
@@ -851,63 +819,24 @@ async function advancePlaylistRefresh(
   }
 }
 
-function parseRefreshStateSnapshot(
-  raw: string,
-  playlist: EmbyManagedPlaylist,
-  runId: string
-): { state: EmbyRefreshState; items: EmbyWatchRefreshItem[] } {
+function parseRefreshState(raw: string, playlist: EmbyManagedPlaylist): EmbyRefreshState {
   try {
     const parsed = JSON.parse(raw) as {
       version?: number
       sources?: unknown[]
-      slug?: string
     }
     if (
       typeof parsed.version === "number" &&
       Array.isArray(parsed.sources) &&
       parsed.sources.every((source) => isValidRefreshSourceState(source))
     ) {
-      return {
-        state: parsed as EmbyRefreshState,
-        items: [],
-      }
-    }
-
-    if (
-      parsed.slug === playlist.slug &&
-      Array.isArray(parsed.sources) &&
-      parsed.sources.every((source) => isValidLegacyRefreshSourceState(source))
-    ) {
-      const sources = parsed.sources as EmbyLegacyRefreshSourceState[]
-      return {
-        state: {
-          version: 1,
-          sources: sources.map((source) => ({
-            key: source.key,
-            mediaType: source.mediaType,
-            nextPage: source.nextPage,
-            maxPages: source.maxPages,
-            targetCount: source.targetCount,
-            collectedCount: dedupePreviewItems(source.items).length,
-            done: source.done,
-            params: source.params,
-          })),
-        },
-        items: buildRefreshItemsFromLegacyState(playlist, runId, sources),
-      }
+      return parsed as EmbyRefreshState
     }
   } catch {
     // fall through to reset invalid state
   }
 
-  return {
-    state: createRefreshState(playlist),
-    items: [],
-  }
-}
-
-function parseRefreshState(raw: string, playlist: EmbyManagedPlaylist, runId: string): EmbyRefreshState {
-  return parseRefreshStateSnapshot(raw, playlist, runId).state
+  return createRefreshState(playlist)
 }
 
 function shouldKeepRefreshItem(playlist: EmbyManagedPlaylist, item: TmdbDiscoverItem): boolean {
@@ -1064,20 +993,22 @@ function toRefreshStatus(
     }
   }
 
-  const snapshot = parseRefreshStateSnapshot(refreshTask.stateJson, playlist, refreshTask.runId)
-  const state = snapshot.state
+  const state = parseRefreshState(refreshTask.stateJson, playlist)
   const mergedItems = dedupePreviewItems(
-    (refreshItems.length > 0 ? refreshItems : snapshot.items).map(toRefreshPreviewItem)
+    refreshItems.map(toRefreshPreviewItem)
   )
+  const isCompleted = refreshTask.status === "completed"
 
   return {
     slug: playlist.slug,
     status: refreshTask.status as EmbyPlaylistRefreshStatus["status"],
-    processedPages: state.sources.reduce((total, source) => total + Math.min(source.maxPages, source.nextPage - 1), 0),
+    processedPages: isCompleted
+      ? state.sources.reduce((total, source) => total + source.maxPages, 0)
+      : state.sources.reduce((total, source) => total + Math.min(source.maxPages, source.nextPage - 1), 0),
     totalPages: state.sources.reduce((total, source) => total + source.maxPages, 0),
-    collectedCount: mergedItems.length,
+    collectedCount: isCompleted ? (cache?.count ?? mergedItems.length) : mergedItems.length,
     targetCount: resolvePlaylistLimit(playlist.limit),
-    completedSources: state.sources.filter((source) => source.done || source.collectedCount >= source.targetCount).length,
+    completedSources: isCompleted ? state.sources.length : state.sources.filter((source) => source.done || source.collectedCount >= source.targetCount).length,
     totalSources: state.sources.length,
     cacheGeneratedAt: cache?.generatedAt ?? null,
     updatedAt: refreshTask.updatedAt,

@@ -18,7 +18,7 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first + 多语言�
 │  │  └───────────────┘  │    │  └───────┬───────────────┘  │ │
 │  └─────────────────────┘    │          │                   │ │
 │                              │  ┌───────▼───────────────┐  │ │
-│                              │  │  Prisma + SQLite      │  │ │
+│                              │  │  Prisma + PostgreSQL  │  │ │
 │                              │  └───────────────────────┘  │ │
 │                              └─────────────────────────────┘ │
 │                                                              │
@@ -70,7 +70,7 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first + 多语言�
 ### 标准数据流
 
 ```
-浏览器 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → SQLite
+浏览器 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
 ```
 
 ### Vault 安全数据流
@@ -80,7 +80,7 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first + 多语言�
   → VaultCryptoWeb.encryptVaultItem(DEK, plain) → VaultItemRecord（密文）
   → @thunder/api-client (VaultClient)
   → /api/v1/vault/items/:id
-  → apps/api → VaultRepositorySQLite → Prisma → SQLite（只存密文）
+  → apps/api → VaultRepository → Prisma → PostgreSQL（只存密文）
 ```
 
 ### API 代理机制
@@ -148,7 +148,7 @@ thunder/
 │           └── crypto/              # IVaultCrypto 接口
 ├── services/                        # 非 TypeScript 独立服务（预留）
 │   └── README.md                    # 多语言服务规则说明
-├── data/                            # SQLite 数据库文件
+├── data/                            # 数据库历史文件（已迁移至 PostgreSQL）
 ├── docs/                            # 设计文档
 ├── AGENTS.md                        # 开发规则
 ├── package.json                     # 根 package.json
@@ -227,12 +227,11 @@ thunder/
 
 - apps/api：Node.js 服务，监听 API_PORT（默认 3001）
 - apps/web：Next.js 生产构建，通过 rewrites 代理 API 请求
-- SQLite 文件位于 data/ 目录
-- 后续可切换到 PostgreSQL / MySQL
+- 数据库：PostgreSQL（Neon 托管），通过环境变量 `DATABASE_URL` 配置
 
 ## 未来扩展方向
 
-1. **数据库演进**：SQLite → PostgreSQL / MySQL
+1. **数据库演进**：已完成 SQLite → PostgreSQL (Neon) 迁移，后续可考虑 MySQL
 2. **多语言服务**：Python AI Worker、Rust System Worker 等（按需引入）
 3. **模块独立包**：将模块拆分为独立 npm 包，支持动态加载
 4. **插件系统**：第三方模块通过插件 API 接入

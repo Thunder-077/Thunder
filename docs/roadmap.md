@@ -60,9 +60,9 @@
 - [x] Vault 设置项（自动锁定、密码生成器默认参数、剪贴板保护、导入导出、危险区域）
 - [x] 清空本地保险箱（二次确认，回到创建页面）
 
-## Phase 6：SQLite 数据库迁移 ✅ 已完成
+## Phase 6：数据库迁移（IndexedDB → SQLite → PostgreSQL）✅ 已完成
 
-**目标**：从浏览器端 IndexedDB 迁移到服务端 SQLite
+**目标**：从浏览器端 IndexedDB 迁移到服务端数据库，最终切换到 PostgreSQL (Neon)
 
 - [x] Prisma ORM 集成
 - [x] SQLite 数据库 schema（app_modules + app_settings + vault_metadata + vault_items）
@@ -89,11 +89,11 @@
 - [x] Vault 功能不回退
 - [x] 架构文档更新
 
-## Phase 8：数据库演进和模块系统
+## Phase 8：模块系统完善
 
-**目标**：数据库迁移到 PostgreSQL / MySQL，完善模块系统
+**目标**：完善模块系统
 
-- [ ] SQLite → PostgreSQL / MySQL 迁移
+- [x] SQLite → PostgreSQL (Neon) 迁移
 - [ ] 完善待办事项模块（本地持久化）
 - [ ] 模块启用/禁用开关
 - [ ] 模块设置页面（基于 settingsSchema 生成）

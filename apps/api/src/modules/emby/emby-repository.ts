@@ -9,6 +9,8 @@ import type {
 import { Prisma, prisma } from "@thunder/database"
 import type { EmbyManagedPlaylist, EmbyPlaylistSlug } from "@thunder/emby"
 
+type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+
 function defaultPlaylists(): EmbyConfig["playlists"] {
   return [
     {
@@ -275,9 +277,10 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
     }
   }
 
-  async saveWatchRefreshTask(task: EmbyWatchRefreshTask): Promise<void> {
+  async saveWatchRefreshTask(task: EmbyWatchRefreshTask, tx?: TransactionClient): Promise<void> {
+    const db = tx ?? prisma
     const updatedAt = now()
-    await prisma.$executeRaw`
+    await db.$executeRaw`
       INSERT INTO emby_watch_refresh_task (
         slug,
         run_id,
@@ -339,11 +342,21 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
     }))
   }
 
-  async saveWatchRefreshItems(items: EmbyWatchRefreshItem[]): Promise<void> {
+  async countWatchRefreshItems(slug: EmbyPlaylistSlug): Promise<number> {
+    const result = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*) as count
+      FROM emby_watch_refresh_item
+      WHERE slug = ${slug}
+    `
+    return Number(result[0]?.count ?? 0)
+  }
+
+  async saveWatchRefreshItems(items: EmbyWatchRefreshItem[], tx?: TransactionClient): Promise<void> {
     if (items.length === 0) {
       return
     }
 
+    const db = tx ?? prisma
     for (let index = 0; index < items.length; index += REFRESH_ITEM_BATCH_SIZE) {
       const batch = items.slice(index, index + REFRESH_ITEM_BATCH_SIZE)
       const values = Prisma.join(
@@ -363,7 +376,7 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
         `)
       )
 
-      await prisma.$executeRaw`
+      await db.$executeRaw`
         INSERT INTO emby_watch_refresh_item (
           slug,
           run_id,
@@ -387,16 +400,17 @@ export class EmbyRepositorySQLite implements IEmbyRepository {
     }
   }
 
-  async deleteWatchRefreshItems(slug: EmbyPlaylistSlug, runId?: string): Promise<void> {
+  async deleteWatchRefreshItems(slug: EmbyPlaylistSlug, runId?: string, tx?: TransactionClient): Promise<void> {
+    const db = tx ?? prisma
     if (runId) {
-      await prisma.$executeRaw`
+      await db.$executeRaw`
         DELETE FROM emby_watch_refresh_item
         WHERE slug = ${slug} AND run_id = ${runId}
       `
       return
     }
 
-    await prisma.$executeRaw`
+    await db.$executeRaw`
       DELETE FROM emby_watch_refresh_item
       WHERE slug = ${slug}
     `

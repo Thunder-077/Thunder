@@ -167,7 +167,7 @@ packages/contracts/openapi/vault.yaml     # OpenAPI 规范
 
 ### 当前方案
 
-- 所有模块通过 Repository 访问数据库（SQLite + Prisma）
+- 所有模块通过 Repository 访问数据库（PostgreSQL + Prisma）
 - 每个模块使用独立的数据库表（如 vault_metadata、vault_items）
 - 模块间不直接共享状态
 - 页面组件不直接访问数据库，通过 API Client → apps/api → Repository
@@ -176,11 +176,11 @@ packages/contracts/openapi/vault.yaml     # OpenAPI 规范
 ### 数据访问规则
 
 ```
-前端组件 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → SQLite
+前端组件 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
 ```
 
 - 新模块必须通过 Repository 接口访问数据库
-- 不允许页面组件直接访问 SQLite 或 Prisma
+- 不允许页面组件直接访问 PostgreSQL 或 Prisma
 - 不允许浏览器端代码直接导入数据库连接
 - Repository 实现只在 apps/api 中，不在 apps/web 中
 

@@ -40,7 +40,7 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 │  packages/database  │    │  services/*                      │
 │  ├── Prisma schema  │    │  ├── python-ai-worker/ (未来)    │
 │  ├── Prisma Client  │    │  └── rust-system-worker/ (未来)  │
-│  └── SQLite         │    │                                  │
+│  └── PostgreSQL    │    │                                  │
 │                     │    │                                  │
 │  允许：被 apps/api  │    │  允许：被 apps/api 编排           │
 │  和 Repository 访问 │    │  禁止：被前端直接调用             │
@@ -59,7 +59,7 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 
 ### 禁止
 
-- 直接访问 SQLite / Prisma / 数据库连接
+- 直接访问 PostgreSQL / Prisma / 数据库连接
 - 直接导入 @thunder/database
 - 直接调用 Repository 实现
 - 直接调用多语言服务
@@ -69,7 +69,7 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 ### 数据访问路径
 
 ```
-前端组件 → API Client → /api/v1/* → apps/api → Repository → Prisma → SQLite
+前端组件 → API Client → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
 ```
 
 前端组件不得跳过 API Client 直接访问数据库。

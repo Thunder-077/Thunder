@@ -25,7 +25,7 @@ Thunder 当前使用 Prisma ORM 访问关系型数据库。项目已切换到 Po
 前端组件 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
 ```
 
-- 前端不得直接访问 SQLite / Prisma / 数据库连接
+- 前端不得直接访问 PostgreSQL / Prisma / 数据库连接
 - 数据库访问只能发生在 apps/api 和 Repository 层
 - packages/database 提供 Prisma Client 单例，供 apps/api 使用
 
@@ -168,10 +168,9 @@ Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKe
 
 ### 兼容性注意事项
 
-- 新增表时避免使用 SQLite 特有语法
-- 时间字段使用 TEXT（ISO 8601）而非 SQLite 的 datetime 函数
+- 新增表时避免使用特定数据库特有语法
+- 时间字段使用 TEXT（ISO 8601）
 - JSON 字段使用 TEXT 存储，应用层解析
-- 不使用 SQLite 特有的全文搜索语法
 - Prisma 的抽象层已经屏蔽了大部分数据库差异
 
 ## Prisma 配置
