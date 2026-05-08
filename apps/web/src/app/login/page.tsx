@@ -2,10 +2,13 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, LoaderCircle, ShieldCheck } from "lucide-react"
+import { ArrowRight, LoaderCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
+import { TurnstileWidget } from "@/components/turnstile-widget"
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""
 
 export default function LoginPage() {
   const router = useRouter()
@@ -13,22 +16,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [turnstileToken, setTurnstileToken] = useState("")
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setLoading(true)
     setError("")
 
+    if (!turnstileToken) {
+      setError("请完成人机验证")
+      setLoading(false)
+      return
+    }
+
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, turnstileToken }),
       })
 
       if (!response.ok) {
         const data = await response.json().catch(() => null) as { message?: string } | null
         setError(data?.message || "登录失败，请检查账号和密码")
+        setTurnstileToken("")
         return
       }
 
@@ -102,6 +113,17 @@ export default function LoginPage() {
                     className="h-14 rounded-xl px-5 text-lg"
                   />
                 </div>
+
+                {TURNSTILE_SITE_KEY && (
+                  <div className="flex justify-start">
+                    <TurnstileWidget
+                      siteKey={TURNSTILE_SITE_KEY}
+                      onToken={setTurnstileToken}
+                      onError={() => setError("人机验证加载失败，请刷新页面重试")}
+                      onExpire={() => setTurnstileToken("")}
+                    />
+                  </div>
+                )}
 
                 {error && (
                   <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">

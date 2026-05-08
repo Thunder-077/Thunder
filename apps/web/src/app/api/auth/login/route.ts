@@ -26,16 +26,17 @@ function getApiBaseUrl(): string {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { username?: string; password?: string } | null
+  const body = await request.json().catch(() => null) as { username?: string; password?: string; turnstileToken?: string } | null
   const username = body?.username?.trim() ?? ""
   const password = body?.password ?? ""
+  const turnstileToken = body?.turnstileToken
 
   const apiBaseUrl = getApiBaseUrl()
   const upstreamUrl = `${apiBaseUrl}/api/v1/auth/login`
   const upstream = await fetch(upstreamUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, turnstileToken }),
   }).catch((error) => {
     console.error("[auth-bff] POST /login upstream fetch failed", {
       apiBaseUrl,

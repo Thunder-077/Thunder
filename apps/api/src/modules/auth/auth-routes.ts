@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { apiError, apiSuccess } from "@thunder/contracts"
 import { prisma } from "@thunder/database"
+import { verifyTurnstileToken } from "./turnstile"
 
 interface AuthUserProfile {
   username: string
@@ -10,6 +11,7 @@ interface AuthUserProfile {
 interface LoginBody {
   username?: string
   password?: string
+  turnstileToken?: string
 }
 
 interface AvatarBody {
@@ -98,6 +100,13 @@ auth.post("/login", async (c) => {
 
     if (!username || !password) {
       return c.json(apiError("VALIDATION_ERROR", "账号和密码不能为空"), 400)
+    }
+
+    const turnstileToken = body?.turnstileToken
+    const clientIp = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || undefined
+    const turnstileResult = await verifyTurnstileToken(turnstileToken ?? "", clientIp)
+    if (!turnstileResult.success) {
+      return c.json(apiError("TURNSTILE_FAILED", "人机验证失败，请重试"), 400)
     }
 
     const user = await prisma.authUser.findUnique({ where: { username } })

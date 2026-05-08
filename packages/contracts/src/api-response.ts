@@ -31,6 +31,7 @@ export type ApiErrorCode =
   | "EMBY_DYNAMIC_WATCH_SAVE_FAILED"
   | "WEATHER_MISSING_LOCATION"
   | "WEATHER_UPSTREAM_ERROR"
+  | "TURNSTILE_FAILED"
 
 export function apiSuccess<T>(data: T): ApiResponse<T> {
   return { ok: true, data }
