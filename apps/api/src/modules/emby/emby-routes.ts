@@ -1088,17 +1088,23 @@ async function refreshEnabledPlaylistCaches(): Promise<void> {
   for (const playlist of enabledPlaylists) {
     const cached = await repository.getWatchCache(playlist.slug)
     const refreshTask = await repository.getWatchRefreshTask(playlist.slug)
-    const shouldRestart = !cached || shouldStartRefreshCycle(cached.generatedAt) || refreshTask?.status === "failed"
+    const isRefreshing = refreshTask?.status === "refreshing"
+    // 正在续跑的任务必须优先继续，避免 cron 因缓存进入新窗口而重置分页进度。
+    const shouldRestart = !isRefreshing && (
+      !cached ||
+      shouldStartRefreshCycle(cached.generatedAt) ||
+      refreshTask?.status === "failed"
+    )
 
     console.info(`[emby-cron] ${playlist.slug} 状态`, {
       hasCache: !!cached,
       cacheAge: cached ? `${Math.round((Date.now() - parseDateTime(cached.generatedAt)) / 1000 / 60)}分钟` : "无",
       currentStatus: refreshTask?.status ?? "无",
       shouldRestart,
-      shouldContinue: shouldRestart || refreshTask?.status === "refreshing",
+      shouldContinue: shouldRestart || isRefreshing,
     })
 
-    if (!shouldRestart && refreshTask?.status !== "refreshing") {
+    if (!shouldRestart && !isRefreshing) {
       continue
     }
 
