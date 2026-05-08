@@ -49,12 +49,14 @@ const fallbackQuotes = [
   "做最好的自己，其他的交给时间。",
 ]
 
+const DEFAULT_QUOTE = "星光不问赶路人，时光不负有心人。"
+
 function getRandomFallbackQuote(): string {
   return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)]
 }
 
 function useHitokoto() {
-  const [quote, setQuote] = useState("")
+  const [quote, setQuote] = useState(DEFAULT_QUOTE)
   const [quoteFrom, setQuoteFrom] = useState("")
 
   useEffect(() => {
