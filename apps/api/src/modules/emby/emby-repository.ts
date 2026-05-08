@@ -6,8 +6,7 @@ import type {
   EmbyWatchRefreshTask,
   IEmbyRepository,
 } from "@thunder/emby"
-import { prisma } from "@thunder/database"
-import { Prisma } from "@prisma/client"
+import { Prisma, prisma } from "@thunder/database"
 import type { EmbyManagedPlaylist, EmbyPlaylistSlug } from "@thunder/emby"
 
 function defaultPlaylists(): EmbyConfig["playlists"] {
