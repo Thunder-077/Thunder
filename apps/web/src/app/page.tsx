@@ -71,33 +71,33 @@ export default function DashboardPage() {
           >
             <defs>
               <radialGradient id="sunGlow" cx="45%" cy="13%" r="38%">
-                <stop offset="0%" stop-color="#FDE68A" stop-opacity="0.22" />
-                <stop offset="45%" stop-color="#FEF3C7" stop-opacity="0.10" />
-                <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+                <stop offset="0%" stopColor="#FDE68A" stopOpacity={0.22} />
+                <stop offset="45%" stopColor="#FEF3C7" stopOpacity={0.10} />
+                <stop offset="100%" stopColor="#FFFFFF" stopOpacity={0} />
               </radialGradient>
 
               <linearGradient id="mountainFar" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stop-color="#EFF6FF" stop-opacity="0.06" />
-                <stop offset="45%" stop-color="#DBEAFE" stop-opacity="0.14" />
-                <stop offset="100%" stop-color="#EFF6FF" stop-opacity="0.06" />
+                <stop offset="0%" stopColor="#EFF6FF" stopOpacity={0.06} />
+                <stop offset="45%" stopColor="#DBEAFE" stopOpacity={0.14} />
+                <stop offset="100%" stopColor="#EFF6FF" stopOpacity={0.06} />
               </linearGradient>
 
               <linearGradient id="mountainMid" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stop-color="#DBEAFE" stop-opacity="0.10" />
-                <stop offset="48%" stop-color="#BFDBFE" stop-opacity="0.24" />
-                <stop offset="100%" stop-color="#E0F2FE" stop-opacity="0.10" />
+                <stop offset="0%" stopColor="#DBEAFE" stopOpacity={0.10} />
+                <stop offset="48%" stopColor="#BFDBFE" stopOpacity={0.24} />
+                <stop offset="100%" stopColor="#E0F2FE" stopOpacity={0.10} />
               </linearGradient>
 
               <linearGradient id="mountainNear" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stop-color="#BFDBFE" stop-opacity="0.10" />
-                <stop offset="55%" stop-color="#93C5FD" stop-opacity="0.16" />
-                <stop offset="100%" stop-color="#DBEAFE" stop-opacity="0.08" />
+                <stop offset="0%" stopColor="#BFDBFE" stopOpacity={0.10} />
+                <stop offset="55%" stopColor="#93C5FD" stopOpacity={0.16} />
+                <stop offset="100%" stopColor="#DBEAFE" stopOpacity={0.08} />
               </linearGradient>
 
               <linearGradient id="fadeBottom" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0" />
-                <stop offset="78%" stop-color="#FFFFFF" stop-opacity="0.10" />
-                <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.72" />
+                <stop offset="0%" stopColor="#FFFFFF" stopOpacity={0} />
+                <stop offset="78%" stopColor="#FFFFFF" stopOpacity={0.10} />
+                <stop offset="100%" stopColor="#FFFFFF" stopOpacity={0.72} />
               </linearGradient>
             </defs>
 
