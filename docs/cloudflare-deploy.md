@@ -167,6 +167,7 @@ Thunder 当前按两个 Worker 部署：
 - `QWEATHER_KEY_ID`
 - `QWEATHER_PROJECT_ID`
 - `QWEATHER_PRIVATE_KEY`
+- `TURNSTILE_SECRET_KEY`
 
 其中：
 
@@ -217,7 +218,9 @@ Thunder 登录用户来自 `auth_user` 表，代码不会自动创建默认账�
 
 ### `thunder-web` 需要的变量
 
-这些变量要配置在 `thunder-web` 的运行时 Variables / Secrets，不是构建变量。
+#### 运行时变量
+
+这些变量要配置在 `thunder-web` 的运行时 Variables / Secrets。
 
 - `API_URL`
 - `THUNDER_AUTH_SECRET`
@@ -235,6 +238,12 @@ PowerShell 生成示例：
 ```
 
 登录账号密码由 `thunder-api` 的后端用户表负责，`thunder-web` 不保存账号密码。
+
+#### 构建变量（Cloudflare Pages 构建变量）
+
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` 需要在构建时内联到前端 JavaScript 中，因此必须在 Cloudflare Dashboard 的「Settings → Build variables」中配置：
+
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`：Cloudflare Turnstile 的 Site Key（与 `thunder-api` 的 `TURNSTILE_SECRET_KEY` 配对使用）
 
 ### `thunder-web` 不需要的变量
 
