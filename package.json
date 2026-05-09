@@ -30,6 +30,9 @@
       "@prisma/engines",
       "prisma",
       "esbuild"
+    ],
+    "ignoredBuiltDependencies": [
+      "skia-canvas"
     ]
   }
 }

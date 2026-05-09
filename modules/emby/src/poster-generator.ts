@@ -381,7 +381,7 @@ async function addShadow(
 
 async function createColumnPoster(input: Uint8Array, width: number, height: number, cornerRadius: number): Promise<Buffer> {
   const roundedPoster = await createRoundedPoster(input, width, height, cornerRadius)
-  return addShadow(roundedPoster, 20, 20, 20, 255)
+  return addShadow(roundedPoster, 15, 15, 30, 100)
 }
 
 function toSharpRotationAngle(pillowAngle: number): number {
@@ -478,10 +478,14 @@ async function renderColumnsVariant(input: GeneratePosterInput, width: number, h
         top: rowIndex * (cellHeight + margin),
       }))
     )
+    // 阴影参数: offsetX=15, offsetY=15, blurRadius=30，需要额外空间
+    const shadowExtra = 30 + 15 + 30 * 2
+    const columnImageWidth = cellWidth + shadowExtra
+    const columnImageHeight = columnHeight + shadowExtra
     const columnImage = await sharp({
       create: {
-        width: cellWidth + 60,
-        height: columnHeight + 60,
+        width: columnImageWidth,
+        height: columnImageHeight,
         channels: 4,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       },
@@ -489,7 +493,7 @@ async function renderColumnsVariant(input: GeneratePosterInput, width: number, h
       .composite(columnOverlays)
       .png()
       .toBuffer()
-    const rotationCanvasSize = Math.ceil(Math.sqrt((cellWidth + 60) ** 2 + (columnHeight + 60) ** 2) * 1.5)
+    const rotationCanvasSize = Math.ceil(Math.sqrt(columnImageWidth ** 2 + columnImageHeight ** 2) * 1.5)
     const rotationCanvas = await sharp({
       create: {
         width: rotationCanvasSize,
