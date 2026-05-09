@@ -8,8 +8,6 @@ interface VaultItemListProps {
   items: VaultItemPlain[]
   selectedId: string | null
   onSelect: (item: VaultItemPlain) => void
-  onCopyUsername: (item: VaultItemPlain) => void
-  onCopyPassword: (item: VaultItemPlain) => void
   onEdit: (item: VaultItemPlain) => void
   onDelete: (item: VaultItemPlain) => void
 }
@@ -18,8 +16,6 @@ export function VaultItemList({
   items,
   selectedId,
   onSelect,
-  onCopyUsername,
-  onCopyPassword,
   onEdit,
   onDelete,
 }: VaultItemListProps) {
@@ -35,8 +31,6 @@ export function VaultItemList({
           item={item}
           selected={item.id === selectedId}
           onSelect={onSelect}
-          onCopyUsername={onCopyUsername}
-          onCopyPassword={onCopyPassword}
           onEdit={onEdit}
           onDelete={onDelete}
         />

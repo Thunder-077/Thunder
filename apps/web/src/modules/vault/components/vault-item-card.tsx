@@ -1,6 +1,6 @@
 "use client"
 
-import { Globe, Copy, KeyRound, Pencil, Trash2 } from "lucide-react"
+import { Globe, Pencil, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,8 +11,6 @@ interface VaultItemCardProps {
   item: VaultItemPlain
   selected: boolean
   onSelect: (item: VaultItemPlain) => void
-  onCopyUsername: (item: VaultItemPlain) => void
-  onCopyPassword: (item: VaultItemPlain) => void
   onEdit: (item: VaultItemPlain) => void
   onDelete: (item: VaultItemPlain) => void
 }
@@ -21,8 +19,6 @@ export function VaultItemCard({
   item,
   selected,
   onSelect,
-  onCopyUsername,
-  onCopyPassword,
   onEdit,
   onDelete,
 }: VaultItemCardProps) {
@@ -50,30 +46,6 @@ export function VaultItemCard({
             <p className="text-xs text-muted-foreground truncate">{item.username}</p>
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={(e) => {
-                e.stopPropagation()
-                onCopyUsername(item)
-              }}
-              aria-label="复制用户名"
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={(e) => {
-                e.stopPropagation()
-                onCopyPassword(item)
-              }}
-              aria-label="复制密码"
-            >
-              <KeyRound className="h-3.5 w-3.5" />
-            </Button>
             <Button
               variant="ghost"
               size="icon"

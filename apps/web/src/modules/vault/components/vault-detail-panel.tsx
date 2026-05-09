@@ -25,7 +25,6 @@ interface VaultDetailPanelProps {
   onDelete: (item: VaultItemPlain) => void
   onAddTag: (item: VaultItemPlain, tagName: string) => Promise<VaultItemPlain>
   onRemoveTag: (item: VaultItemPlain, tagId: string) => Promise<VaultItemPlain>
-  onRemoveExtraField: (item: VaultItemPlain, fieldId: string) => Promise<VaultItemPlain>
 }
 
 function DetailField({
@@ -108,11 +107,9 @@ function DetailField({
 function ExtraFieldComponent({
   field,
   onCopy,
-  onRemove,
 }: {
   field: VaultExtraField
   onCopy: () => void
-  onRemove: () => void
 }) {
   const [showValue, setShowValue] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -154,15 +151,6 @@ function ExtraFieldComponent({
           >
             {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
           </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground/60 hover:text-destructive"
-            onClick={onRemove}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
         </div>
       </div>
     </div>
@@ -176,7 +164,6 @@ export function VaultDetailPanel({
   onDelete,
   onAddTag,
   onRemoveTag,
-  onRemoveExtraField,
 }: Omit<VaultDetailPanelProps, 'onToggleFavorite'>) {
   const dialog = useDialog()
   const [newTagName, setNewTagName] = useState("")
@@ -223,6 +210,7 @@ export function VaultDetailPanel({
   }
 
   return (
+    <div>
     <Card className="rounded-xl border-border/50 overflow-hidden">
       <CardContent className="p-0">
         {/* 头部区域 */}
@@ -257,14 +245,6 @@ export function VaultDetailPanel({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs px-3" onClick={() => onCopyField(item.username)}>
-                <Copy className="h-3.5 w-3.5" />
-                复制用户名
-              </Button>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs px-3" onClick={() => onCopyField(item.password, true)}>
-                <Lock className="h-3.5 w-3.5" />
-                复制密码
-              </Button>
               <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs px-3" onClick={() => onEdit(item)}>
                 <Pencil className="h-3.5 w-3.5" />
                 编辑
@@ -292,7 +272,7 @@ export function VaultDetailPanel({
         {/* 基本信息 */}
         <div className="px-5 py-2">
           <h4 className="text-sm font-semibold text-foreground mb-1">基本信息</h4>
-          
+
           {item.url && (
             <DetailField label="网站地址" value={item.url} href={item.url} onCopy={() => onCopyField(item.url)} />
           )}
@@ -313,7 +293,6 @@ export function VaultDetailPanel({
                   key={field.id}
                   field={field}
                   onCopy={() => onCopyField(field.value, true)}
-                  onRemove={() => onRemoveExtraField(item, field.id)}
                 />
               ))}
 
@@ -322,7 +301,6 @@ export function VaultDetailPanel({
                   key={field.id}
                   field={field}
                   onCopy={() => onCopyField(field.value, true)}
-                  onRemove={() => onRemoveExtraField(item, field.id)}
                 />
               ))}
 
@@ -331,7 +309,6 @@ export function VaultDetailPanel({
                   key={field.id}
                   field={field}
                   onCopy={() => onCopyField(field.value, field.sensitive)}
-                  onRemove={() => onRemoveExtraField(item, field.id)}
                 />
               ))}
             </div>
@@ -368,7 +345,7 @@ export function VaultDetailPanel({
                 </span>
               )
             })}
-            
+
             {showTagInput ? (
               <div className="flex items-center gap-1">
                 <Input
@@ -414,16 +391,18 @@ export function VaultDetailPanel({
           </>
         )}
 
-        {/* 底部安全提示 */}
-        <div className="border-t border-border/50 bg-muted/30 px-5 py-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-            <p className="text-xs text-muted-foreground">
-              敏感信息默认加密显示，复制后请注意剪贴板安全。
-            </p>
-          </div>
-        </div>
       </CardContent>
     </Card>
+
+    {/* 安全提示 — 位于卡片外部，备注区域下方 */}
+    <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/50 px-4 py-3">
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 shrink-0 text-blue-500" />
+        <p className="text-xs text-slate-600">
+          敏感信息默认加密显示，复制后请注意剪贴板安全。
+        </p>
+      </div>
+    </div>
+    </div>
   )
 }

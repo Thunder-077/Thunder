@@ -191,12 +191,6 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
     return updatedItem
   }
 
-  const handleRemoveExtraField = async (item: VaultItemPlain, fieldId: string): Promise<VaultItemPlain> => {
-    const updatedItem = { ...item, extraFields: item.extraFields.filter((f) => f.id !== fieldId) }
-    await updateItem(updatedItem)
-    return updatedItem
-  }
-
   const handleSaveItem = async (data: Omit<VaultItemPlain, "id" | "createdAt" | "updatedAt">) => {
     if (isCreating) {
       await addItem(data)
@@ -351,7 +345,6 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
                   onDelete={handleDeleteItem}
                   onAddTag={handleAddTag}
                   onRemoveTag={handleRemoveTag}
-                  onRemoveExtraField={handleRemoveExtraField}
                 />
               </div>
             </>
