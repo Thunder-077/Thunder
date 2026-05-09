@@ -54,9 +54,6 @@ export function VaultUnlockPage() {
         </div>
         <div className="text-center">
           <h1 className="text-xl font-semibold tracking-tight">解锁密码保险箱</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            输入主密码来访问你的密码保险箱。
-          </p>
         </div>
       </div>
 
@@ -109,9 +106,9 @@ export function VaultUnlockPage() {
             </div>
 
             {showPasswordHint && (
-              <Callout variant="info" title="密码提示">
+              <Callout variant="info" title="密码提示" className="p-4">
                 {passwordHint ?? "你尚未设置密码提示。"}
-                <p className="text-sm text-callout-muted mt-2 leading-relaxed">
+                <p className="text-xs text-callout-muted mt-1.5 leading-relaxed">
                   密码提示仅用于帮助你回忆主密码，不能用于恢复主密码。
                 </p>
               </Callout>
@@ -120,7 +117,7 @@ export function VaultUnlockPage() {
         </Card>
       </form>
       <div className="mt-5 space-y-3">
-        <Callout variant="warning" title="无法恢复主密码" className="border-border/60">
+        <Callout variant="warning" title="无法恢复主密码">
           <p className="text-xs text-muted-foreground leading-5">
             如果忘记主密码，只能
             <button

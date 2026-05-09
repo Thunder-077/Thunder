@@ -51,7 +51,7 @@ function PasswordInput({
         variant="ghost"
         size="icon"
         className={cn(
-          "absolute top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg p-0 text-muted-foreground/80 hover:bg-transparent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/8 active:translate-y-0 active:scale-100",
+          "absolute top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg p-0 text-muted-foreground/80 hover:bg-transparent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/8 transition-none active:!-translate-y-1/2 active:!scale-100",
           copyable ? "right-9" : "right-2"
         )}
         onMouseDown={handleAccessoryMouseDown}
@@ -69,7 +69,7 @@ function PasswordInput({
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg p-0 text-muted-foreground/80 hover:bg-transparent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/8 active:translate-y-0 active:scale-100"
+          className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg p-0 text-muted-foreground/80 hover:bg-transparent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/8 transition-none active:!-translate-y-1/2 active:!scale-100"
           onMouseDown={handleAccessoryMouseDown}
           onClick={handleCopy}
           aria-label="复制密码"

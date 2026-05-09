@@ -226,7 +226,7 @@ export function VaultDetailPanel({
     <Card className="rounded-xl border-border/50 overflow-hidden">
       <CardContent className="p-0">
         {/* 头部区域 */}
-        <div className="p-5">
+        <div className="px-5 pt-5 pb-3">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3 min-w-0">
               <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-xl bg-brand-subtle text-brand overflow-hidden">
@@ -250,7 +250,7 @@ export function VaultDetailPanel({
                   </span>
                 </div>
 
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-3 text-[11px] text-muted-foreground">
                   最后更新：{formatDateTime(item.updatedAt)}
                 </p>
               </div>

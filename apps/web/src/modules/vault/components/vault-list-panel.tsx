@@ -289,7 +289,7 @@ export function VaultListPanel({
             <ChevronDown className="h-3 w-3" />
           </Button>
         ) : (
-          <div className="text-center py-1 text-[11px] text-muted-foreground">
+          <div className="text-center py-1 text-xs text-muted-foreground">
             已全部加载
           </div>
         )}
