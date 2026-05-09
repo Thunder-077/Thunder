@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useCallback, useState } from "react"
-import { CheckCircle, AlertCircle, RefreshCw } from "lucide-react"
+import { CheckCircle, RefreshCw } from "lucide-react"
 
 declare global {
   interface Window {
@@ -151,19 +151,7 @@ export function TurnstileWidget({
   }
 
   if (status === "error") {
-    return (
-      <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
-        <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-        <span className="flex-1 text-sm text-destructive">{errorMsg || "人机验证加载失败"}</span>
-        <button
-          type="button"
-          onClick={handleRetry}
-          className="shrink-0 text-xs font-medium text-destructive underline underline-offset-2 transition-colors hover:text-destructive/80"
-        >
-          重试
-        </button>
-      </div>
-    )
+    return null
   }
 
   if (status === "expired") {
