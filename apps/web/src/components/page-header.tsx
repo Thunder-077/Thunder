@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect } from "react"
-import { TopActions } from "@/components/topbar"
 import { useAppShellFooter } from "@/components/app-shell"
 import { cn } from "@/lib/utils"
 
@@ -24,7 +23,7 @@ export function PageHeader({
   titleClassName,
   descriptionClassName,
 }: PageHeaderProps) {
-  const { setHasPageHeader, onToggleSidebar } = useAppShellFooter()
+  const { setHasPageHeader } = useAppShellFooter()
 
   useEffect(() => {
     setHasPageHeader(true)
@@ -51,10 +50,11 @@ export function PageHeader({
         )}
         {children}
       </div>
-      <div className="flex shrink-0 items-center gap-2 self-start sm:pt-0.5">
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
-        <TopActions onToggleSidebar={onToggleSidebar} />
-      </div>
+      {actions && (
+        <div className="flex shrink-0 items-center gap-2 self-start sm:pt-0.5">
+          {actions}
+        </div>
+      )}
     </header>
   )
 }

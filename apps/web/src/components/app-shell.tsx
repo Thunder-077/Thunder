@@ -151,15 +151,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
           <main className="flex-1 overflow-y-auto">
-            {!hasPageHeader && (
-              <div className="sticky top-0 z-[var(--z-sticky)] pointer-events-none">
-                <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 xl:px-8">
-                  <div className="flex justify-end pt-4 sm:pt-5 pb-0 pointer-events-auto">
-                    <AppChrome onToggleSidebar={() => setMobileSidebarOpen(true)} />
-                  </div>
-                </div>
+            <div className="sticky top-0 z-[var(--z-sticky)] pointer-events-none">
+              <div className="flex justify-end px-4 pt-4 sm:px-6 sm:pt-5 xl:px-8 pointer-events-auto">
+                <AppChrome onToggleSidebar={() => setMobileSidebarOpen(true)} />
               </div>
-            )}
+            </div>
             <div className={`w-full ${hasPageHeader ? 'py-4 sm:py-5' : 'pt-0 pb-4 sm:pb-5'}`}>
               <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 xl:px-8">
                 <div className="pb-5">

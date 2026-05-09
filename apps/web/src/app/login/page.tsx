@@ -119,7 +119,6 @@ export default function LoginPage() {
                     <TurnstileWidget
                       siteKey={TURNSTILE_SITE_KEY}
                       onToken={setTurnstileToken}
-                      onError={() => setError("人机验证加载失败，请刷新页面重试")}
                       onExpire={() => setTurnstileToken("")}
                     />
                   </div>
