@@ -253,12 +253,12 @@ export function VaultDetailPanel({
                 <DropdownMenuTrigger className={buttonVariants({ variant: "outline", size: "icon", className: "h-8 w-8" })}>
                   <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[100px]">
+                <DropdownMenuContent align="end" className="min-w-[80px]">
                   <DropdownMenuItem
-                    className="flex items-center justify-center gap-1.5 text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                    className="flex items-center justify-center gap-1 text-xs text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer py-1.5"
                     onClick={() => onDelete(item)}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                     删除
                   </DropdownMenuItem>
                 </DropdownMenuContent>

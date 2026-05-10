@@ -48,7 +48,3 @@ export async function middleware(request: NextRequest) {
   loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`)
   return NextResponse.redirect(loginUrl)
 }
-
-export const config = {
-  matcher: ["/((?!_next/static|_next/image).*)"],
-}

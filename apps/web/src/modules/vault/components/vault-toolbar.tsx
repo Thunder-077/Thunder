@@ -108,20 +108,20 @@ export function VaultToolbar(props: VaultToolbarProps) {
           新建条目
         </Button>
 
-        <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2" onClick={onOpenSettings}>
-          <Settings className="h-3.5 w-3.5" />
+        <Button variant="outline" size="icon-sm" onClick={onOpenSettings} title="设置">
+          <Settings className="h-4 w-4" />
         </Button>
 
-        <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2" onClick={lockVault}>
-          <Lock className="h-3.5 w-3.5" />
+        <Button variant="outline" size="icon-sm" onClick={lockVault} title="锁定">
+          <Lock className="h-4 w-4" />
         </Button>
 
-        <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2" onClick={onImport}>
-          <Download className="h-3.5 w-3.5" />
+        <Button variant="outline" size="icon-sm" onClick={onImport} title="导入">
+          <Download className="h-4 w-4" />
         </Button>
 
-        <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground px-2" onClick={onExport}>
-          <Upload className="h-3.5 w-3.5" />
+        <Button variant="outline" size="icon-sm" onClick={onExport} title="导出">
+          <Upload className="h-4 w-4" />
         </Button>
       </div>
     </div>
