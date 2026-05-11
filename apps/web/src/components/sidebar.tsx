@@ -228,7 +228,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
             aria-label="全局命令"
           >
             <div className="flex items-center gap-1.5">
-              <Command className="h-[18px] w-[18px]" />
+              <Command className="h-[16px] w-[16px]" />
             </div>
           </button>
 
@@ -238,7 +238,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
             className={sidebarToolButtonClass}
             aria-label="切换主题"
           >
-            {isDark ? <Moon className="h-[18px] w-[18px]" /> : <Sun className="h-[18px] w-[18px]" />}
+            {isDark ? <Moon className="h-[16px] w-[16px]" /> : <Sun className="h-[16px] w-[16px]" />}
           </button>
 
           <Link
@@ -252,7 +252,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
             )}
             aria-label="设置"
           >
-            <Settings className="h-[18px] w-[18px]" />
+            <Settings className="h-[16px] w-[16px]" />
           </Link>
         </div>
       </div>
