@@ -124,7 +124,7 @@ export function TurnstileWidget({
         return
       }
 
-      window.turnstile.ready(() => setScriptReady(true))
+      setScriptReady(true)
     }
 
     function markError() {
