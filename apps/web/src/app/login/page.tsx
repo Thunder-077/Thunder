@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [turnstileToken, setTurnstileToken] = useState("")
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0)
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -40,6 +41,7 @@ export default function LoginPage() {
         const data = await response.json().catch(() => null) as { message?: string } | null
         setError(data?.message || "登录失败，请检查账号和密码")
         setTurnstileToken("")
+        setTurnstileResetKey((key) => key + 1)
         return
       }
 
@@ -120,6 +122,7 @@ export default function LoginPage() {
                       siteKey={TURNSTILE_SITE_KEY}
                       onToken={setTurnstileToken}
                       onExpire={() => setTurnstileToken("")}
+                      resetSignal={turnstileResetKey}
                     />
                   </div>
                 )}
