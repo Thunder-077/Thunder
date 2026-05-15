@@ -25,6 +25,8 @@ const rainbowQuotes = [
   "做最好的自己，其他的交给时间。",
 ]
 
+const DEFAULT_RAINBOW_QUOTE = "专注当下，效率加倍。"
+
 function getGreeting(): string {
   const hour = new Date().getHours()
   if (hour < 6) return "夜深了"
@@ -49,19 +51,28 @@ function getRandomQuote(): string {
   return rainbowQuotes[index]
 }
 
+function RainbowQuote() {
+  const [quote, setQuote] = useState(DEFAULT_RAINBOW_QUOTE)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setQuote(getRandomQuote())
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  return <>{quote}</>
+}
+
 export default function DashboardPage() {
   const registry = useModuleRegistry()
   const modules = registry.getEnabled()
-  const [rainbowQuote, setRainbowQuote] = useState<string>("")
-
-  useEffect(() => {
-    setRainbowQuote(getRandomQuote())
-  }, [])
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <section className="relative mb-4 pr-0 md:pr-52 bg-transparent">
-        <div className="pointer-events-none absolute inset-x-0 -top-14 -z-10 h-[320px] overflow-hidden">
+      <section className="relative mb-4 bg-transparent">
+        <div className="pointer-events-none absolute left-1/2 top-[-3.5rem] -z-10 h-[320px] w-screen -translate-x-1/2 overflow-hidden md:w-[calc(100vw-240px)]">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 1600 360"
@@ -152,7 +163,7 @@ export default function DashboardPage() {
         <div className="mt-5 flex items-center gap-4">
           <span className="h-[3px] w-10 rounded-full bg-brand shrink-0" />
           <p className="text-sm text-muted-foreground">
-            {rainbowQuote || "专注当下，效率加倍。"}
+            <RainbowQuote />
           </p>
         </div>
       </section>
