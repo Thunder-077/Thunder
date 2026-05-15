@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { CheckCircle, RefreshCw } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 
 declare global {
   interface Window {
@@ -90,7 +90,6 @@ export function TurnstileWidget({
         theme,
         size,
         callback: (token: string) => {
-          setStatus("verified")
           onToken(token)
         },
         "error-callback": (errorCode: string) => {
@@ -184,7 +183,7 @@ export function TurnstileWidget({
 
   useEffect(() => removeWidget, [removeWidget])
 
-  if (status === "loading" || status === "ready") {
+  if (status === "loading" || status === "ready" || status === "verified") {
     return (
       <div className={size === "compact" ? "min-h-[65px] w-[130px]" : "min-h-[65px] w-[300px]"}>
         {/* The target container must exist before the external script becomes ready. */}
@@ -192,15 +191,6 @@ export function TurnstileWidget({
         {status === "loading" && (
           <div className="h-[65px] w-full rounded-xl border border-border/70 skeleton-block" />
         )}
-      </div>
-    )
-  }
-
-  if (status === "verified") {
-    return (
-      <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-        <CheckCircle className="h-4 w-4 shrink-0" />
-        <span>验证通过</span>
       </div>
     )
   }
