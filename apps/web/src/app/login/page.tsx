@@ -58,7 +58,7 @@ export default function LoginPage() {
       <div className="grid min-h-[calc(100vh-16px)] overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm lg:grid-cols-[minmax(0,1fr)_500px]">
         <section className="relative hidden overflow-hidden bg-surface-2 px-12 py-10 lg:flex lg:flex-col">
           <div className="flex items-center gap-3">
-            <img src="/logo-sidebar.png" alt="Thunder" className="h-12 w-12 object-contain" />
+            <img src="/logo.svg" alt="Thunder" className="h-12 w-12 object-contain" />
             <div className="text-2xl font-semibold tracking-tight text-foreground">Thunder</div>
           </div>
 
@@ -83,7 +83,7 @@ export default function LoginPage() {
           <div className="flex min-h-[calc(100vh-40px)] w-full items-center justify-center rounded-xl border border-border/70 bg-background px-6 py-10 shadow-lg shadow-slate-200/60 sm:px-10 lg:min-h-[calc(100vh-16px)] lg:rounded-l-xl lg:rounded-r-none lg:border-y-0 lg:border-r-0 lg:px-14">
             <div className="w-full max-w-[392px]">
               <div className="mb-10 lg:hidden">
-                <img src="/logo-sidebar.png" alt="Thunder" className="h-11 w-11 object-contain" />
+                <img src="/logo.svg" alt="Thunder" className="h-11 w-11 object-contain" />
               </div>
 
               <div className="mb-9">
