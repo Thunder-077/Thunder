@@ -12,6 +12,7 @@ interface LoginBody {
   username?: string
   password?: string
   turnstileToken?: string
+  skipTurnstile?: boolean
 }
 
 interface AvatarBody {
@@ -103,10 +104,14 @@ auth.post("/login", async (c) => {
     }
 
     const turnstileToken = body?.turnstileToken
-    const clientIp = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || undefined
-    const turnstileResult = await verifyTurnstileToken(turnstileToken ?? "", clientIp)
-    if (!turnstileResult.success) {
-      return c.json(apiError("TURNSTILE_FAILED", "人机验证失败，请重试"), 400)
+    const skipTurnstile = body?.skipTurnstile === true
+
+    if (!skipTurnstile) {
+      const clientIp = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || undefined
+      const turnstileResult = await verifyTurnstileToken(turnstileToken ?? "", clientIp)
+      if (!turnstileResult.success) {
+        return c.json(apiError("TURNSTILE_FAILED", "人机验证失败，请重试"), 400)
+      }
     }
 
     const user = await prisma.authUser.findUnique({ where: { username } })

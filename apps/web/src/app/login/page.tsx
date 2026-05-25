@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { TurnstileWidget } from "@/components/turnstile-widget"
+import { isTauriDesktop } from "@/lib/platform"
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""
+const SKIP_TURNSTILE = isTauriDesktop()
 
 export default function LoginPage() {
   const router = useRouter()
@@ -24,7 +26,7 @@ export default function LoginPage() {
     setLoading(true)
     setError("")
 
-    if (!turnstileToken) {
+    if (!SKIP_TURNSTILE && !turnstileToken) {
       setError("请完成人机验证")
       setLoading(false)
       return
@@ -34,7 +36,7 @@ export default function LoginPage() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, turnstileToken }),
+        body: JSON.stringify({ username, password, turnstileToken, skipTurnstile: SKIP_TURNSTILE }),
       })
 
       if (!response.ok) {
@@ -116,7 +118,7 @@ export default function LoginPage() {
                   />
                 </div>
 
-                {TURNSTILE_SITE_KEY && (
+                {!SKIP_TURNSTILE && TURNSTILE_SITE_KEY && (
                   <div className="flex justify-start">
                     <TurnstileWidget
                       siteKey={TURNSTILE_SITE_KEY}

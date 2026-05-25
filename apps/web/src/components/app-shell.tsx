@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/sidebar"
 import { AppChrome } from "@/components/topbar"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { useDesktopTitlebar } from "@/hooks/use-desktop-titlebar"
 
 type AppShellContextValue = {
   hasPageHeader: boolean
@@ -120,8 +121,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [hasPageHeader, setHasPageHeader] = useState(false)
 
+  useDesktopTitlebar()
+
   if (pathname === "/login") {
-    return <>{children}</>
+    return (
+      <div className="relative flex h-screen flex-col overflow-hidden bg-background">
+        <div data-tauri-drag-region className="desktop-titlebar" />
+        <div className="flex-1 overflow-auto">{children}</div>
+      </div>
+    )
   }
 
   return (
@@ -133,6 +141,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }}
     >
       <div className="surface-shell relative flex h-screen flex-col overflow-hidden bg-background">
+        <div data-tauri-drag-region className="desktop-titlebar" />
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <AppSidebar
             className={cn(

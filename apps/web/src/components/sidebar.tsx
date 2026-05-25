@@ -147,7 +147,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
         className
       )}
     >
-      <div className="border-b border-sidebar-border/80 px-3 py-3">
+      <div data-tauri-drag-region className="desktop-sidebar-brand border-b border-sidebar-border/80 px-3 py-3">
         <div className="flex items-center gap-3 bg-sidebar px-3 py-2.5">
           <img src="/logo.svg" alt="Thunder" className="h-8 w-8 shrink-0 object-contain" />
           <div className="min-w-0 flex-1">

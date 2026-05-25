@@ -423,6 +423,30 @@
       linear-gradient(180deg, color-mix(in srgb, var(--sidebar) 96%, transparent), color-mix(in srgb, var(--surface-2) 88%, transparent));
   }
 
+  .desktop-titlebar {
+    display: none;
+    height: 38px;
+    flex-shrink: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .is-tauri-desktop.is-windows .desktop-titlebar,
+  .is-tauri-desktop.is-macos .desktop-titlebar {
+    display: block;
+  }
+
+  .is-tauri-desktop.is-macos .desktop-titlebar {
+    height: 28px;
+  }
+
+  .is-tauri-desktop.is-macos .desktop-sidebar-brand {
+    padding-left: 72px;
+    padding-top: 20px;
+  }
+
   .thunder-splash-screen {
     position: fixed;
     inset: 0;

@@ -20,6 +20,7 @@ use tauri::{
     AppHandle, Emitter, Manager, Runtime, WebviewWindow, WindowEvent,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_decorum::WebviewWindowExt;
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_SHOW_ID: &str = "tray-show";
@@ -277,9 +278,17 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_decorum::init())
         .setup(|app| {
             start_local_runtime(&app.handle())?;
             build_tray(&app.handle())?;
+
+            if let Some(main_window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                main_window.create_overlay_titlebar()?;
+                #[cfg(target_os = "macos")]
+                main_window.set_traffic_lights_inset(12.0, 16.0)?;
+            }
+
             register_desktop_shortcut(&app.handle())
                 .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
             Ok(())
