@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Card, CardContent } from "@/components/ui/card"
 import { generatePassword } from "../utils/generate-password"
 import { useVaultSettings } from "../hooks/use-vault-settings"
+import { platform } from "@thunder/platform"
 
 interface PasswordGeneratorProps {
   onFill?: (password: string) => void
@@ -33,7 +34,7 @@ export function PasswordGenerator({ onFill, compact }: PasswordGeneratorProps) {
 
   const handleCopy = async () => {
     if (!generated) return
-    await navigator.clipboard.writeText(generated)
+    await platform.writeClipboardText(generated)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }

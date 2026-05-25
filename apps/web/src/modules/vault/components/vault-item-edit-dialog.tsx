@@ -42,6 +42,7 @@ import { getPasswordStrength } from "./password-strength-meter"
 import { getTagColor } from "../utils/vault-utils"
 import { cn } from "@/lib/utils"
 import { Select, type SelectOption } from "@/components/ui/select"
+import { platform } from "@thunder/platform"
 
 interface VaultItemEditDialogProps {
   open: boolean
@@ -167,7 +168,7 @@ function SensitiveInput({
           await onCopy()
           return
         }
-        await navigator.clipboard.writeText(nextValue)
+        await platform.writeClipboardText(nextValue)
       }}
     />
   )
@@ -317,7 +318,7 @@ function ExtraFieldRow({
                 size="icon"
                 className="h-7 w-7"
                 onClick={async () => {
-                  await navigator.clipboard.writeText(field.value)
+                  await platform.writeClipboardText(field.value)
                 }}
               >
                 <Copy className="h-3.5 w-3.5 text-muted-foreground" />
@@ -584,7 +585,7 @@ function EditForm({
               placeholder="输入密码"
               copyable
               onCopyValue={async (value) => {
-                await navigator.clipboard.writeText(value)
+                await platform.writeClipboardText(value)
               }}
             />
             <div className="flex items-center gap-3 pt-0.5">
@@ -640,7 +641,7 @@ function EditForm({
                 value={totpKey}
                 onChange={setTotpKey}
                 placeholder="输入 TOTP 密钥（Base32 格式）"
-                onCopy={() => navigator.clipboard.writeText(totpKey)}
+                onCopy={() => platform.writeClipboardText(totpKey)}
               />
             </div>
             <div className="space-y-1.5">
@@ -649,7 +650,7 @@ function EditForm({
                 value={recoveryCode}
                 onChange={setRecoveryCode}
                 placeholder="输入恢复码或备用码"
-                onCopy={() => navigator.clipboard.writeText(recoveryCode)}
+                onCopy={() => platform.writeClipboardText(recoveryCode)}
               />
             </div>
           </div>

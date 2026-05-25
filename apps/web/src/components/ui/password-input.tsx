@@ -5,6 +5,7 @@ import { Eye, EyeOff, Copy, Check } from "lucide-react"
 import { Button } from "./button"
 import { Input } from "./input"
 import { cn } from "@/lib/utils"
+import { platform } from "@thunder/platform"
 
 type PasswordInputProps = React.ComponentProps<"input"> & {
   copyable?: boolean
@@ -32,7 +33,7 @@ function PasswordInput({
     if (onCopyValue) {
       await onCopyValue(value)
     } else {
-      await navigator.clipboard.writeText(value)
+      await platform.writeClipboardText(value)
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)

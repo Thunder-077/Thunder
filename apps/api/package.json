@@ -6,6 +6,7 @@
     "dev": "tsx watch src/index.ts",
     "dev:cf": "wrangler dev --port 8787",
     "build": "tsc",
+    "build:desktop-bundle": "node ./scripts/build-desktop-bundle.mjs",
     "start": "node dist/index.js",
     "deploy:cf": "pnpm --filter @thunder/database db:generate && wrangler deploy",
     "typecheck": "tsc --noEmit"
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "esbuild": "^0.25.11",
     "tsx": "^4.19.4",
     "typescript": "^5",
     "wrangler": "^4.44.0"

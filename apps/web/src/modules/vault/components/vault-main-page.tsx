@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useCallback } from "react"
+import { useState, useCallback } from "react"
 import { Shield, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useVault } from "../state"
@@ -13,6 +13,7 @@ import { VaultListPanel } from "./vault-list-panel"
 import { VaultDetailPanel } from "./vault-detail-panel"
 import { VaultItemEditDialog } from "./vault-item-edit-dialog"
 import { inferVaultItemType, VAULT_ITEM_TYPE_LABELS } from "../utils/vault-utils"
+import { exportVaultBackupToFile, importVaultBackupFromFile } from "../utils/backup-files"
 
 const PAGE_SIZE = 8
 
@@ -31,7 +32,6 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<VaultItemPlain | null>(null)
   const [isCreating, setIsCreating] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const filteredAndSortedItems = (() => {
     let result = [...items]
@@ -213,13 +213,7 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
     try {
       const json = await exportBackup()
       const date = new Date().toISOString().slice(0, 10)
-      const blob = new Blob([json], { type: "application/json" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `vault-backup-${date}.json`
-      a.click()
-      URL.revokeObjectURL(url)
+      await exportVaultBackupToFile(json, date)
     } catch (e) {
       await dialog.error({
         title: "导出失败",
@@ -237,14 +231,10 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
       cancelText: "取消",
     })
     if (!ok) return
-    fileInputRef.current?.click()
-  }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
     try {
-      const text = await file.text()
+      const text = await importVaultBackupFromFile()
+      if (!text) return
       await importBackup(text)
     } catch (err) {
       await dialog.error({
@@ -252,7 +242,6 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
         description: err instanceof Error ? err.message : "导入加密备份时发生未知错误。",
       })
     }
-    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   return (
@@ -312,14 +301,6 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
                 onExport={handleExport}
                 onImport={handleImport}
                 onOpenSettings={onOpenSettings}
-              />
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={handleFileChange}
               />
 
               <div className="mt-5 grid gap-5" style={{ gridTemplateColumns: "minmax(0, 360px) minmax(0, 1fr)" }}>

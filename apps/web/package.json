@@ -19,6 +19,7 @@
     "@thunder/api-client": "workspace:*",
     "@thunder/core": "workspace:*",
     "@thunder/emby": "workspace:*",
+    "@thunder/platform": "workspace:*",
     "@thunder/vault": "workspace:*",
     "argon2-browser": "^1.18.0",
     "class-variance-authority": "^0.7.1",

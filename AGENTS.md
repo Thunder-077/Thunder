@@ -5,12 +5,13 @@
 
 ## Project Overview
 
-Thunder 是面向个人的模块化应用平台，采用前后端分离 + 契约优先 + TypeScript-first 架构。
+Thunder 是面向个人的模块化应用平台，采用前后端分离 + 契约优先 + TypeScript-first（业务层）架构，并提供渐进式 Tauri 桌面壳。
 
 | Layer | Technology | Path |
 |-------|-----------|------|
 | Frontend | Next.js (App Router) + shadcn/ui | `apps/web` |
 | Backend | Hono (REST API) | `apps/api` |
+| Desktop Shell | Tauri v2 + Rust | `apps/desktop` |
 | Database | Prisma + PostgreSQL (Neon) | `packages/database` |
 | Monorepo | pnpm workspaces + Turborepo | root |
 | API Contract | OpenAPI + `ApiResponse<T>` | `packages/contracts` |
@@ -22,6 +23,7 @@ Thunder 是面向个人的模块化应用平台，采用前后端分离 + 契约
 pnpm dev              # 启动所有 apps（turbo）
 pnpm dev:api          # 仅启动 API（port 3001）
 pnpm dev:web          # 仅启动前端（port 3000）
+pnpm dev:desktop      # 启动 Tauri 桌面壳（会自动拉起 web + api）
 
 # 质量检查
 pnpm lint             # ESLint（所有 packages）
@@ -45,9 +47,12 @@ pnpm deploy:web:cf    # 部署前端到 Cloudflare Pages
 
 ### TypeScript-first
 
-- 所有代码默认使用 TypeScript（前端页面、组件、API Client、Service、Repository、类型定义、工具函数）
-- 新增非 TypeScript 服务必须满足：用户明确指定 / TypeScript 明显不适合 / 强依赖其他语言生态
-- 新增非 TypeScript 服务必须在 `docs/decision-records.md` 记录理由，位于 `services/`，仅通过 `apps/api` 接入
+- TypeScript-first 适用于业务/应用层：`apps/web`、`apps/api`、`packages/*`、`modules/*` 默认使用 TypeScript
+- 前端页面、组件、API Client、Repository、业务编排、类型定义、工具函数默认使用 TypeScript
+- 平台壳 / 原生运行时层可使用非 TypeScript 技术，例如 Tauri 的 Rust `src-tauri`
+- 新增非 TypeScript 代码必须满足以下之一：用户明确指定 / TypeScript 明显不适合 / 强依赖其他语言生态或原生平台能力
+- 平台壳 / 原生运行时层不得承载业务模块规则；业务模块边界、API 契约、共享类型仍以 TypeScript 为主
+- 新增非 TypeScript 独立服务必须在 `docs/decision-records.md` 记录理由，位于 `services/`，仅通过 `apps/api` 接入
 
 ### Frontend / Backend Separation
 
@@ -69,6 +74,8 @@ packages/
   database        → Prisma schema + Client 单例
   core            → 核心类型 + ModuleRegistry
   ui / config     → 共享 UI 组件 / 配置（预留）
+apps/desktop      → Tauri 桌面壳（窗口、原生能力入口、桌面生命周期）
+packages/platform → 平台能力抽象（Web / Tauri 文件、剪贴板、外链等）
 modules/*         → 业务模块共享类型与接口（不含实现）
 services/*        → 非 TypeScript 独立服务（预留，仅通过 apps/api 接入）
 ```

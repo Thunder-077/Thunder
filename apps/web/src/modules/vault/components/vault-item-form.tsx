@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import type { VaultItemPlain } from "@thunder/vault"
+import { platform } from "@thunder/platform"
 
 interface VaultItemFormProps {
   item: VaultItemPlain
@@ -18,7 +19,7 @@ export function VaultItemForm({ item, onEdit, onCopyPassword }: VaultItemFormPro
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const copyToClipboard = async (text: string, field: string) => {
-    await navigator.clipboard.writeText(text)
+    await platform.writeClipboardText(text)
     setCopiedField(field)
     setTimeout(() => setCopiedField(null), 2000)
   }

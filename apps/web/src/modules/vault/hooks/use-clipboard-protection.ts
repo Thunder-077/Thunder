@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useRef } from "react"
+import { platform } from "@thunder/platform"
 
 export function useClipboardProtection(
   enabled: boolean,
@@ -11,7 +12,7 @@ export function useClipboardProtection(
 
   const copyWithProtection = useCallback(
     async (text: string, isPassword: boolean) => {
-      await navigator.clipboard.writeText(text)
+      await platform.writeClipboardText(text)
 
       if (isPassword && enabled && clearAfterSeconds > 0) {
         lastCopiedRef.current = text
@@ -19,9 +20,9 @@ export function useClipboardProtection(
 
         timerRef.current = setTimeout(async () => {
           try {
-            const current = await navigator.clipboard.readText()
+            const current = await platform.readClipboardText()
             if (current === lastCopiedRef.current) {
-              await navigator.clipboard.writeText("")
+              await platform.writeClipboardText("")
             }
           } catch {
             // clipboard read permission denied - cannot verify, skip clearing

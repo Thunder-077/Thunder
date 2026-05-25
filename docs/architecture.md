@@ -2,7 +2,7 @@
 
 ## 整体架构
 
-Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first + 多语言服务可插拔** 的架构设计，是一个面向个人的模块化应用平台。
+Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first（业务层）+ 多语言服务可插拔** 的架构设计，是一个面向个人的模块化应用平台。
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -17,6 +17,12 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first + 多语言�
 │  │  │  Crypto (FE)  │  │    │  │  Business Logic       │  │ │
 │  │  └───────────────┘  │    │  └───────┬───────────────┘  │ │
 │  └─────────────────────┘    │          │                   │ │
+│                              │          │                   │ │
+│  ┌─────────────────────┐     │          │                   │ │
+│  │   apps/desktop      │     │          │                   │ │
+│  │   Tauri Shell       │─────┘          │                   │ │
+│  │ Window / Native API │                │                   │ │
+│  └─────────────────────┘                │                   │ │
 │                              │  ┌───────▼───────────────┐  │ │
 │                              │  │  Prisma + PostgreSQL  │  │ │
 │                              │  └───────────────────────┘  │ │
@@ -39,10 +45,11 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first + 多语言�
 
 ### TypeScript-first
 
-- 所有代码默认使用 TypeScript
-- 前端、后端、API Client、Service、Repository、类型定义、工具函数均使用 TypeScript
+- TypeScript-first 适用于业务/应用层，而不是要求所有运行时都必须只用 TypeScript
+- 前端、后端、API Client、Repository、类型定义、工具函数默认使用 TypeScript
 - 后端默认使用 TypeScript（apps/api 基于 Hono）
-- 只有在明确需要时才引入非 TypeScript 服务
+- 平台壳和原生运行时层可以使用更合适的技术，例如 Tauri 的 Rust `src-tauri`
+- 只有在明确需要时才引入非 TypeScript 服务或原生平台代码
 
 ### 前后端分离
 
@@ -64,6 +71,7 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first + 多语言�
 - 非 TypeScript 服务只能通过 apps/api 接入
 - 前端不得直接调用多语言服务
 - 当前不提前引入，只在明确需要时新增
+- Tauri / Electron 一类桌面平台壳不属于 `services/*`，其职责是提供窗口、托盘、快捷键、文件系统、自动更新等原生能力
 
 ## 数据流架构
 
@@ -110,6 +118,9 @@ thunder/
 │   │   │           ├── state/       # 状态管理（VaultProvider）
 │   │   │           └── utils/       # 工具函数
 │   │   └── .env                     # API_URL
+│   ├── desktop/                     # Tauri 桌面壳
+│   │   ├── src-tauri/               # Rust 入口、窗口配置、能力声明
+│   │   └── package.json             # Tauri CLI 脚本和依赖
 │   └── api/                         # Hono 后端 API 服务
 │       ├── src/
 │       │   ├── modules/             # 后端业务模块
@@ -139,7 +150,7 @@ thunder/
 │   ├── core/                        # 核心类型和模块注册系统
 │   ├── config/                      # 共享配置
 │   ├── ui/                          # 共享 UI 组件（预留）
-│   └── platform/                    # 平台能力（预留）
+│   └── platform/                    # 平台能力封装（Web / Tauri 等）
 ├── modules/
 │   └── vault/                       # Vault 共享类型和接口
 │       └── src/
@@ -166,6 +177,20 @@ thunder/
 - 客户端状态管理
 - 客户端加密（如 Vault 的 vaultCrypto）
 - 通过 Next.js rewrites 代理 API 请求
+
+### apps/desktop — 桌面壳
+
+- 承载 Tauri 窗口和应用生命周期
+- 在开发态加载 `apps/web`（localhost:3000）
+- 为后续托盘、快捷键、文件系统、通知等原生能力预留入口
+- 不直接承载业务模块规则
+
+### packages/platform — 平台能力抽象
+
+- 为业务层提供统一的平台接口
+- Web 环境下走浏览器实现
+- Tauri 环境下走 `@tauri-apps/*` 插件实现
+- 当前优先承载文件导入导出、剪贴板、外链打开等能力
 
 ### apps/api — 后端 API 服务
 
@@ -235,6 +260,6 @@ thunder/
 2. **多语言服务**：Python AI Worker、Rust System Worker 等（按需引入）
 3. **模块独立包**：将模块拆分为独立 npm 包，支持动态加载
 4. **插件系统**：第三方模块通过插件 API 接入
-5. **Tauri 桌面端**：利用 Tauri 提供原生系统能力
+5. **Tauri 桌面端**：作为平台壳接入，复用现有 Web/API 架构并补充原生系统能力
 6. **PWA 离线**：Service Worker + 本地缓存实现离线可用
 7. **服务间通信**：HTTP / gRPC / 消息队列

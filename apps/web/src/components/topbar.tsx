@@ -168,7 +168,7 @@ function AvatarCropDialog({ imageUrl, onCancel, onSave }: AvatarCropDialogProps)
   }
 
   return (
-    <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/25 px-4 py-6">
+    <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-background/75 px-4 py-6">
       <div className="w-full max-w-[448px] overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold text-foreground">裁剪你的新头像</h2>
@@ -215,7 +215,7 @@ function AvatarCropDialog({ imageUrl, onCancel, onSave }: AvatarCropDialogProps)
               }}
             />
             <div
-              className="pointer-events-none absolute inset-0 m-auto rounded-full border border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,0.22)]"
+              className="pointer-events-none absolute inset-0 m-auto rounded-full border border-foreground/90 shadow-[0_0_0_999px_rgba(0,0,0,0.22)]"
               style={{ width: CROP_SIZE, height: CROP_SIZE }}
             />
           </div>

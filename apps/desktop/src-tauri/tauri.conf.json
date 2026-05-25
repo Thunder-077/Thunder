@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Thunder",
+  "version": "0.1.0",
+  "identifier": "com.thunder.desktop",
+  "build": {
+    "beforeDevCommand": "node ./scripts/dev-desktop-deps.mjs",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "node ./scripts/prepare-release-config.mjs",
+    "frontendDist": "../../web/out"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Thunder",
+        "width": 1440,
+        "height": 960,
+        "minWidth": 1100,
+        "minHeight": 720,
+        "decorations": true,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "../icons/icon.png",
+      "../icons/icon.ico"
+    ]
+  }
+}

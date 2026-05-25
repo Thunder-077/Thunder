@@ -1,10 +1,12 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   allowedDevOrigins: ['198.18.0.1'],
   transpilePackages: [
     "@thunder/core",
     "@thunder/api-client",
+    "@thunder/platform",
     "@thunder/vault",
     "@thunder/contracts",
   ],

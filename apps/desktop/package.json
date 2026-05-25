@@ -1,0 +1,24 @@
+{
+  "name": "@thunder/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "tauri": "tauri",
+    "check:rust": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "build:runtime": "node ./scripts/build-local-runtime.mjs",
+    "prepare:release-config": "node ./scripts/prepare-release-config.mjs",
+    "build:release": "node ./scripts/build-release.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.0",
+    "@tauri-apps/plugin-dialog": "^2.4.2",
+    "@tauri-apps/plugin-fs": "^2.4.3",
+    "@tauri-apps/plugin-global-shortcut": "^2.3.0",
+    "@tauri-apps/plugin-opener": "^2.5.0",
+    "@tauri-apps/plugin-process": "^2.3.0",
+    "@tauri-apps/plugin-updater": "^2.9.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

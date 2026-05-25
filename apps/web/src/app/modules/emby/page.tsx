@@ -261,8 +261,11 @@ export default function EmbyModulePage() {
     }
   }, [])
 
+  // Sync numeric draft fields when the selected playlist changes.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNumericDrafts(toPlaylistNumericDrafts(selectedPlaylist))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     selectedPlaylist?.slug,
     selectedPlaylist?.remoteWatchId,
@@ -298,6 +301,7 @@ export default function EmbyModulePage() {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlaylist?.slug])
 
   const previewPlaylist = async (slug: EmbyPlaylistSlug) => {

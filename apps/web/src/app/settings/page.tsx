@@ -1,5 +1,6 @@
 "use client"
 
+import { DesktopRuntimeCard } from "@/components/desktop-runtime-card"
 import { PageHeader } from "@/components/page-header"
 import { SettingSection } from "@/components/setting-section"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -36,6 +37,7 @@ export default function SettingsPage() {
           <p className="text-sm">运行环境</p>
           <span className="text-xs text-muted-foreground">Web</span>
         </div>
+        <DesktopRuntimeCard />
       </SettingSection>
 
       <SettingSection title="模块管理" description="启用或禁用已安装的模块">

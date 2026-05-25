@@ -9,13 +9,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "border-primary bg-primary text-primary-foreground focus-visible:border-ring hover:border-primary hover:bg-white hover:text-primary hover:shadow-md dark:border-primary dark:bg-primary dark:text-primary-foreground dark:hover:border-white dark:hover:bg-transparent dark:hover:text-white dark:hover:shadow-none",
+          "border-primary bg-primary text-primary-foreground focus-visible:border-ring hover:border-primary hover:bg-primary-foreground hover:text-primary hover:shadow-md dark:border-primary dark:bg-primary dark:text-primary-foreground dark:hover:border-primary-foreground dark:hover:bg-transparent dark:hover:text-primary-foreground dark:hover:shadow-none",
         accent:
           "border-brand/15 bg-brand-subtle text-brand focus-visible:border-brand/40 focus-visible:ring-brand/25 hover:bg-brand-subtle/80 hover:border-brand/25 hover:shadow-md",
         outline:
           "border-border bg-background/88 focus-visible:border-ring hover:bg-muted/75 hover:text-foreground hover:shadow-sm aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/22 dark:hover:bg-input/42 dark:hover:text-foreground",
         secondary:
-          "bg-secondary text-secondary-foreground border border-transparent focus-visible:border-ring hover:bg-muted hover:text-secondary hover:border-transparent dark:hover:bg-muted dark:hover:text-white dark:hover:border-transparent dark:border-border/30",
+          "bg-secondary text-secondary-foreground border border-transparent focus-visible:border-ring hover:bg-muted hover:text-secondary hover:border-transparent dark:hover:bg-muted dark:hover:text-foreground dark:hover:border-transparent dark:border-border/30",
         ghost:
           "bg-transparent shadow-none focus-visible:border-ring focus-visible:bg-muted/50 hover:bg-muted/82 hover:text-foreground hover:shadow-none aria-expanded:bg-muted aria-expanded:text-foreground dark:focus-visible:bg-muted/10 dark:hover:bg-muted/50",
         destructive:

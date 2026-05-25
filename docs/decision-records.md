@@ -30,7 +30,7 @@
 
 **背景**：项目需要确定长期技术路线，前后端语言选择影响深远。
 
-**决策**：所有代码默认使用 TypeScript，包括前端和后端。
+**决策**：业务/应用层默认使用 TypeScript；平台壳和明确不适合 TypeScript 的场景允许使用其他语言。
 
 **理由**：
 - TypeScript 提供端到端类型安全，前后端共享类型定义减少不一致
@@ -38,12 +38,13 @@
 - TypeScript 生态成熟，Node.js 后端框架（Hono、Fastify、Express）均有良好支持
 - 共享类型包（modules/*）可以同时被前端和后端引用
 - 统一语言降低心智负担，个人项目不需要维护多语言构建链
-- 只有在 TypeScript 明显不适合时（AI/ML、企业 Java SDK、系统级能力）才引入其他语言
+- 只有在 TypeScript 明显不适合时（AI/ML、企业 Java SDK、系统级能力、原生平台能力）才引入其他语言
 
 **影响**：
 - 后端使用 Hono（TypeScript 轻量框架）而非 Spring Boot 或 Django
 - 所有 API 契约、类型定义、工具函数默认 TypeScript
-- 非 TypeScript 服务放在 services/ 目录，通过 apps/api 编排
+- 非 TypeScript 独立服务放在 services/ 目录，通过 apps/api 编排
+- Tauri 的 Rust `src-tauri` 属于平台壳 / 原生运行时层，不视为对 TypeScript-first 原则的违背
 
 ## ADR-004：新增 apps/api 作为独立后端
 

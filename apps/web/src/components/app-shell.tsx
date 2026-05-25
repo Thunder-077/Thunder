@@ -132,39 +132,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onToggleSidebar: () => setMobileSidebarOpen(true),
       }}
     >
-      <div className="surface-shell relative flex h-screen overflow-hidden bg-background">
-        <AppSidebar
-          className={cn(
-            "hidden shrink-0 md:flex"
-          )}
-        />
+      <div className="surface-shell relative flex h-screen flex-col overflow-hidden bg-background">
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+          <AppSidebar
+            className={cn(
+              "hidden shrink-0 md:flex"
+            )}
+          />
 
-        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-          <SheetContent
-            side="left"
-            showCloseButton={false}
-            className="w-[240px] border-r border-panel-border bg-transparent p-0 shadow-none sm:max-w-[240px]"
-          >
-            <AppSidebar onNavigate={() => setMobileSidebarOpen(false)} className="border-r-0" />
-          </SheetContent>
-        </Sheet>
+          <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+            <SheetContent
+              side="left"
+              showCloseButton={false}
+              className="w-[240px] border-r border-panel-border bg-transparent p-0 shadow-none sm:max-w-[240px]"
+            >
+              <AppSidebar onNavigate={() => setMobileSidebarOpen(false)} className="border-r-0" />
+            </SheetContent>
+          </Sheet>
 
-        <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
-          <main className="flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-[var(--z-sticky)] pointer-events-none">
-              <div className="flex justify-end px-4 pt-4 sm:px-6 sm:pt-5 xl:px-8 pointer-events-auto">
-                <AppChrome onToggleSidebar={() => setMobileSidebarOpen(true)} />
-              </div>
-            </div>
-            <div className={`w-full ${hasPageHeader ? 'py-4 sm:py-5' : 'pt-0 pb-4 sm:pb-5'}`}>
-              <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 xl:px-8">
-                <div className="pb-5">
-                  {children}
+          <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
+            <main className="flex-1 overflow-y-auto">
+              <div className="pointer-events-none sticky top-0 z-[var(--z-sticky)]">
+                  <div className="pointer-events-auto flex justify-end px-4 pt-4 sm:px-6 sm:pt-5 xl:px-8">
+                    <AppChrome onToggleSidebar={() => setMobileSidebarOpen(true)} />
+                  </div>
+                </div>
+              <div className={`w-full ${hasPageHeader ? "py-4 sm:py-5" : "pt-0 pb-4 sm:pb-5"}`}>
+                <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 xl:px-8">
+                  <div className="pb-5">
+                    {children}
+                  </div>
                 </div>
               </div>
-            </div>
-          </main>
-          <HitokotoFooter />
+            </main>
+            <HitokotoFooter />
+          </div>
         </div>
       </div>
     </AppShellContext.Provider>

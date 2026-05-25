@@ -73,7 +73,7 @@ interface PasswordStrengthMeterProps {
 }
 
 export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) {
-  const { level, label, feedback, crackTime } = getPasswordStrength(password)
+  const { level, label } = getPasswordStrength(password)
 
   return (
     <div className="space-y-1.5">

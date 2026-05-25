@@ -4,6 +4,7 @@ node_modules
 out
 build
 dist
+target
 *.tsbuildinfo
 .env*
 !.env.example
@@ -12,3 +13,7 @@ dist
 .DS_Store
 data/
 .trae
+apps/desktop/runtime/
+apps/desktop/.downloads/
+apps/desktop/desktop.env
+apps/desktop/keys/

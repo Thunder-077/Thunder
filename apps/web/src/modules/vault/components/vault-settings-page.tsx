@@ -1,6 +1,5 @@
 "use client"
 
-import { useRef } from "react"
 import {
   Clock,
   Eye,
@@ -21,12 +20,12 @@ import { useDialog } from "@/hooks/use-dialog"
 import { useVault } from "../state"
 import { useVaultSettings } from "../hooks/use-vault-settings"
 import { AUTO_LOCK_OPTIONS, CLIPBOARD_CLEAR_OPTIONS } from "@thunder/vault"
+import { exportVaultBackupToFile, importVaultBackupFromFile } from "../utils/backup-files"
 
 export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
   const { settings, updateSettings } = useVaultSettings()
   const { exportBackup, importBackup, clearVault } = useVault()
   const dialog = useDialog()
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleExport = async () => {
     const ok = await dialog.confirm({
@@ -41,13 +40,7 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
     try {
       const json = await exportBackup()
       const date = new Date().toISOString().slice(0, 10)
-      const blob = new Blob([json], { type: "application/json" })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `vault-backup-${date}.json`
-      a.click()
-      URL.revokeObjectURL(url)
+      await exportVaultBackupToFile(json, date)
     } catch (e) {
       await dialog.error({
         title: "导出失败",
@@ -65,14 +58,10 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
       cancelText: "取消",
     })
     if (!ok) return
-    fileInputRef.current?.click()
-  }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
     try {
-      const text = await file.text()
+      const text = await importVaultBackupFromFile()
+      if (!text) return
       await importBackup(text)
     } catch (err) {
       await dialog.error({
@@ -80,7 +69,6 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
         description: err instanceof Error ? err.message : "导入加密备份时发生未知错误。",
       })
     }
-    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   const handleClearVault = async () => {
@@ -239,13 +227,6 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
             <p className="text-xs text-muted-foreground">
               导出的备份文件为密文数据，仍需主密码才能恢复。导入将覆盖当前本地保险箱。
             </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleFileChange}
-            />
           </SettingSection>
 
           <SettingSection title="危险区域" description="以下操作不可撤销，请谨慎执行">

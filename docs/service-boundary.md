@@ -127,6 +127,7 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 
 - 只保留 services/README.md
 - 不实际创建任何非 TypeScript 服务
+- Tauri 这类桌面平台壳不归入 `services/*`
 
 ### 未来规则
 
@@ -136,6 +137,13 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 - 通信方式：HTTP API / gRPC / 消息队列
 - 前端不得直接调用这些服务
 - modules 和 packages 不得依赖这些服务的内部实现
+
+### 平台壳边界（Tauri / 原生运行时）
+
+- Tauri 的 Rust 代码属于平台壳 / 原生运行时层，不属于 `services/*`
+- 平台壳负责窗口、托盘、快捷键、通知、文件系统、自动更新、系统密钥链等原生能力
+- 平台壳不得直接承载业务模块规则，不替代 `apps/api`、`packages/contracts`、`packages/api-client` 的职责
+- 前端若需要调用原生能力，应通过统一的平台抽象层接入，避免业务代码直接散落依赖具体平台 API
 
 ### 接入方式
 
@@ -148,6 +156,8 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 1. 用户明确指定该模块使用某种语言
 2. TypeScript 明显不适合该功能
 3. 该功能强依赖 Python / Java / Rust 等生态
+
+以上条件适用于 `services/*` 内的独立服务，不用于限制 Tauri 这类平台壳中的原生代码。
 
 典型场景：
 - AI/机器学习 → Python（PyTorch、TensorFlow 生态）
