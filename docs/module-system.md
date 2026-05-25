@@ -10,11 +10,11 @@ Thunder 的模块系统采用 **Manifest 驱动** 的设计，每个模块通过
 
 ```typescript
 interface ModuleManifest {
-  id: string              // 唯一标识符，如 "todo"
-  name: string            // 显示名称，如 "待办事项"
+  id: string              // 唯一标识符，如 "vault"
+  name: string            // 显示名称，如 "密码保险箱"
   description: string     // 模块描述
   icon: string            // 图标名称（lucide-react 图标名）
-  route: string           // 路由路径，如 "/modules/todo"
+  route: string           // 路由路径，如 "/vault"
   category: ModuleCategory // 分类
   order: number           // 排序权重
   enabled: boolean        // 是否启用
@@ -45,8 +45,8 @@ type ModuleCategory =
 ```typescript
 const registry = new ModuleRegistry()
 registry.register({
-  id: "todo",
-  name: "待办事项",
+  id: "vault",
+  name: "密码保险箱",
   // ...
 })
 ```
@@ -131,10 +131,8 @@ packages/contracts/openapi/{module-id}.yaml      # OpenAPI 规范
 
 ```
 apps/web/src/app/modules/
-├── todo/
-│   └── page.tsx          # /modules/todo
-└── ai-hub/
-    └── page.tsx          # /modules/ai-hub
+└── emby/
+    └── page.tsx          # /modules/emby
 ```
 
 ### 复杂模块：Vault 示例
@@ -205,10 +203,8 @@ packages/contracts/openapi/vault.yaml     # OpenAPI 规范
 ```
 apps/web/src/app/
 ├── modules/
-│   ├── todo/
-│   │   └── page.tsx          # /modules/todo
-│   └── ai-hub/
-│       └── page.tsx          # /modules/ai-hub
+│   └── emby/
+│       └── page.tsx          # /modules/emby
 └── vault/
     └── page.tsx              # /vault
 ```

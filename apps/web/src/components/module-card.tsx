@@ -2,27 +2,18 @@ import { Card, CardContent } from "@/components/ui/card"
 import type { ModuleManifest } from "@thunder/core"
 import type { ModuleCategory } from "@thunder/core"
 import {
-  CheckSquare,
-  Timer,
   Lock,
-  Brain,
   Film,
   Puzzle,
 } from "lucide-react"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  CheckSquare,
-  Timer,
   Lock,
-  Brain,
   Film,
 }
 
 const moduleColorMap: Record<string, { bg: string; icon: string }> = {
-  todo: { bg: "bg-blue-50 dark:bg-blue-950/30", icon: "text-blue-500" },
-  pomodoro: { bg: "bg-red-50 dark:bg-red-950/30", icon: "text-red-500" },
   vault: { bg: "bg-purple-50 dark:bg-purple-950/30", icon: "text-purple-500" },
-  "ai-hub": { bg: "bg-green-50 dark:bg-green-950/30", icon: "text-green-500" },
   emby: { bg: "bg-orange-50 dark:bg-orange-950/30", icon: "text-orange-500" },
 }
 

@@ -2,43 +2,13 @@ import type { ModuleManifest } from "@thunder/core"
 
 export const mockModules: ModuleManifest[] = [
   {
-    id: "todo",
-    name: "待办事项",
-    description: "管理日常任务和待办清单",
-    icon: "CheckSquare",
-    route: "/modules/todo",
-    category: "productivity",
-    order: 1,
-    enabled: true,
-  },
-  {
-    id: "pomodoro",
-    name: "番茄钟",
-    description: "专注计时器，提升工作效率",
-    icon: "Timer",
-    route: "/modules/pomodoro",
-    category: "productivity",
-    order: 2,
-    enabled: true,
-  },
-  {
     id: "vault",
     name: "密码保险箱",
     description: "加密密码管理模块",
     icon: "Lock",
     route: "/vault",
     category: "security",
-    order: 3,
-    enabled: true,
-  },
-  {
-    id: "ai-hub",
-    name: "AI 中心",
-    description: "管理 AI 账号和查看额度",
-    icon: "Brain",
-    route: "/modules/ai-hub",
-    category: "ai",
-    order: 4,
+    order: 1,
     enabled: true,
   },
   {
@@ -48,7 +18,7 @@ export const mockModules: ModuleManifest[] = [
     icon: "Film",
     route: "/modules/emby",
     category: "tools",
-    order: 5,
+    order: 2,
     enabled: true,
   },
 ]

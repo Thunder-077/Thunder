@@ -29,8 +29,8 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first + 多语言�
 │                                                              │
 │  ┌────────────────────┐    ┌────────────────────────────┐   │
 │  │   modules/*        │    │     services/ (预留)        │   │
-│  │  vault | todo |    │    │  python-ai-worker/ (未来)   │   │
-│  │  account-hub       │    │  rust-system-worker/ (未来) │   │
+│  │  vault | emby      │    │  python-ai-worker/ (未来)   │   │
+│  │                    │    │  rust-system-worker/ (未来) │   │
 │  └────────────────────┘    └────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────┘
 ```

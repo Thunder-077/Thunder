@@ -12,9 +12,7 @@ import { useRouter } from "next/navigation"
 import {
   LayoutDashboard,
   Puzzle,
-  CheckSquare,
   Lock,
-  Brain,
   Clapperboard,
   Settings,
   Sun,
@@ -71,13 +69,6 @@ function useCommands(): Command[] {
       action: () => router.push("/modules"),
     },
     {
-      id: "todo",
-      label: "打开待办事项",
-      icon: CheckSquare,
-      keywords: ["todo", "待办", "事项"],
-      action: () => router.push("/modules/todo"),
-    },
-    {
       id: "vault",
       label: "打开密码保险箱",
       icon: Lock,
@@ -90,13 +81,6 @@ function useCommands(): Command[] {
       icon: Clapperboard,
       keywords: ["emby", "emos", "影视"],
       action: () => router.push("/modules/emby"),
-    },
-    {
-      id: "ai-hub",
-      label: "打开 AI 中心",
-      icon: Brain,
-      keywords: ["ai", "hub", "中心", "智能"],
-      action: () => router.push("/modules/ai-hub"),
     },
     {
       id: "settings",
