@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/sidebar"
-import { AppChrome } from "@/components/topbar"
+import { UtilityCluster } from "@/components/utility-cluster"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { useDesktopTitlebar } from "@/hooks/use-desktop-titlebar"
@@ -163,7 +163,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <main className="flex-1 overflow-y-auto">
               <div className="pointer-events-none sticky top-0 z-[var(--z-sticky)]">
                   <div className="pointer-events-auto flex justify-end px-4 pt-4 sm:px-6 sm:pt-5 xl:px-8">
-                    <AppChrome onToggleSidebar={() => setMobileSidebarOpen(true)} />
+                    <UtilityCluster onToggleSidebar={() => setMobileSidebarOpen(true)} />
                   </div>
                 </div>
               <div className={`w-full ${hasPageHeader ? "py-4 sm:py-5" : "pt-0 pb-4 sm:pb-5"}`}>

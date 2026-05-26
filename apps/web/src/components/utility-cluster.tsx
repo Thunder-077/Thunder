@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { WeatherSummary } from "@/components/weather-widget"
 
-interface TopActionsProps {
+interface UtilityClusterProps {
   onToggleSidebar?: () => void
 }
 
@@ -397,7 +397,9 @@ function UserAvatarMenu() {
   )
 }
 
-export function TopActions({ onToggleSidebar }: TopActionsProps) {
+// Utility cluster is the compact group of global actions shown at the
+// top-right of the page chrome. It is not the page topbar itself.
+export function UtilityCluster({ onToggleSidebar }: UtilityClusterProps) {
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 text-foreground/85">
       {onToggleSidebar && (
@@ -420,9 +422,5 @@ export function TopActions({ onToggleSidebar }: TopActionsProps) {
         <NotificationButton />
         <UserAvatarMenu />
       </div>
-    )
-  }
-
-export function AppChrome({ onToggleSidebar }: TopActionsProps) {
-  return <TopActions onToggleSidebar={onToggleSidebar} />
+  )
 }
