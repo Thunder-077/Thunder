@@ -62,12 +62,12 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-muted/30 p-2">
-      <div className="grid min-h-[calc(100vh-16px)] overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm lg:grid-cols-[minmax(0,1fr)_500px]">
-        <section className="relative hidden overflow-hidden bg-surface-2 px-12 py-10 lg:flex lg:flex-col">
+    <main className="login-page-surface min-h-screen">
+      <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_500px]">
+        <section className="relative hidden overflow-hidden px-12 py-10 lg:flex lg:flex-col">
           <div className="flex items-center gap-3">
             <img src="/logo.svg" alt="Thunder" className="h-12 w-12 object-contain" />
-            <div className="text-2xl font-semibold tracking-tight text-foreground">Thunder</div>
+            
           </div>
 
           <div className="pointer-events-none absolute left-24 top-64 grid grid-cols-8 gap-2 opacity-40">
@@ -87,9 +87,10 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="flex items-center justify-center bg-background p-3 lg:p-0">
-          <div className="flex min-h-[calc(100vh-40px)] w-full items-center justify-center rounded-xl border border-border/70 bg-background px-6 py-10 shadow-lg shadow-slate-200/60 sm:px-10 lg:min-h-[calc(100vh-16px)] lg:rounded-l-xl lg:rounded-r-none lg:border-y-0 lg:border-r-0 lg:px-14">
-            <div className="w-full max-w-[392px]">
+        <section className="relative flex items-center justify-center px-6 py-10 sm:px-10 lg:px-14">
+          <div className="absolute inset-y-0 left-0 hidden w-px bg-gradient-to-b from-transparent via-border/70 to-transparent lg:block" />
+          <div className="w-full max-w-[392px] lg:max-w-[408px]">
+            <div className="login-form-surface rounded-[32px] px-2 py-4 sm:px-4 lg:px-0 lg:py-0">
               <div className="mb-10 lg:hidden">
                 <img src="/logo.svg" alt="Thunder" className="h-11 w-11 object-contain" />
               </div>
@@ -97,7 +98,6 @@ export default function LoginPage() {
               <div className="mb-9">
                 <p className="text-base font-semibold text-brand">欢迎回来</p>
                 <h1 className="mt-4 text-4xl font-semibold tracking-tight text-foreground">登录 Thunder</h1>
-
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">

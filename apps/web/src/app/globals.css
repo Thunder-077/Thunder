@@ -423,6 +423,18 @@
       linear-gradient(180deg, color-mix(in srgb, var(--sidebar) 96%, transparent), color-mix(in srgb, var(--surface-2) 88%, transparent));
   }
 
+  .login-page-surface {
+    background:
+      radial-gradient(circle at top, color-mix(in srgb, var(--brand) 8%, transparent) 0%, transparent 38%),
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 80%, var(--background)), var(--background));
+  }
+
+  .login-form-surface {
+    background: color-mix(in srgb, var(--surface-1) 72%, transparent);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+
   .desktop-titlebar {
     display: none;
     height: var(--desktop-titlebar-height, 38px);
@@ -444,6 +456,14 @@
 
   .is-tauri-desktop.is-linux .desktop-titlebar {
     display: none;
+  }
+
+  @media (min-width: 1024px) {
+    .login-form-surface {
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
   }
 
   .is-tauri-desktop.is-macos .desktop-sidebar-brand {
