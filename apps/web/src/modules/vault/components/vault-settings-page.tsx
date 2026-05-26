@@ -88,7 +88,7 @@ export function VaultSettingsPage({ onBack }: { onBack: () => void }) {
 
   return (
     <div>
-      <PageHeader title="保险箱设置" description="管理保险箱的各项配置" />
+      <PageHeader title="保险箱设置" />
 
       <Card>
         <CardContent className="p-5">

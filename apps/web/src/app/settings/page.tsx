@@ -11,7 +11,6 @@ export default function SettingsPage() {
     <div className="max-w-2xl">
       <PageHeader
         title="设置"
-        description="管理应用偏好和配置"
       />
 
       <SettingSection title="外观" description="自定义应用的外观和主题">

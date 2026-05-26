@@ -25,7 +25,6 @@ export default function ModulesPage() {
     <div>
       <PageHeader
         title="模块中心"
-        description="浏览和管理所有可用模块"
       />
 
       {categories.map((cat) => {

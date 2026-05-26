@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, LoaderCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -10,10 +10,16 @@ import { TurnstileWidget } from "@/components/turnstile-widget"
 import { isTauriDesktop } from "@/lib/platform"
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""
-const SKIP_TURNSTILE = isTauriDesktop()
+
+const emptySubscribe = () => () => {}
 
 export default function LoginPage() {
   const router = useRouter()
+  const skipTurnstile = useSyncExternalStore(
+    emptySubscribe,
+    () => isTauriDesktop(),
+    () => false
+  )
   const [username, setUsername] = useState("thunder")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -26,7 +32,7 @@ export default function LoginPage() {
     setLoading(true)
     setError("")
 
-    if (!SKIP_TURNSTILE && !turnstileToken) {
+    if (!skipTurnstile && !turnstileToken) {
       setError("请完成人机验证")
       setLoading(false)
       return
@@ -36,7 +42,7 @@ export default function LoginPage() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, turnstileToken, skipTurnstile: SKIP_TURNSTILE }),
+        body: JSON.stringify({ username, password, turnstileToken, skipTurnstile }),
       })
 
       if (!response.ok) {
@@ -118,7 +124,7 @@ export default function LoginPage() {
                   />
                 </div>
 
-                {!SKIP_TURNSTILE && TURNSTILE_SITE_KEY && (
+                {!skipTurnstile && TURNSTILE_SITE_KEY && (
                   <div className="flex justify-start">
                     <TurnstileWidget
                       siteKey={TURNSTILE_SITE_KEY}
