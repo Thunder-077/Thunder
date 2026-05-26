@@ -265,6 +265,17 @@ fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
+#[tauri::command]
+fn get_desktop_platform() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
@@ -279,11 +290,13 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_decorum::init())
+        .invoke_handler(tauri::generate_handler![get_desktop_platform])
         .setup(|app| {
             start_local_runtime(&app.handle())?;
             build_tray(&app.handle())?;
 
             if let Some(main_window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                #[cfg(any(target_os = "windows", target_os = "macos"))]
                 main_window.create_overlay_titlebar()?;
                 #[cfg(target_os = "macos")]
                 main_window.set_traffic_lights_inset(12.0, 16.0)?;

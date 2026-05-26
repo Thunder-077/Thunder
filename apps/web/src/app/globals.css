@@ -425,7 +425,7 @@
 
   .desktop-titlebar {
     display: none;
-    height: 38px;
+    height: var(--desktop-titlebar-height, 38px);
     flex-shrink: 0;
     user-select: none;
     -webkit-user-select: none;
@@ -440,6 +440,10 @@
 
   .is-tauri-desktop.is-macos .desktop-titlebar {
     height: 28px;
+  }
+
+  .is-tauri-desktop.is-linux .desktop-titlebar {
+    display: none;
   }
 
   .is-tauri-desktop.is-macos .desktop-sidebar-brand {
