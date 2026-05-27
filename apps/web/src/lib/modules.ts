@@ -21,4 +21,14 @@ export const mockModules: ModuleManifest[] = [
     order: 2,
     enabled: true,
   },
+  {
+    id: "teleprompter",
+    name: "提词器",
+    description: "大字提词、语音跟读与自动定位",
+    icon: "ScrollText",
+    route: "/modules/teleprompter",
+    category: "productivity",
+    order: 3,
+    enabled: true,
+  },
 ]

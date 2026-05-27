@@ -8,9 +8,11 @@ const desktopRoot = resolve(scriptDir, "..")
 const workspaceRoot = resolve(desktopRoot, "..", "..")
 const runtimeDir = resolve(desktopRoot, "runtime")
 const runtimeWebDir = resolve(runtimeDir, "web")
+const runtimeServicesDir = resolve(runtimeDir, "services")
 const runtimeManifestPath = resolve(runtimeDir, "manifest.json")
 const webPort = Number(process.env.THUNDER_DESKTOP_WEB_PORT ?? "43100")
 const apiPort = Number(process.env.THUNDER_DESKTOP_API_PORT ?? "43101")
+const funasrPort = Number(process.env.THUNDER_FUNASR_PORT ?? "10095")
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -46,6 +48,7 @@ function detectStandaloneAppDir(standaloneDir) {
 }
 
 await rm(runtimeWebDir, { recursive: true, force: true })
+await rm(runtimeServicesDir, { recursive: true, force: true })
 await mkdir(runtimeDir, { recursive: true })
 
 await run("node", [resolve(scriptDir, "prepare-node-runtime.mjs")])
@@ -64,6 +67,9 @@ await cp(staticDir, resolve(appDir.replace(standaloneDir, runtimeWebDir), ".next
 await cp(publicDir, resolve(appDir.replace(standaloneDir, runtimeWebDir), "public"), {
   recursive: true,
 })
+await cp(resolve(workspaceRoot, "services", "funasr"), resolve(runtimeServicesDir, "funasr"), {
+  recursive: true,
+})
 
 await writeFile(
   runtimeManifestPath,
@@ -71,6 +77,7 @@ await writeFile(
     {
       webPort,
       apiPort,
+      funasrPort,
       webEntry: posix.join("web", serverEntry.replaceAll("\\", "/")),
       apiEntry: "api/server.cjs",
       nodeEntry: process.platform === "win32" ? "node/node.exe" : "node/node",

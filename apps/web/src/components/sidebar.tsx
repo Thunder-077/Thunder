@@ -11,19 +11,15 @@ import {
   Lock,
   Brain,
   Timer,
-  Command,
   ChevronDown,
   ChevronRight,
-  Sun,
-  Moon,
   Film,
+  ScrollText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { useTheme } from "@/components/theme-provider"
-import { useCommandPalette } from "@/components/command-palette"
 import type { ModuleCategory } from "@thunder/core"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -32,6 +28,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Brain,
   Timer,
   Film,
+  ScrollText,
 }
 
 const categoryLabels: Record<ModuleCategory, string> = {
@@ -53,9 +50,6 @@ const categoryOrder: ModuleCategory[] = [
   "notes",
   "dashboard",
 ]
-
-const sidebarToolButtonClass =
-  "flex h-9 items-center justify-center rounded-lg text-sidebar-foreground/64 outline-none transition-all duration-normal ease-default hover:-translate-y-0.5 hover:scale-[1.03] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset active:translate-y-0"
 
 interface SidebarProps {
   className?: string
@@ -101,8 +95,6 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
   const pathname = usePathname()
   const registry = useModuleRegistry()
   const modules = registry.getEnabled()
-  const { resolvedTheme, setTheme } = useTheme()
-  const { setOpen: setCommandPaletteOpen } = useCommandPalette()
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     productivity: true,
     security: true,
@@ -138,8 +130,6 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
     }))
   }
 
-  const isDark = resolvedTheme === "dark"
-
   return (
     <aside
       className={cn(
@@ -147,16 +137,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
         className
       )}
     >
-      <div data-tauri-drag-region className="desktop-sidebar-brand border-b border-sidebar-border/80 px-3 py-3">
-        <div className="flex items-center gap-3 bg-sidebar px-3 py-2.5">
-          <img src="/logo.svg" alt="Thunder" className="h-8 w-8 shrink-0 object-contain" />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[15px] font-semibold tracking-tight">Thunder</div>
-          </div>
-        </div>
-      </div>
-
-      <ScrollArea className="flex-1 px-2 py-3">
+      <ScrollArea className="flex-1 px-2 pt-4 pb-3">
         <div className="space-y-3 px-1">
           <nav className="flex flex-col gap-0.5">
             {navItems.map((item) => {
@@ -219,42 +200,28 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
         </div>
       </ScrollArea>
 
-      <div className="border-t border-sidebar-border/80 px-2.5 py-1.5">
-        <div className="grid grid-cols-3 gap-1">
-          <button
-            type="button"
-            onClick={() => setCommandPaletteOpen(true)}
-            className={sidebarToolButtonClass}
-            aria-label="全局命令"
-          >
-            <div className="flex items-center gap-1.5">
-              <Command className="h-[16px] w-[16px]" />
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            className={sidebarToolButtonClass}
-            aria-label="切换主题"
-          >
-            {isDark ? <Moon className="h-[16px] w-[16px]" /> : <Sun className="h-[16px] w-[16px]" />}
-          </button>
-
-          <Link
-            href="/settings"
-            onClick={onNavigate}
+      <div className="border-t border-sidebar-border/80 px-2.5 py-2">
+        <Link
+          href="/settings"
+          onClick={onNavigate}
+          className={cn(
+            "group/sidebar-item flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
+            pathname === "/settings"
+              ? "bg-muted/70 text-foreground"
+              : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          )}
+          aria-label="设置"
+        >
+          <Settings
             className={cn(
-              sidebarToolButtonClass,
-              pathname === "/settings"
-                ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                : ""
+              "h-[14px] w-[14px] shrink-0 transition-colors",
+              pathname === "/settings" 
+                ? "text-foreground" 
+                : "text-muted-foreground group-hover/sidebar-item:text-sidebar-accent-foreground"
             )}
-            aria-label="设置"
-          >
-            <Settings className="h-[16px] w-[16px]" />
-          </Link>
-        </div>
+          />
+          <span className={pathname === "/settings" ? "font-medium" : "font-normal"}>设置</span>
+        </Link>
       </div>
     </aside>
   )

@@ -114,6 +114,12 @@ function HitokotoFooter() {
   )
 }
 
+function DesktopTitlebar() {
+  return (
+    <div data-tauri-drag-region className="desktop-titlebar" />
+  )
+}
+
 // --- AppShell ---
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -126,7 +132,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (pathname === "/login") {
     return (
       <div className="relative flex h-screen flex-col overflow-hidden bg-background">
-        <div data-tauri-drag-region className="desktop-titlebar" />
+        <DesktopTitlebar />
         <div className="flex-1 overflow-auto">{children}</div>
       </div>
     )
@@ -141,7 +147,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }}
     >
       <div className="surface-shell relative flex h-screen flex-col overflow-hidden bg-background">
-        <div data-tauri-drag-region className="desktop-titlebar" />
+        <DesktopTitlebar />
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <AppSidebar
             className={cn(

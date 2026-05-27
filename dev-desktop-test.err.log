@@ -1,0 +1,97 @@
+     Running BeforeDevCommand (`node ./scripts/dev-desktop-deps.mjs`)
+        Warn Waiting for your frontend dev server to start on http://localhost:3000/...
+        Warn Waiting for your frontend dev server to start on http://localhost:3000/...
+2026-05-27 15:37:36,482 - modelscope - INFO - Use user-specified model revision: v2.0.4
+WARNING:root:trust_remote_code: False
+2026-05-27 15:37:42,496 - modelscope - INFO - Use user-specified model revision: v2.0.4
+WARNING:root:trust_remote_code: False
+        Warn Waiting for your frontend dev server to start on http://localhost:3000/...
+        Warn Waiting for your frontend dev server to start on http://localhost:3000/...
+        Warn Waiting for your frontend dev server to start on http://localhost:3000/...
+WARNING:urllib3.connectionpool:Retrying (Retry(total=4, connect=1, read=2, redirect=None, status=None)) after connection broken by 'ConnectTimeoutError(<HTTPSConnection(host='www.modelscope.cn', port=443) at 0x2325bdd7710>, 'Connection to www.modelscope.cn timed out. (connect timeout=60)')': /api/v1/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch
+        Warn Waiting for your frontend dev server to start on http://localhost:3000/...
+2026-05-27 15:38:20,571 - modelscope - INFO - Use user-specified model revision: v2.0.4
+WARNING:root:trust_remote_code: False
+2026-05-27 15:38:22,068 - modelscope - INFO - Use user-specified model revision: v2.0.4
+WARNING:root:trust_remote_code: False
+WARNING:root:trust_remote_code: False
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+        Info Watching D:\self\Thunder\apps\desktop\src-tauri for changes...
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+[1m[92m    Finished[0m `dev` profile [unoptimized + debuginfo] target(s) in 3.19s
+[1m[92m     Running[0m `target\debug\thunder-desktop.exe`
+[browser] The final argument passed to useEffect changed size between renders. The order and size of this array must remain constant.
+
+Previous: [, idle, , , 0]
+Incoming: [, idle, , , , 0] 
+    at TeleprompterPage (src\modules\teleprompter\components\teleprompter-page.tsx:138:12)
+  136 |
+  137 |   /* eslint-disable react-hooks/set-state-in-effect */
+> 138 |   useEffect(() => {
+      |            ^
+  139 |     if (!speech.lastResult || followStatus === "paused" || followStatus === "idle") {
+  140 |       return
+  141 |     } (src\modules\teleprompter\components\teleprompter-page.tsx:138:12)
+[browser] The final argument passed to useEffect changed size between renders. The order and size of this array must remain constant.
+
+Previous: [尊敬的各位领导。各位同事。查打电话。大家好。, following, 尊敬的各位领导、各位同事：
+
+大家好！我是来自应用软件研发中心的王晨曦，目前在数据要素可信数据空间团队工作。
+
+非常开心能够在本次编程大赛中获得一等奖，也非常荣幸能作为获奖者代表，在这里和大家分享一下我在工作中使用 AI 工具的一些心得体会。
+
+这次比赛给我最大的感受是： AI 不是在替代程序员，而是在重新定义程序员的工作边界。
+
+过去，我们更多是一个编码者，需要把每一行代码亲手写出来；而现在，借助 AI 工具，我们更像是一个驾驭者。我们要明确目标、拆解任务、判断方案、把控质量，让 AI 成为提升效率的工具，而不是替代思考的工具。
+
+在这次编程比赛中，我能够明显感受到，AI 对于小规模、目标明确的编码任务非常擅长。比如编程题目的理解、代码生成，AI 都能够在很短时间内给出可用的思路和实现。这也是为什么我们能够看到，相比往届，本次竞赛中选手们在完成效率和正确率上都有了明显提升。
+
+但 AI 的价值并不只体现在比赛中。回到实际工作场景，它同样能够帮助我们提升研发效率。比如在系统设计阶段，AI 可以帮助我们梳理架构思路、补充边界场景；在编码实现阶段，它可以辅助生成代码、优化接口设计；在测试和代码审计阶段，它也能帮助我们发现潜在问题，提升代码质量。某种程度上，AI 不只是提高了工作效率，也提升了研发过程中的幸福感，让我们可以把更多精力放在业务理解、架构设计和关键问题判断上。
+
+当然，AI 的使用并不是简单地“问一句、拿答案”。尤其是在我们日常面对的复杂工程项目中，系统会持续迭代，模块会越来越多，业务规则也会越来越复杂。项目初期，AI 往往能够很快理解需求并给出结果；但随着工程复杂度提升，AI 有时并不能完全符合我们的原本意图，甚至可能出现看似合理、但与项目规范、架构边界或长期演进方向不一致的输出。
+
+所以我觉得，真正用好 AI，不能只停留在“让 AI 写代码”这个层面，而是要进一步学会“管理 AI、约束 AI、驾驭 AI”。
+
+比如在复杂工程中，我们可以借助上下文管理工具、规范文档，以及 OpenSpec 这类工具，把需求、接口、模块边界、技术约束和验收标准结构化地描述清楚。这样 AI 在生成方案和代码时，就不是凭空发挥，而是在明确的规则和边界内工作。这样做不是为了限制 AI，而是为了让 AI 的输出更加稳定、更加可控，也更加符合工程项目长期迭代的要求。
+
+通过这次比赛和日常工作的实践，我更加深刻地认识到：AI 不会让专业能力变得不重要，恰恰相反，它会放大一个人的专业能力。越是理解业务、理解架构、理解工程实践的人，越能把 AI 用好，也越能获得更高的效率提升。
+
+最后，再次感谢公司组织这次编程大赛，也感谢各位领导和同事的支持。未来，我也会继续在实际工作中探索 AI 工具的使用方式，把 AI 更好地应用到软件研发、系统建设和数据要素可信数据空间相关工作中，为团队和公司创造更多价值。
+
+谢谢大家！, [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object], [object Object], 0]
+Incoming: [0, 尊敬的各位领导。各位同事。查打电话。大家好。, following, 0, 尊敬的各位领导、各位同事：
+
+大家好！我是来自应用软件研发中心的王晨曦，目前在数据要素可信数据空间团队工作。
+
+非常开心能够在本次编程大赛中获得一等奖，也非常荣幸能作为获奖者代表，在这里和大家分享一下我在工作中使用 AI 工具的一些心得体会。
+
+这次比赛给我最大的感受是： AI 不是在替代程序员，而是在重新定义程序员的工作边界。
+
+过去，我们更多是一个编码者，需要把每一行代码亲手写出来；而现在，借助 AI 工具，我们更像是一个驾驭者。我们要明确目标、拆解任务、判断方案、把控质量，让 AI 成为提升效率的工具，而不是替代思考的工具。
+
+在这次编程比赛中，我能够明显感受到，AI 对于小规模、目标明确的编码任务非常擅长。比如编程题目的理解、代码生成，AI 都能够在很短时间内给出可用的思路和实现。这也是为什么我们能够看到，相比往届，本次竞赛中选手们在完成效率和正确率上都有了明显提升。
+
+但 AI 的价值并不只体现在比赛中。回到实际工作场景，它同样能够帮助我们提升研发效率。比如在系统设计阶段，AI 可以帮助我们梳理架构思路、补充边界场景；在编码实现阶段，它可以辅助生成代码、优化接口设计；在测试和代码审计阶段，它也能帮助我们发现潜在问题，提升代码质量。某种程度上，AI 不只是提高了工作效率，也提升了研发过程中的幸福感，让我们可以把更多精力放在业务理解、架构设计和关键问题判断上。
+
+当然，AI 的使用并不是简单地“问一句、拿答案”。尤其是在我们日常面对的复杂工程项目中，系统会持续迭代，模块会越来越多，业务规则也会越来越复杂。项目初期，AI 往往能够很快理解需求并给出结果；但随着工程复杂度提升，AI 有时并不能完全符合我们的原本意图，甚至可能出现看似合理、但与项目规范、架构边界或长期演进方向不一致的输出。
+
+所以我觉得，真正用好 AI，不能只停留在“让 AI 写代码”这个层面，而是要进一步学会“管理 AI、约束 AI、驾驭 AI”。
+
+比如在复杂工程中，我们可以借助上下文管理工具、规范文档，以及 OpenSpec 这类工具，把需求、接口、模块边界、技术约束和验收标准结构化地描述清楚。这样 AI 在生成方案和代码时，就不是凭空发挥，而是在明确的规则和边界内工作。这样做不是为了限制 AI，而是为了让 AI 的输出更加稳定、更加可控，也更加符合工程项目长期迭代的要求。
+
+通过这次比赛和日常工作的实践，我更加深刻地认识到：AI 不会让专业能力变得不重要，恰恰相反，它会放大一个人的专业能力。越是理解业务、理解架构、理解工程实践的人，越能把 AI 用好，也越能获得更高的效率提升。
+
+最后，再次感谢公司组织这次编程大赛，也感谢各位领导和同事的支持。未来，我也会继续在实际工作中探索 AI 工具的使用方式，把 AI 更好地应用到软件研发、系统建设和数据要素可信数据空间相关工作中，为团队和公司创造更多价值。
+
+谢谢大家！, [object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object],[object Object], [object Object], 0] 
+    at TeleprompterPage (src\modules\teleprompter\components\teleprompter-page.tsx:194:12)
+  192 |
+  193 |   /* eslint-disable react-hooks/set-state-in-effect */
+> 194 |   useEffect(() => {
+      |            ^
+  195 |     if (!speech.lastResult || followStatus === "paused" || followStatus === "idle") {
+  196 |       return
+  197 |     } (src\modules\teleprompter\components\teleprompter-page.tsx:194:12)
+[0527/163629.605:ERROR:ui\gfx\win\window_impl.cc:172] Failed to unregister class Chrome_WidgetWin_0. Error = 1412
+[desktop] FunASR service exited with code 4294967295; teleprompter can still connect to an external FunASR endpoint.
+[desktop] web dev server exited with code 4294967295

@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    fs,
-    io,
+    fs, io,
     net::{TcpStream, ToSocketAddrs},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
@@ -19,8 +18,8 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, Runtime, WebviewWindow, WindowEvent,
 };
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_decorum::WebviewWindowExt;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_SHOW_ID: &str = "tray-show";
@@ -28,12 +27,15 @@ const TRAY_HIDE_ID: &str = "tray-hide";
 const TRAY_QUIT_ID: &str = "tray-quit";
 const DESKTOP_SHORTCUT: &str = "CommandOrControl+Shift+T";
 const DESKTOP_ENV_FILE_NAME: &str = "desktop.env";
+const DEFAULT_FUNASR_PORT: u16 = 10095;
+const DEFAULT_FUNASR_HOST: &str = "127.0.0.1";
 
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeManifest {
     web_port: u16,
     api_port: u16,
+    funasr_port: Option<u16>,
     web_entry: String,
     api_entry: String,
     node_entry: String,
@@ -172,7 +174,9 @@ fn load_desktop_env<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<HashMap<Str
     Ok(env_map)
 }
 
-fn read_runtime_manifest<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<(RuntimeManifest, PathBuf)> {
+fn read_runtime_manifest<R: Runtime>(
+    app: &AppHandle<R>,
+) -> tauri::Result<(RuntimeManifest, PathBuf)> {
     let resource_dir = app.path().resource_dir()?;
     let manifest_path = resource_dir.join("runtime").join("manifest.json");
     let manifest = serde_json::from_str::<RuntimeManifest>(&fs::read_to_string(&manifest_path)?)?;
@@ -200,6 +204,43 @@ fn spawn_node_process(
     command.spawn()
 }
 
+fn spawn_funasr_process(
+    python_path: &str,
+    launcher_path: &Path,
+    cwd: &Path,
+    host: &str,
+    port: u16,
+    envs: &HashMap<String, String>,
+) -> io::Result<Child> {
+    let mut command = Command::new(python_path);
+    command
+        .arg(launcher_path)
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .env("THUNDER_FUNASR_HOST", host)
+        .env("THUNDER_FUNASR_PORT", port.to_string());
+
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+
+    command.spawn()
+}
+
+fn is_port_open(port: u16) -> bool {
+    let Ok(mut addrs) = ("127.0.0.1", port).to_socket_addrs() else {
+        return false;
+    };
+
+    let Some(addr) = addrs.next() else {
+        return false;
+    };
+
+    TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok()
+}
+
 fn wait_for_port(port: u16, timeout: Duration) -> io::Result<()> {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
@@ -220,7 +261,7 @@ fn wait_for_port(port: u16, timeout: Duration) -> io::Result<()> {
 }
 
 fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    if cfg!(dev) {
+    if cfg!(debug_assertions) {
         return Ok(());
     }
 
@@ -260,7 +301,10 @@ fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     wait_for_port(manifest.api_port, Duration::from_secs(30))?;
     wait_for_port(manifest.web_port, Duration::from_secs(30))?;
-    println!("Thunder desktop runtime ready on http://{}", localhost_web_host);
+    println!(
+        "Thunder desktop runtime ready on http://{}",
+        localhost_web_host
+    );
 
     Ok(())
 }
@@ -274,6 +318,111 @@ fn get_desktop_platform() -> &'static str {
     } else {
         "linux"
     }
+}
+
+fn resolve_funasr_config<R: Runtime>(app: &AppHandle<R>) -> (PathBuf, String, String, u16) {
+    let desktop_env = load_desktop_env(app).unwrap_or_default();
+
+    let port = desktop_env
+        .get("THUNDER_FUNASR_PORT")
+        .and_then(|v| v.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_FUNASR_PORT);
+
+    let host = desktop_env
+        .get("THUNDER_FUNASR_HOST")
+        .cloned()
+        .unwrap_or_else(|| DEFAULT_FUNASR_HOST.into());
+
+    if cfg!(debug_assertions) {
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("..");
+
+        let launcher = workspace
+            .join("services")
+            .join("funasr")
+            .join("start_funasr.py");
+
+        let python = desktop_env
+            .get("THUNDER_FUNASR_PYTHON")
+            .cloned()
+            .unwrap_or_else(|| {
+                let venv = workspace.join("services").join("funasr").join(".venv");
+                let bin = if cfg!(target_os = "windows") {
+                    venv.join("Scripts").join("python.exe")
+                } else {
+                    venv.join("bin").join("python")
+                };
+                if bin.exists() {
+                    bin.to_string_lossy().into()
+                } else {
+                    "python".into()
+                }
+            });
+
+        (launcher, python, host, port)
+    } else {
+        let resource_dir = app.path().resource_dir().unwrap_or_default();
+        let launcher = resource_dir
+            .join("runtime")
+            .join("services")
+            .join("funasr")
+            .join("start_funasr.py");
+
+        let python = desktop_env
+            .get("THUNDER_FUNASR_PYTHON")
+            .cloned()
+            .unwrap_or_else(|| "python".into());
+
+        (launcher, python, host, port)
+    }
+}
+
+#[tauri::command]
+fn check_funasr_running(app: tauri::AppHandle) -> bool {
+    let (_, _, _, port) = resolve_funasr_config(&app);
+    is_port_open(port)
+}
+
+#[tauri::command]
+fn start_funasr_service(app: tauri::AppHandle) -> Result<String, String> {
+    let (launcher, python, host, port) = resolve_funasr_config(&app);
+
+    // 已在运行则直接返回
+    if is_port_open(port) {
+        return Ok(format!("ws://{}:{}", host, port));
+    }
+
+    if !launcher.exists() {
+        return Err("FunASR 启动脚本不存在，请检查是否已安装 FunASR 服务。".into());
+    }
+
+    let cwd = launcher
+        .parent()
+        .unwrap_or(Path::new("."))
+        .to_path_buf();
+
+    let child = spawn_funasr_process(&python, &launcher, &cwd, &host, port, &HashMap::new())
+        .map_err(|e| {
+            if e.kind() == io::ErrorKind::NotFound {
+                format!(
+                    "未找到 Python 可执行文件 ({python})。请安装 Python 并配置 FunASR 环境后重试。"
+                )
+            } else {
+                format!("FunASR 进程启动失败: {e}")
+            }
+        })?;
+
+    {
+        let state = app.state::<DesktopState>();
+        state.sidecars.lock().unwrap().push(child);
+    }
+
+    wait_for_port(port, Duration::from_secs(120))
+        .map_err(|_| "FunASR 服务启动超时，请检查 Python 环境和依赖是否正确安装。".to_string())?;
+
+    Ok(format!("ws://{}:{}", host, port))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -290,7 +439,11 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_decorum::init())
-        .invoke_handler(tauri::generate_handler![get_desktop_platform])
+        .invoke_handler(tauri::generate_handler![
+            get_desktop_platform,
+            check_funasr_running,
+            start_funasr_service,
+        ])
         .setup(|app| {
             start_local_runtime(&app.handle())?;
             build_tray(&app.handle())?;
@@ -302,8 +455,9 @@ pub fn run() {
                 main_window.set_traffic_lights_inset(12.0, 16.0)?;
             }
 
-            register_desktop_shortcut(&app.handle())
-                .map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })?;
+            if let Err(error) = register_desktop_shortcut(&app.handle()) {
+                eprintln!("Thunder desktop shortcut was not registered: {}", error);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

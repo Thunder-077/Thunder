@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import net from "node:net"
 
@@ -52,8 +52,12 @@ function startWorkspaceScript(scriptName, label) {
 
     if (code && code !== 0) {
       console.error(`[desktop] ${label} exited with code ${code}`)
+      stopChildren()
       process.exit(code)
     }
+  })
+  child.on("error", (error) => {
+    console.warn(`[desktop] ${label} failed to start: ${error.message}`)
   })
 
   return child
@@ -63,7 +67,15 @@ const children = []
 
 function stopChildren() {
   for (const child of children) {
-    if (!child.killed) {
+    if (child.killed) {
+      continue
+    }
+
+    if (process.platform === "win32") {
+      spawnSync("taskkill.exe", ["/pid", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+      })
+    } else {
       child.kill()
     }
   }

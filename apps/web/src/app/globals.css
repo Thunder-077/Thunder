@@ -458,6 +458,32 @@
     display: none;
   }
 
+  .is-tauri-desktop.is-windows div[data-tauri-decorum-tb] {
+    z-index: calc(var(--z-max) + 2) !important;
+    height: var(--desktop-titlebar-height, 38px) !important;
+    align-items: stretch !important;
+    background: transparent !important;
+  }
+
+  .is-tauri-desktop.is-windows button.decorum-tb-btn {
+    width: 46px !important;
+    height: 100% !important;
+    color: var(--foreground) !important;
+    transition:
+      background-color var(--duration-fast) var(--ease-default),
+      color var(--duration-fast) var(--ease-default) !important;
+  }
+
+  .is-tauri-desktop.is-windows button.decorum-tb-btn:hover {
+    background: var(--accent) !important;
+    color: var(--accent-foreground) !important;
+  }
+
+  .is-tauri-desktop.is-windows button#decorum-tb-close:hover {
+    background: var(--destructive) !important;
+    color: var(--destructive-foreground) !important;
+  }
+
   @media (min-width: 1024px) {
     .login-form-surface {
       background: transparent;

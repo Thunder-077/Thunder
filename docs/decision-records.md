@@ -201,3 +201,22 @@
 - Fastify：性能好，但配置较重
 - Nest.js：功能全面，但对个人项目过于复杂
 - tRPC：端到端类型安全，但与 OpenAPI 契约优先理念冲突
+
+## ADR-012：将 FunASR 作为桌面端托管的本地语音识别服务
+
+**背景**：提词器的 Web Speech API 中文连续识别不稳定，需要更可控的本地中文 ASR 能力。
+
+**决策**：新增 `services/funasr/` 作为 Thunder 管理的 FunASR 服务工作区。桌面端启动时自动尝试启动本地 FunASR WebSocket 服务，前端提词器通过 WebSocket 连接该服务。
+
+**理由**：
+- FunASR 属于 AI/语音识别能力，TypeScript 不适合直接实现模型推理。
+- 桌面端可以安全启动和回收本机子进程，适合托管本地 ASR 服务。
+- 纯 Web 端不能启动本机进程，只能连接用户已经启动且允许访问的 WebSocket 服务。
+- FunASR 服务与业务 UI 解耦，后续可替换为 Deepgram、OpenAI 或其他 provider。
+
+**影响**：
+- `services/funasr/` 保存启动器和本地 FunASR 工作区说明，不把模型文件提交进仓库。
+- 桌面端启动时如果检测到 FunASR 服务脚本，会启动 `127.0.0.1:10095`；检测不到则跳过，不阻塞主应用。
+- 纯 Web 端不启动 FunASR，提词器自动使用 Web Speech。
+- 当前安装包只包含启动器和工作区，不包含上游 FunASR 仓库、Python 运行时、模型和依赖；如需他人安装后开箱即用，需要单独设计 runtime/vendor 打包流程。
+- 前端仍只依赖语音 provider 抽象，不依赖 FunASR 内部实现。

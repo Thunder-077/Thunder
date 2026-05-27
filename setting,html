@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>设置</title>
+  <style>
+    :root {
+      --bg: #f7f7f5;
+      --sub: #ffffff;
+      --soft: #fafafa;
+      --text: #202124;
+      --muted: #70757e;
+      --border: #e7e7e4;
+      --accent: #5e6ad2;
+      --accent-soft: rgba(94, 106, 210, .1);
+      --ok: #16a34a;
+      --warn: #d97706;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f1014;
+      --sub: #17181d;
+      --soft: #1d1f26;
+      --text: #f4f4f5;
+      --muted: #a1a1aa;
+      --border: #2a2d36;
+      --accent: #8b93ff;
+      --accent-soft: rgba(139, 147, 255, .14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .page {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 20px;
+    }
+
+    h1 {
+      margin: 0 0 28px;
+      font-size: 28px;
+      letter-spacing: -0.04em;
+    }
+
+    .section {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section:first-of-type {
+      padding-top: 0;
+    }
+
+    .section:last-of-type {
+      border-bottom: 0;
+    }
+
+    .title {
+      font-size: 15px;
+      font-weight: 650;
+      margin-bottom: 14px;
+    }
+
+    .themes {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .theme {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--soft);
+      cursor: pointer;
+    }
+
+    .theme.active {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .preview {
+      height: 58px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .preview.dark { background: #15161b; }
+
+    .preview.system {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .preview.system div:first-child { background: #fff; }
+    .preview.system div:last-child { background: #15161b; }
+
+    .line {
+      height: 6px;
+      width: 56%;
+      margin: 9px;
+      border-radius: 999px;
+      background: #d8d8d4;
+    }
+
+    .dark .line,
+    .system div:last-child .line {
+      background: #444752;
+    }
+
+    .label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .radio {
+      width: 15px;
+      height: 15px;
+      border: 1.5px solid var(--border);
+      border-radius: 50%;
+    }
+
+    .theme.active .radio {
+      border: 4px solid var(--accent);
+    }
+
+    .update {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--soft);
+    }
+
+    .app {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), #9ca3ff);
+    }
+
+    .name {
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .version {
+      margin-top: 3px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .status {
+      height: 32px;
+      padding: 0 11px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      color: var(--muted);
+      background: var(--sub);
+      white-space: nowrap;
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.warn { color: var(--warn); }
+
+    button {
+      height: 32px;
+      padding: 0 13px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--sub);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .spinner {
+      width: 13px;
+      height: 13px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .demos {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .themes {
+        grid-template-columns: 1fr;
+      }
+
+      .update {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <h1>设置</h1>
+
+    <section class="section">
+      <div class="title">主题</div>
+
+      <div class="themes">
+        <div class="theme active" data-theme-choice="light">
+          <div class="preview">
+            <div class="line"></div>
+            <div class="line" style="width:72%"></div>
+            <div class="line" style="width:38%"></div>
+          </div>
+          <div class="label">浅色 <span class="radio"></span></div>
+        </div>
+
+        <div class="theme" data-theme-choice="dark">
+          <div class="preview dark">
+            <div class="line"></div>
+            <div class="line" style="width:72%"></div>
+            <div class="line" style="width:38%"></div>
+          </div>
+          <div class="label">深色 <span class="radio"></span></div>
+        </div>
+
+        <div class="theme" data-theme-choice="system">
+          <div class="preview system">
+            <div>
+              <div class="line"></div>
+              <div class="line" style="width:40%"></div>
+            </div>
+            <div>
+              <div class="line"></div>
+              <div class="line" style="width:40%"></div>
+            </div>
+          </div>
+          <div class="label">跟随系统 <span class="radio"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="title">版本更新</div>
+
+      <div class="update">
+        <div class="app">
+          <div class="icon">A</div>
+          <div>
+            <div class="name">App</div>
+            <div class="version" id="version">v1.4.2</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <div class="status ok" id="status">已是最新版本</div>
+          <button id="checkBtn">检查更新</button>
+        </div>
+      </div>
+
+      <div class="demos">
+        <button data-state="none">无更新</button>
+        <button data-state="available">有更新</button>
+        <button data-state="loading">更新中</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const root = document.documentElement;
+    const options = document.querySelectorAll(".theme");
+    const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+    const statusEl = document.getElementById("status");
+    const versionEl = document.getElementById("version");
+    const checkBtn = document.getElementById("checkBtn");
+
+    function setTheme(choice) {
+      options.forEach(item => {
+        item.classList.toggle("active", item.dataset.themeChoice === choice);
+      });
+
+      localStorage.setItem("theme", choice);
+
+      root.dataset.theme =
+        choice === "system"
+          ? systemDark.matches ? "dark" : "light"
+          : choice;
+    }
+
+    options.forEach(item => {
+      item.onclick = () => setTheme(item.dataset.themeChoice);
+    });
+
+    systemDark.onchange = () => {
+      if ((localStorage.getItem("theme") || "light") === "system") {
+        setTheme("system");
+      }
+    };
+
+    setTheme(localStorage.getItem("theme") || "light");
+
+    function setUpdateState(state) {
+      statusEl.className = "status";
+      checkBtn.disabled = false;
+      checkBtn.textContent = "检查更新";
+
+      if (state === "loading") {
+        statusEl.innerHTML = `<span class="spinner"></span>更新中`;
+        checkBtn.disabled = true;
+      }
+
+      if (state === "none") {
+        statusEl.classList.add("ok");
+        statusEl.textContent = "已是最新版本";
+        versionEl.textContent = "v1.4.2";
+      }
+
+      if (state === "available") {
+        statusEl.classList.add("warn");
+        statusEl.textContent = "发现 v1.5.0";
+        checkBtn.textContent = "立即更新";
+      }
+    }
+
+    checkBtn.onclick = () => {
+      if (checkBtn.textContent === "立即更新") {
+        setUpdateState("loading");
+
+        setTimeout(() => {
+          versionEl.textContent = "v1.5.0";
+          statusEl.className = "status ok";
+          statusEl.textContent = "已更新";
+          checkBtn.disabled = false;
+          checkBtn.textContent = "检查更新";
+        }, 1200);
+
+        return;
+      }
+
+      setUpdateState("loading");
+
+      setTimeout(() => {
+        setUpdateState(Math.random() > 0.5 ? "available" : "none");
+      }, 1000);
+    };
+
+    document.querySelectorAll("[data-state]").forEach(btn => {
+      btn.onclick = () => setUpdateState(btn.dataset.state);
+    });
+  </script>
+</body>
+</html>
