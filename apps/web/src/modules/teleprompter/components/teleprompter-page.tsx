@@ -11,6 +11,23 @@ import type { SpeechProvider } from "../transcribers"
 import { FollowStatusPanel } from "./follow-status-panel"
 import { PrompterStage } from "./prompter-stage"
 
+function getIncrementalAlignmentText(text: string, previousInterim: string, isFinal: boolean) {
+  const current = text.trim()
+  const previous = previousInterim.trim()
+  if (!current) return ""
+  if (!previous) return current
+  if (current.startsWith(previous)) {
+    return current.slice(previous.length).trim()
+  }
+  if (!isFinal && previous.startsWith(current)) {
+    return ""
+  }
+
+  // ASR interim revisions are replacements, not append-only chunks. When the
+  // replacement is ambiguous, wait for the final result instead of double-counting.
+  return isFinal ? current : ""
+}
+
 export function TeleprompterPage() {
   const [script, setScript] = useState("")
   const [scriptDraft, setScriptDraft] = useState("")
@@ -37,6 +54,7 @@ export function TeleprompterPage() {
   const segmentRefs = useRef<Array<HTMLParagraphElement | null>>([])
   const animationFrameRef = useRef<number | null>(null)
   const processedResultRef = useRef<object | null>(null)
+  const interimAlignmentTextRef = useRef("")
   const scrollTargetRef = useRef<number | null>(null)
 
   const speech = useSpeechRecognition({
@@ -86,6 +104,7 @@ export function TeleprompterPage() {
 
   const clearRecognitionSession = useCallback(() => {
     processedResultRef.current = null
+    interimAlignmentTextRef.current = ""
     setFinalTranscript("")
     setInterimTranscript("")
     speech.clearResult()
@@ -216,9 +235,16 @@ export function TeleprompterPage() {
     }
 
     if (!followEngine) return
+    const alignmentText = getIncrementalAlignmentText(
+      speech.lastResult.text,
+      interimAlignmentTextRef.current,
+      speech.lastResult.isFinal,
+    )
+    interimAlignmentTextRef.current = speech.lastResult.isFinal ? "" : speech.lastResult.text
+    if (!alignmentText) return
 
     const update = followEngine.push(
-      speech.lastResult.text,
+      alignmentText,
       speech.lastResult.isFinal,
       speech.lastResult.timestamps,
     )
