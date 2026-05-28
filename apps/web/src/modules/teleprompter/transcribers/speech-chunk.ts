@@ -25,21 +25,28 @@ type CreateSpeechChunkOptions = {
   provider: SpeechProvider
   text: string
   isFinal: boolean
+  mode?: SpeechChunk["mode"]
   confidence?: number
   timestamps?: [number, number][]
+  speakerId?: string
 }
 
 export function createSpeechChunk(options: CreateSpeechChunkOptions): SpeechChunk {
   const text = options.text.trim()
+  const sequence = chunkSequence++
 
   return {
-    id: `${options.provider}-${Date.now()}-${chunkSequence++}`,
+    id: `${options.provider}-${Date.now()}-${sequence}`,
+    sequence,
     provider: options.provider,
     text,
     normalizedText: normalizeSpeechText(text),
+    mode: options.mode ?? (options.isFinal ? "final" : "partial"),
     isFinal: options.isFinal,
     tokens: createSpeechTokens(text, options.timestamps, options.confidence),
     receivedAt: Date.now(),
+    speakerId: options.speakerId,
+    confidence: options.confidence,
   }
 }
 

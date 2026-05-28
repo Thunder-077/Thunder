@@ -1,0 +1,16 @@
+{
+  "name": "局部同音替换仍可命中",
+  "script": "我是谁，今天要讲什么。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "我事谁",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "readOffsetPositive": true
+      }
+    }
+  ]
+}

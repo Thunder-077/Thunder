@@ -1,0 +1,17 @@
+{
+  "name": "同音错字保持跟读定位",
+  "script": "大家好，今天我们聊一聊智能提词器。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "大加好今天我门聊一聊",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "readOffsetPositive": true,
+        "confidenceMin": 0.3
+      }
+    }
+  ]
+}

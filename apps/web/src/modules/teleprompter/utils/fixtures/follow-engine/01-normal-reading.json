@@ -1,0 +1,49 @@
+{
+  "name": "正常跟读逐步推进",
+  "script": "第一句话。第二句话。第三句话。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "第一",
+      "isFinal": false,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "segmentIndex": 0,
+        "readOffsetPositive": true
+      }
+    },
+    {
+      "action": "push",
+      "text": "第一句话",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "segmentIndex": 0
+      }
+    },
+    {
+      "action": "push",
+      "text": "第二句话",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "segmentIndex": 1,
+        "readOffsetGreaterThanPrevious": true
+      }
+    },
+    {
+      "action": "push",
+      "text": "第三句话",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "segmentIndex": 2,
+        "readOffsetGreaterThanPrevious": true
+      }
+    }
+  ]
+}

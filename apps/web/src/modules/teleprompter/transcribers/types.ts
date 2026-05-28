@@ -19,12 +19,16 @@ export type SpeechToken = {
 
 export type SpeechChunk = {
   id: string
+  sequence: number
   provider: SpeechProvider
   text: string
   normalizedText: string
+  mode: "partial" | "final" | "revision"
   isFinal: boolean
   tokens: SpeechToken[]
   receivedAt: number
+  speakerId?: string
+  confidence?: number
 }
 
 export type TranscriptionResult = {

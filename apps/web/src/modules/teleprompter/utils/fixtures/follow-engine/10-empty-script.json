@@ -1,0 +1,23 @@
+{
+  "name": "空脚本引擎不崩溃",
+  "script": "",
+  "steps": [
+    {
+      "action": "push",
+      "text": "任何内容",
+      "isFinal": true,
+      "expect": {
+        "readOffset": 0,
+        "status": "idle",
+        "isOnScript": false
+      }
+    },
+    {
+      "action": "reset",
+      "expect": {
+        "readOffset": 0,
+        "status": "idle"
+      }
+    }
+  ]
+}

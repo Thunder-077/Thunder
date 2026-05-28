@@ -1,0 +1,34 @@
+{
+  "name": "脱稿后回到正文可恢复",
+  "script": "开场白。重点内容从这里开始。最后总结。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "开场白",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following"
+      }
+    },
+    {
+      "action": "push",
+      "text": "无关内容",
+      "isFinal": true,
+      "repeat": 8,
+      "expect": {
+        "isOnScript": false,
+        "status": "off-script"
+      }
+    },
+    {
+      "action": "push",
+      "text": "重点内容从这里开始",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following"
+      }
+    }
+  ]
+}

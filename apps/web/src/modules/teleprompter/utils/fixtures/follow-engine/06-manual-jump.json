@@ -1,0 +1,25 @@
+{
+  "name": "手动跳转后定位到指定句段",
+  "script": "开场白。重点内容从这里开始。最后总结。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "开场白",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following"
+      }
+    },
+    {
+      "action": "jump-to-segment",
+      "segmentIndex": 1,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "segmentIndex": 1,
+        "readOffsetNearSegmentStart": true
+      }
+    }
+  ]
+}

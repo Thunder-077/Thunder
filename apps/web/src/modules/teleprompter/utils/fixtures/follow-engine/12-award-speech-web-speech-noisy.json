@@ -1,0 +1,80 @@
+{
+  "name": "获奖发言稿 Web Speech 噪声重复停顿仍可滚动",
+  "script": "尊敬的各位领导、各位同事：\n\n大家好！我是来自应用软件研发中心的王晨曦，目前在数据要素可信数据空间团队工作。\n\n非常开心能够在本次编程大赛中获得一等奖，也非常荣幸能作为获奖者代表，在这里和大家分享一下我在工作中使用 AI 工具的一些心得体会。\n\n这次比赛给我最大的感受是：AI 不是在替代程序员，而是在重新定义程序员的工作边界。\n\n过去，我们更多是一个编码者，需要把每一行代码亲手写出来；而现在，借助 AI 工具，我们更像是一个驾驭者。我们要明确目标、拆解任务、判断方案、把控质量，让 AI 成为提升效率的工具，而不是替代思考的工具。\n\n在这次编程比赛中，我能够明显感受到，AI 对于小规模、目标明确的编码任务非常擅长。比如编程题目的理解、代码生成，AI 都能够在很短时间内给出可用的思路和实现。这也是为什么我们能够看到，相比往届，本次竞赛中选手们在完成效率和正确率上都有了明显提升。\n\n但 AI 的价值并不只体现在比赛中。回到实际工作场景，它同样能够帮助我们提升研发效率。比如在系统设计阶段，AI 可以帮助我们梳理架构思路、补充边界场景；在编码实现阶段，它可以辅助生成代码、优化接口设计；在测试和代码审计阶段，它也能帮助我们发现潜在问题，提升代码质量。\n\nAI 的价值，不只是帮助我们更快地完成代码编写，更重要的是让我们能够从一些重复性、机械性的工作中解放出来，把更多精力投入到业务理解、架构设计和关键问题判断上。\n\n当然，AI 的使用并不是简单地“问一句、拿答案”。尤其是在我们日常面对的复杂工程项目中，系统会持续迭代，模块会越来越多，业务规则也会越来越复杂。项目初期，AI 往往能够很快理解需求并给出结果；但随着工程复杂度提升，AI 有时并不能完全符合我们的原本意图，甚至可能出现看似合理、但与项目规范、架构边界或长期演进方向不一致的输出。\n\n所以我觉得，对于研发人员来说，真正用好 AI，不能只停留在“让 AI 写代码”，更重要的是要学会用工程化的方式驾驭 AI。\n\n在复杂工程中，我们需要通过上下文管理、规范文档，以及 OpenSpec 这类工具，把需求、边界和约束提前讲清楚，让 AI 在明确的规则内工作。这样不是为了限制 AI，而是为了让它的输出更加稳定、可控，也更符合项目长期迭代的要求。\n\n通过这次比赛和日常工作的实践，我更加深刻地认识到：AI 不会让专业能力变得不重要，恰恰相反，它会放大一个人的专业能力。越是理解业务、理解架构、理解工程实践的人，越能把 AI 用好，也越能获得更高的效率提升。\n\n最后，再次感谢公司组织这次编程大赛，也感谢各位领导和同事的支持。未来，我也会继续在实际工作中探索 AI 工具的使用方式，把 AI 更好地应用到软件研发、系统建设和数据要素可信数据空间相关工作中，为团队和公司创造更多价值。\n\n谢谢大家！",
+  "steps": [
+    {
+      "action": "push-chunk",
+      "provider": "web-speech",
+      "text": "尊敬的各位领导各位同事",
+      "isFinal": false,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "readOffsetPositive": true
+      }
+    },
+    {
+      "action": "push-chunk",
+      "provider": "web-speech",
+      "text": "大家好我是来自应用软件研发中心的王晨曦",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "readOffsetGreaterThanPrevious": true
+      }
+    },
+    {
+      "action": "push-chunk",
+      "provider": "web-speech",
+      "text": "大家好我是来自应用软件研发中心的王晨曦",
+      "isFinal": true,
+      "repeat": 2,
+      "expect": {
+        "isOnScript": true,
+        "status": "following"
+      }
+    },
+    {
+      "action": "push-chunk",
+      "provider": "web-speech",
+      "text": "现场请后排同事把手机调成静音",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": false
+      }
+    },
+    {
+      "action": "push-chunk",
+      "provider": "web-speech",
+      "text": "非常开心能够在本次编程大赛中获得一等奖",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "readOffsetGreaterThanPrevious": true,
+        "candidatesMin": 2
+      }
+    },
+    {
+      "action": "push-chunk",
+      "provider": "web-speech",
+      "text": "这次比赛给我最大的感受是AI不是在替代程序员",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "readOffsetGreaterThanPrevious": true
+      }
+    },
+    {
+      "action": "push-chunk",
+      "provider": "web-speech",
+      "text": "而是在重新定义程序员的工作边界",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "readOffsetGreaterThanPrevious": true
+      }
+    }
+  ]
+}

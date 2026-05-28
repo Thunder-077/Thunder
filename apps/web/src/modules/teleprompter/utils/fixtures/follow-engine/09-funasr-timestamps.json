@@ -1,0 +1,18 @@
+{
+  "name": "FunASR 时间戳辅助提升 readOffset",
+  "script": "大家好，今天我们聊一聊智能提词器。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "今天我们",
+      "isFinal": true,
+      "timestamps": [[100, 200], [200, 300], [300, 400], [400, 500]],
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "readOffsetPositive": true,
+        "topCandidateSource": "timestamp"
+      }
+    }
+  ]
+}

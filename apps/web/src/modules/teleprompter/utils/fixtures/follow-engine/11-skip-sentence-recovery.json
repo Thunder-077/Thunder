@@ -1,0 +1,28 @@
+{
+  "name": "跳读后候选搜索可推进到后续句段",
+  "script": "第一句话。第二句话。第三句话。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "第一句话",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "segmentIndex": 0
+      }
+    },
+    {
+      "action": "push",
+      "text": "第三句话",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "segmentIndex": 2,
+        "readOffsetGreaterThanPrevious": true,
+        "candidatesMin": 2
+      }
+    }
+  ]
+}

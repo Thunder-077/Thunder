@@ -1,0 +1,22 @@
+{
+  "name": "reset 回到开头",
+  "script": "大家好，今天我们聊一聊智能提词器。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "大家好今天我们",
+      "isFinal": true,
+      "expect": {
+        "readOffsetPositive": true,
+        "status": "following"
+      }
+    },
+    {
+      "action": "reset",
+      "expect": {
+        "readOffset": 0,
+        "status": "idle"
+      }
+    }
+  ]
+}

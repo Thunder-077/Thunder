@@ -1,0 +1,16 @@
+{
+  "name": "中英文数字混合内容可定位",
+  "script": "使用API接口。调用HTTP请求。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "使用API接口",
+      "isFinal": true,
+      "expect": {
+        "isOnScript": true,
+        "status": "following",
+        "readOffsetPositive": true
+      }
+    }
+  ]
+}

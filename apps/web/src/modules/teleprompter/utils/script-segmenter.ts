@@ -100,15 +100,28 @@ function pushSegment(
 }
 
 export type ScriptIndex = {
+  script: string
   tokens: string[]
   offsets: number[]
   segmentIndices: number[]
+  scriptTokens: ScriptToken[]
+  segmentTokenRanges: Array<{ startTokenIndex: number; endTokenIndex: number }>
+}
+
+export type ScriptToken = {
+  token: string
+  text: string
+  offset: number
+  segmentIndex: number
+  paragraphIndex: number
 }
 
 export function buildScriptIndex(script: string, segments: ScriptSegment[]): ScriptIndex {
   const tokens: string[] = []
   const offsets: number[] = []
   const segmentIndices: number[] = []
+  const scriptTokens: ScriptToken[] = []
+  const segmentTokenRanges: Array<{ startTokenIndex: number; endTokenIndex: number }> = []
 
   for (let segIdx = 0; segIdx < segments.length; segIdx += 1) {
     const segment = segments[segIdx]
@@ -116,6 +129,7 @@ export function buildScriptIndex(script: string, segments: ScriptSegment[]): Scr
     const leadingWs = originalSlice.length - originalSlice.trimStart().length
     const textStart = segment.startOffset + leadingWs
     const chars = Array.from(segment.raw)
+    const startTokenIndex = tokens.length
 
     for (let ci = 0; ci < chars.length; ci += 1) {
       const ch = chars[ci]
@@ -124,12 +138,25 @@ export function buildScriptIndex(script: string, segments: ScriptSegment[]): Scr
 
       const py = toPinyinTokens(normalized)
       for (const token of py) {
+        const offset = textStart + ci + 1
         tokens.push(token)
-        offsets.push(textStart + ci + 1)
+        offsets.push(offset)
         segmentIndices.push(segIdx)
+        scriptTokens.push({
+          token,
+          text: ch,
+          offset,
+          segmentIndex: segIdx,
+          paragraphIndex: segment.paragraphIndex,
+        })
       }
     }
+
+    segmentTokenRanges.push({
+      startTokenIndex,
+      endTokenIndex: tokens.length,
+    })
   }
 
-  return { tokens, offsets, segmentIndices }
+  return { script, tokens, offsets, segmentIndices, scriptTokens, segmentTokenRanges }
 }

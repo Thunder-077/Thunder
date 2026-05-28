@@ -1,0 +1,16 @@
+{
+  "name": "完全无关内容进入脱稿状态",
+  "script": "这是第一句。这里是第二句。",
+  "steps": [
+    {
+      "action": "push",
+      "text": "完全无关的内容",
+      "isFinal": true,
+      "repeat": 8,
+      "expect": {
+        "isOnScript": false,
+        "status": "off-script"
+      }
+    }
+  ]
+}
