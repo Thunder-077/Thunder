@@ -9,6 +9,7 @@
     "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "test:teleprompter": "tsx src/modules/teleprompter/utils/alignment-engine.test.ts",
     "lint": "eslint",
     "lint:css": "stylelint \"**/*.css\"",
     "typecheck": "tsc --noEmit"
@@ -26,6 +27,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.11.0",
     "next": "16.2.4",
+    "pinyin-pro": "^3.28.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "shadcn": "^4.5.0",
@@ -47,6 +49,7 @@
     "stylelint": "^16.0.0",
     "stylelint-config-standard": "^36.0.0",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "wrangler": "^4.44.0"
   }

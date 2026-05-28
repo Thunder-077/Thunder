@@ -1,4 +1,5 @@
 import type { SpeechTranscriber, TranscriberStatus, TranscriptionResult } from "./types"
+import { createSpeechChunk, SPEECH_PROVIDER_CAPABILITIES } from "./speech-chunk"
 
 type SpeechRecognitionConstructor = new () => BrowserSpeechRecognition
 
@@ -86,6 +87,10 @@ export class WebSpeechTranscriber implements SpeechTranscriber {
     return resolveSpeechRecognition() !== null
   }
 
+  getCapabilities() {
+    return SPEECH_PROVIDER_CAPABILITIES["web-speech"]
+  }
+
   async start() {
     const Recognition = resolveSpeechRecognition()
     if (!Recognition) {
@@ -149,10 +154,18 @@ export class WebSpeechTranscriber implements SpeechTranscriber {
           continue
         }
 
+        const chunk = createSpeechChunk({
+          provider: "web-speech",
+          text: alternative.transcript,
+          isFinal: item.isFinal,
+          confidence: alternative.confidence,
+        })
+
         this.emitResult({
           text: alternative.transcript,
           isFinal: item.isFinal,
           confidence: alternative.confidence,
+          chunk,
         })
       }
     }

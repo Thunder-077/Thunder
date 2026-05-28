@@ -1,4 +1,5 @@
 import type { SpeechTranscriber, TranscriberStatus, TranscriptionResult } from "./types"
+import { createSpeechChunk, SPEECH_PROVIDER_CAPABILITIES } from "./speech-chunk"
 
 type FunAsrTranscriberOptions = {
   endpoint: string
@@ -11,6 +12,7 @@ type FunAsrMessage = {
   mode?: string
   is_final?: boolean
   isFinal?: boolean
+  timestamp?: [number, number][]
 }
 
 const TARGET_SAMPLE_RATE = 16000
@@ -23,7 +25,7 @@ export class FunAsrTranscriber implements SpeechTranscriber {
   private mediaStream: MediaStream | null = null
   private audioContext: AudioContext | null = null
   private sourceNode: MediaStreamAudioSourceNode | null = null
-  private processorNode: ScriptProcessorNode | null = null
+  private workletNode: AudioWorkletNode | null = null
   private resultHandlers = new Set<(result: TranscriptionResult) => void>()
   private statusHandlers = new Set<(status: TranscriberStatus) => void>()
   private errorHandlers = new Set<(message: string) => void>()
@@ -38,6 +40,10 @@ export class FunAsrTranscriber implements SpeechTranscriber {
 
   isSupported() {
     return typeof window !== "undefined" && "WebSocket" in window && navigator.mediaDevices?.getUserMedia !== undefined
+  }
+
+  getCapabilities() {
+    return SPEECH_PROVIDER_CAPABILITIES.funasr
   }
 
   async start() {
@@ -88,13 +94,14 @@ export class FunAsrTranscriber implements SpeechTranscriber {
       // The socket may already be closing; stop should stay idempotent.
     }
 
-    this.processorNode?.disconnect()
+    this.workletNode?.disconnect()
+    this.workletNode?.port.close()
     this.sourceNode?.disconnect()
     void this.audioContext?.close()
     this.mediaStream?.getTracks().forEach((track) => track.stop())
     this.socket?.close()
 
-    this.processorNode = null
+    this.workletNode = null
     this.sourceNode = null
     this.audioContext = null
     this.mediaStream = null
@@ -160,23 +167,20 @@ export class FunAsrTranscriber implements SpeechTranscriber {
     }
 
     this.audioContext = new AudioContext()
+    await this.audioContext.audioWorklet.addModule("/audio-worklet/pcm-processor.js")
+
     this.sourceNode = this.audioContext.createMediaStreamSource(this.mediaStream)
-    this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1)
+    this.workletNode = new AudioWorkletNode(this.audioContext, "pcm-processor", {
+      processorOptions: { inputSampleRate: this.audioContext.sampleRate },
+    })
 
-    this.processorNode.onaudioprocess = (event) => {
-      if (this.socket?.readyState !== WebSocket.OPEN || !this.audioContext) {
-        return
-      }
-
-      const input = event.inputBuffer.getChannelData(0)
-      const pcm = downsampleTo16kPcm(input, this.audioContext.sampleRate)
-      if (pcm.byteLength > 0) {
-        this.socket.send(pcm)
+    this.workletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+      if (this.socket?.readyState === WebSocket.OPEN && event.data.byteLength > 0) {
+        this.socket.send(event.data)
       }
     }
 
-    this.sourceNode.connect(this.processorNode)
-    this.processorNode.connect(this.audioContext.destination)
+    this.sourceNode.connect(this.workletNode)
   }
 
   private handleMessage(data: unknown) {
@@ -191,10 +195,20 @@ export class FunAsrTranscriber implements SpeechTranscriber {
         return
       }
 
-      this.emitResult({
+      const timestamps = validTimestamps(message.timestamp, text)
+      const chunk = createSpeechChunk({
+        provider: "funasr",
         text,
         isFinal: message.is_final ?? message.isFinal ?? message.mode === "2pass-offline",
+        timestamps,
+      })
+
+      this.emitResult({
+        text,
+        isFinal: chunk.isFinal,
         source: message.mode,
+        timestamps,
+        chunk,
       })
       this.emitStatus("listening")
     } catch {
@@ -221,38 +235,20 @@ export class FunAsrTranscriber implements SpeechTranscriber {
   }
 }
 
-function downsampleTo16kPcm(input: Float32Array, inputSampleRate: number): ArrayBuffer {
-  if (inputSampleRate === TARGET_SAMPLE_RATE) {
-    return floatTo16BitPcm(input)
+function validTimestamps(
+  raw: [number, number][] | undefined,
+  text: string
+): [number, number][] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return undefined
   }
 
-  const ratio = inputSampleRate / TARGET_SAMPLE_RATE
-  const outputLength = Math.floor(input.length / ratio)
-  const output = new Float32Array(outputLength)
-
-  for (let index = 0; index < outputLength; index += 1) {
-    const start = Math.floor(index * ratio)
-    const end = Math.min(Math.floor((index + 1) * ratio), input.length)
-    let sum = 0
-    for (let inputIndex = start; inputIndex < end; inputIndex += 1) {
-      sum += input[inputIndex]
-    }
-    output[index] = sum / Math.max(1, end - start)
+  const chars = Array.from(text)
+  if (raw.length !== chars.length) {
+    return undefined
   }
 
-  return floatTo16BitPcm(output)
-}
-
-function floatTo16BitPcm(input: Float32Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(input.length * 2)
-  const view = new DataView(buffer)
-
-  for (let index = 0; index < input.length; index += 1) {
-    const sample = Math.max(-1, Math.min(1, input[index]))
-    view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
-  }
-
-  return buffer
+  return raw
 }
 
 function toFunAsrError(error: unknown): string {

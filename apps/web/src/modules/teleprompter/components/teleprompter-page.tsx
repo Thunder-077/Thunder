@@ -19,9 +19,11 @@ import { Input } from "@/components/ui/input"
 import { checkFunAsrRunning, isTauriDesktop, startFunAsrService } from "@/lib/platform"
 import { cn } from "@/lib/utils"
 import { useSpeechRecognition } from "../hooks/use-speech-recognition"
-import { findBestSegmentMatch } from "../utils/fuzzy-match"
-import { segmentScript, type ScriptSegment } from "../utils/script-segmenter"
-import { normalizeSpeechText } from "../utils/text-normalizer"
+import {
+  createAlignmentEngine,
+  getSegmentTextStartOffset,
+} from "../utils/alignment-engine"
+import { segmentScript } from "../utils/script-segmenter"
 import type { SpeechProvider } from "../transcribers"
 
 export function VoiceWaveform({ status }: { status: FollowStatus }) {
@@ -173,91 +175,15 @@ export function VoiceWaveform({ status }: { status: FollowStatus }) {
   )
 }
 
-type FollowStatus = "idle" | "listening" | "following" | "paused" | "failed"
-
-const CONFIDENCE_THRESHOLD = 0.62
+type FollowStatus = "idle" | "listening" | "following" | "off-script" | "paused" | "failed"
 
 const statusLabels: Record<FollowStatus, string> = {
   idle: "未开始",
   listening: "正在监听",
   following: "正在跟读",
+  "off-script": "脱稿中",
   paused: "已暂停",
   failed: "定位失败",
-}
-
-function getSegmentTextStartOffset(script: string, segment: ScriptSegment) {
-  const originalSlice = script.slice(segment.startOffset, segment.endOffset)
-  const leadingWhitespaceLength = originalSlice.length - originalSlice.trimStart().length
-  return segment.startOffset + leadingWhitespaceLength
-}
-
-function estimateReadOffset(script: string, segment: ScriptSegment, transcript: string, fallbackOffset: number) {
-  const normalizedTranscript = normalizeSpeechText(transcript).slice(-96)
-  const segmentStartOffset = getSegmentTextStartOffset(script, segment)
-  const units = Array.from(segment.raw).flatMap((char, charIndex) => {
-    const normalized = normalizeSpeechText(char)
-    return Array.from(normalized).map((normalizedChar) => ({
-      normalizedChar,
-      rawEndOffset: segmentStartOffset + charIndex + 1,
-    }))
-  })
-  const normalizedSegment = units.map((unit) => unit.normalizedChar).join("")
-
-  if (normalizedTranscript.length < 2 || normalizedSegment.length < 2) {
-    return fallbackOffset
-  }
-
-  // Strategy: find the longest common substring between the segment and the
-  // TAIL of the transcript using a standard DP approach. By scanning the
-  // transcript suffix we anchor to "what is being said right now", which
-  // naturally handles noisy/fragmented recognition like "AI。AI。查。哎，
-  // 不是在。AI不是在替代程序员" — the algorithm will find the latest and
-  // longest contiguous match rather than getting stuck on an early short match.
-
-  const m = normalizedSegment.length
-  const n = normalizedTranscript.length
-  let bestLength = 0
-  let bestSegEnd = -1  // end index (exclusive) in normalizedSegment
-
-  // DP: previous[j] = length of common suffix ending at segment[i-1] and transcript[j-1]
-  const previous = new Array<number>(n + 1).fill(0)
-  const current = new Array<number>(n + 1).fill(0)
-
-  for (let i = 1; i <= m; i += 1) {
-    for (let j = 1; j <= n; j += 1) {
-      if (normalizedSegment[i - 1] === normalizedTranscript[j - 1]) {
-        current[j] = previous[j - 1] + 1
-      } else {
-        current[j] = 0
-      }
-
-      // Prefer matches that end later in the segment (farthest read position)
-      // and for equal segment end prefer the match anchored later in the
-      // transcript (most recent speech).
-      if (current[j] >= 2) {
-        const segEnd = i
-        if (
-          current[j] > bestLength ||
-          (current[j] === bestLength && segEnd >= bestSegEnd)
-        ) {
-          bestLength = current[j]
-          bestSegEnd = segEnd
-        }
-      }
-    }
-
-    // Swap rows
-    for (let k = 0; k <= n; k += 1) {
-      previous[k] = current[k]
-      current[k] = 0
-    }
-  }
-
-  if (bestSegEnd <= 0 || bestLength < 2) {
-    return fallbackOffset
-  }
-
-  return Math.max(fallbackOffset, units[Math.min(bestSegEnd - 1, units.length - 1)]?.rawEndOffset ?? fallbackOffset)
 }
 
 export function TeleprompterPage() {
@@ -267,10 +193,9 @@ export function TeleprompterPage() {
   const [speechProvider, setSpeechProvider] = useState<SpeechProvider>("web-speech")
   const [followStatus, setFollowStatus] = useState<FollowStatus>("idle")
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [stableIndex, setStableIndex] = useState(0)
   const [readOffset, setReadOffset] = useState(0)
   const [confidence, setConfidence] = useState(0)
-  const [matched, setMatched] = useState(false)
+  const [isOnScript, setIsOnScript] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [finalTranscript, setFinalTranscript] = useState("")
   const [interimTranscript, setInterimTranscript] = useState("")
@@ -289,6 +214,8 @@ export function TeleprompterPage() {
     funAsrEndpoint,
   })
   const segments = useMemo(() => segmentScript(script), [script])
+  const aligner = useMemo(() => script ? createAlignmentEngine(script, segments) : null, [script, segments])
+
   const displayTranscript = `${finalTranscript.slice(-160)}${interimTranscript}`.trim()
   const canFollow = segments.length > 0
   const visibleCurrentIndex = Math.min(currentIndex, Math.max(segments.length - 1, 0))
@@ -385,11 +312,11 @@ export function TeleprompterPage() {
   useEffect(() => cancelScrollAnimation, [])
 
   const resetScriptPosition = () => {
+    aligner?.reset()
     setCurrentIndex(0)
-    setStableIndex(0)
     setReadOffset(0)
-    setMatched(false)
     setConfidence(0)
+    setIsOnScript(false)
     setMessage(null)
     setFinalTranscript("")
     setInterimTranscript("")
@@ -428,41 +355,33 @@ export function TeleprompterPage() {
     }
     processedResultRef.current = speech.lastResult
 
-    const nextFinalTranscript = speech.lastResult.isFinal
-      ? `${finalTranscript}${speech.lastResult.text}`.slice(-320)
-      : finalTranscript
-
     if (speech.lastResult.isFinal) {
-      // Speech results arrive from an external browser API; state updates here synchronize that stream with UI state.
-      setFinalTranscript(nextFinalTranscript)
+      setFinalTranscript((prev) => `${prev}${speech.lastResult!.text}`.slice(-320))
       setInterimTranscript("")
     } else {
       setInterimTranscript(speech.lastResult.text)
     }
 
-    const matchText = `${nextFinalTranscript.slice(-180)}${speech.lastResult.isFinal ? "" : speech.lastResult.text}`
-    const result = findBestSegmentMatch(segments, matchText, stableIndex)
-    setConfidence(result.confidence)
+    if (!aligner) return
 
-    if (result.index >= 0 && result.confidence >= CONFIDENCE_THRESHOLD) {
-      const matchedSegment = segments[result.index]
-      const previousOffset = result.index === currentIndex ? readOffset : getSegmentTextStartOffset(script, matchedSegment)
-      const nextReadOffset = estimateReadOffset(script, matchedSegment, matchText, previousOffset)
+    const update = aligner.push(
+      speech.lastResult.text,
+      speech.lastResult.isFinal,
+      speech.lastResult.timestamps,
+    )
 
-      setMatched(true)
+    setConfidence(update.confidence)
+    setIsOnScript(update.isOnScript)
+    setCurrentIndex(update.segmentIndex)
+    setReadOffset(update.scriptOffset)
+
+    if (update.isOnScript) {
       setMessage(null)
-      setCurrentIndex(result.index)
-      setStableIndex((current) => Math.max(current, result.index))
-      setReadOffset(nextReadOffset)
       setFollowStatus("following")
-      return
+    } else {
+      setFollowStatus("off-script")
     }
-
-    setMatched(false)
-    if (speech.lastResult.isFinal) {
-      setFollowStatus("failed")
-    }
-  }, [currentIndex, finalTranscript, followStatus, readOffset, script, segments, speech.lastResult, stableIndex])
+  }, [aligner, followStatus, speech.lastResult])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -481,7 +400,6 @@ export function TeleprompterPage() {
 
     speech.clearError()
     setMessage(null)
-    setMatched(false)
     setConfidence(0)
     setFollowStatus("listening")
     await speech.start()
@@ -507,30 +425,29 @@ export function TeleprompterPage() {
   const stopFollowing = () => {
     speech.stop()
     setFollowStatus("idle")
-    setMatched(false)
     setConfidence(0)
     setMessage(null)
     setInterimTranscript("")
   }
 
   const returnToStart = () => {
+    aligner?.reset()
     speech.clearError()
     setCurrentIndex(0)
-    setStableIndex(0)
     setReadOffset(0)
-    setMatched(false)
     setConfidence(0)
+    setIsOnScript(false)
     setMessage(null)
     scrollToReadPosition(0, 0)
   }
 
   const calibrateToCharacter = (selectedIndex: number, selectedOffset: number) => {
+    aligner?.jump(selectedOffset)
     setMessage(null)
     setCurrentIndex(selectedIndex)
-    setStableIndex(selectedIndex)
     setReadOffset(selectedOffset)
-    setMatched(true)
     setConfidence(1)
+    setIsOnScript(true)
     speech.clearError()
     scrollToReadPosition(selectedOffset, selectedIndex)
   }
@@ -585,7 +502,7 @@ export function TeleprompterPage() {
                     {speech.isSupported ? (speechProvider === "funasr" ? "FunASR" : "浏览器识别") : "不支持识别"}
                   </Badge>
                   <span>{statusLabels[visibleStatus]}</span>
-                  <span>{matched ? "匹配成功" : "等待匹配"}</span>
+                  <span>{isOnScript ? "匹配成功" : "等待匹配"}</span>
                 </div>
               </div>
 
