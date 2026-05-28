@@ -1,4 +1,4 @@
-export type SpeechProvider = "web-speech" | "funasr"
+export type SpeechProvider = "web-speech" | "funasr" | "sherpa-onnx"
 
 export type SpeechProviderCapabilities = {
   partialResults: boolean

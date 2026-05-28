@@ -16,6 +16,7 @@
 | 目录 | 语言 | 场景 | 触发条件 |
 |------|------|------|----------|
 | `funasr/` | Python | 本地语音识别 WebSocket 服务 | 桌面提词器需要稳定中文 ASR |
+| `sherpa-onnx/` | Python | 本地流式语音识别 + 模型下载管理 | 提词器需要可选模型和更轻量的本地 ASR |
 | `python-ai-worker/` | Python | AI/机器学习、复杂数据分析 | TypeScript 明显不适合时 |
 | `rust-system-worker/` | Rust | 系统级能力、高性能计算 | Tauri 桌面端需要时 |
 

@@ -146,15 +146,16 @@ export function PrompterStage({
                 >
                   {Array.from(segment.raw).map((char, charIndex) => {
                     const absoluteOffset = textStartOffset + charIndex
-                    const isRead = absoluteOffset < visibleReadOffset
-                    const isCurrentChar = absoluteOffset === visibleReadOffset && index === visibleCurrentIndex
+                    const charEndOffset = absoluteOffset + 1
+                    const isRead = charEndOffset < visibleReadOffset
+                    const isCurrentChar = charEndOffset === visibleReadOffset && index === visibleCurrentIndex
 
                     return (
                       <button
-                        key={`${segment.id}-${absoluteOffset}`}
+                        key={`${segment.id}-${charEndOffset}`}
                         type="button"
-                        data-offset={absoluteOffset}
-                        onClick={() => onCalibrateToCharacter(index, absoluteOffset)}
+                        data-offset={charEndOffset}
+                        onClick={() => onCalibrateToCharacter(index, charEndOffset)}
                         className={cn(
                           "inline cursor-pointer appearance-none rounded-sm border-0 bg-transparent px-0.5 py-0 text-left font-[inherit] leading-[inherit] transition-colors hover:bg-muted/20",
                           isRead && "text-slate-500/70",

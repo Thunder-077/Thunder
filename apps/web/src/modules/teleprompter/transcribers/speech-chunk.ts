@@ -17,6 +17,13 @@ export const SPEECH_PROVIDER_CAPABILITIES: Record<SpeechProvider, SpeechProvider
     hotwords: true,
     reliability: "standard",
   },
+  "sherpa-onnx": {
+    partialResults: true,
+    finalResults: true,
+    tokenTimestamps: false,
+    hotwords: false,
+    reliability: "standard",
+  },
 }
 
 let chunkSequence = 0

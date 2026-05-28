@@ -39,6 +39,8 @@ export type FollowCandidate = {
   scriptOffset: number
   readOffset: number
   segmentIndex: number
+  startTokenIndex: number
+  endTokenIndex: number
   confidence: number
   score: number
   source: "dtw" | "local" | "recovery" | "timestamp"
@@ -87,6 +89,8 @@ export type AdaptiveFollowParams = {
   maxPredictionMs: number
   jumpPenalty: number
   backwardPenalty: number
+  maxLocalLeadTokens: number
+  minLocalMatchTokens: number
 }
 
 export type FollowEngine = {
@@ -130,6 +134,8 @@ const DEFAULT_RECOVERY_CANDIDATE_THRESHOLD = 0.62
 const DEFAULT_TIMESTAMP_CORRECTION_THRESHOLD = 0.45
 const DEFAULT_MIN_RECOVERY_HITS = 2
 const DEFAULT_MAX_PREDICTION_MS = 1200
+const DEFAULT_MAX_LOCAL_LEAD_TOKENS = 20
+const DEFAULT_MIN_LOCAL_MATCH_TOKENS = 2
 const MAX_CANDIDATES = 5
 const TRACK_OFFSET_BUCKET = 8
 const TRACK_TTL_MS = 6000
@@ -151,6 +157,8 @@ export function createFollowEngine(
     maxPredictionMs: config?.maxPredictionMs ?? DEFAULT_MAX_PREDICTION_MS,
     jumpPenalty: 0.16,
     backwardPenalty: 0.18,
+    maxLocalLeadTokens: DEFAULT_MAX_LOCAL_LEAD_TOKENS,
+    minLocalMatchTokens: DEFAULT_MIN_LOCAL_MATCH_TOKENS,
   }
   const stats = createRuntimeStats()
   let params = { ...baseParams }
@@ -478,10 +486,13 @@ function toDtwCandidate(
   totalTokens: number
 ): FollowCandidate {
   const pos = Math.max(0, Math.min(state.scriptPosition, index.tokens.length - 1))
+  const startTokenIndex = Math.max(0, pos - Math.max(0, totalTokens - 1))
   return {
     scriptOffset: index.offsets[pos] ?? 0,
     readOffset: index.offsets[pos] ?? 0,
     segmentIndex: index.segmentIndices[pos] ?? 0,
+    startTokenIndex,
+    endTokenIndex: pos,
     confidence: state.confidence,
     score: state.confidence,
     source: "dtw",
@@ -536,6 +547,9 @@ function scoreCandidateEndingAt(options: {
   const { speechTokens, index, endIndex, anchorIndex, mode, isFinal, params } = options
   const startIndex = endIndex - speechTokens.length + 1
   if (startIndex < 0) return null
+  if (mode === "local" && !isLocalCandidateInRange(startIndex, endIndex, anchorIndex, params)) {
+    return null
+  }
 
   let matchedTokens = 0
   for (let i = 0; i < speechTokens.length; i += 1) {
@@ -545,15 +559,20 @@ function scoreCandidateEndingAt(options: {
   }
 
   const matchRatio = matchedTokens / speechTokens.length
-  const minMatchedTokens = mode === "recovery" ? Math.min(4, speechTokens.length) : Math.min(3, speechTokens.length)
+  const minMatchedTokens = mode === "recovery"
+    ? Math.min(4, speechTokens.length)
+    : speechTokens.length === 1
+    ? 1
+    : Math.min(params.minLocalMatchTokens, speechTokens.length)
   if (matchedTokens < minMatchedTokens) return null
 
   const forwardDistance = endIndex - anchorIndex
   const continuityBonus = forwardDistance >= 0 && forwardDistance <= 45 ? 0.12 : 0
   const backwardPenalty = forwardDistance < -4 ? params.backwardPenalty : 0
   const jumpPenalty = mode === "local" && forwardDistance > 120 ? params.jumpPenalty : 0
+  const singleTokenAmbiguityPenalty = mode === "local" && speechTokens.length === 1 && startIndex > anchorIndex + 1 ? 0.18 : 0
   const finalBonus = isFinal ? 0.03 : 0
-  const score = clamp(matchRatio + continuityBonus + finalBonus - backwardPenalty - jumpPenalty, 0, 1)
+  const score = clamp(matchRatio + continuityBonus + finalBonus - backwardPenalty - jumpPenalty - singleTokenAmbiguityPenalty, 0, 1)
 
   if (score < 0.35) return null
 
@@ -562,6 +581,8 @@ function scoreCandidateEndingAt(options: {
     scriptOffset,
     readOffset: scriptOffset,
     segmentIndex: index.segmentIndices[endIndex] ?? 0,
+    startTokenIndex: startIndex,
+    endTokenIndex: endIndex,
     confidence: score,
     score,
     source: mode,
@@ -580,6 +601,7 @@ function createTimestampCandidate(
   if (timestamps.length !== resultChars.length) return null
 
   const resultPy = toPinyinTokens(normalizeSpeechText(resultText))
+  const timestampIndex = buildScriptIndex(script, segments)
   let best: FollowCandidate | null = null
 
   for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
@@ -598,10 +620,13 @@ function createTimestampCandidate(
         matchedTokens += 1
         const charOffset = textStart + Math.min(segScan, segChars.length - 1) + 1
         const confidence = matchedTokens / Math.max(1, resultPy.length)
+        const endTokenIndex = findTokenIndexByOffset(timestampIndex, charOffset)
         const candidate: FollowCandidate = {
           scriptOffset: charOffset,
           readOffset: charOffset,
           segmentIndex,
+          startTokenIndex: Math.max(0, endTokenIndex - resultPy.length + 1),
+          endTokenIndex,
           confidence,
           score: confidence + 0.08,
           source: "timestamp",
@@ -656,6 +681,24 @@ function chooseBestCandidate(options: {
   }
 
   return dtwCandidate
+}
+
+function isLocalCandidateInRange(
+  startIndex: number,
+  endIndex: number,
+  anchorIndex: number,
+  params: AdaptiveFollowParams
+): boolean {
+  const startLead = startIndex - anchorIndex
+  const endLead = endIndex - anchorIndex
+  if (startLead > params.maxLocalLeadTokens) {
+    return false
+  }
+  if (endLead < -params.minLocalMatchTokens) {
+    return false
+  }
+
+  return true
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -795,6 +838,8 @@ function deriveAdaptiveParams(base: AdaptiveFollowParams, stats: FollowRuntimeSt
     maxPredictionMs: clamp(base.maxPredictionMs + (delayedAsr ? 400 : 0), 600, 1800),
     jumpPenalty: clamp(base.jumpPenalty + (noisyOrUnstable ? 0.08 : 0), 0.08, 0.32),
     backwardPenalty: clamp(base.backwardPenalty + (noisyOrUnstable ? 0.06 : 0), 0.1, 0.32),
+    maxLocalLeadTokens: clamp(base.maxLocalLeadTokens + (fastSpeech ? 8 : 0), 12, 36),
+    minLocalMatchTokens: base.minLocalMatchTokens,
   }
 }
 

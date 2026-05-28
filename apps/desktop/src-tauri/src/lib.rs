@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -29,16 +29,49 @@ const DESKTOP_SHORTCUT: &str = "CommandOrControl+Shift+T";
 const DESKTOP_ENV_FILE_NAME: &str = "desktop.env";
 const DEFAULT_FUNASR_PORT: u16 = 10095;
 const DEFAULT_FUNASR_HOST: &str = "127.0.0.1";
+const DEFAULT_SHERPA_PORT: u16 = 10096;
+const DEFAULT_SHERPA_HOST: &str = "127.0.0.1";
 
+#[allow(dead_code)]
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeManifest {
     web_port: u16,
     api_port: u16,
     funasr_port: Option<u16>,
+    sherpa_port: Option<u16>,
     web_entry: String,
     api_entry: String,
     node_entry: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SherpaModelSummary {
+    id: String,
+    name: String,
+    description: String,
+    language: String,
+    runtime: String,
+    installed: bool,
+    active: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SherpaModelCatalogEntry {
+    id: String,
+    name: String,
+    description: String,
+    language: String,
+    runtime: String,
+    archive_root: String,
+    files: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+struct SherpaActiveModelState {
+    id: Option<String>,
 }
 
 struct DesktopState {
@@ -204,12 +237,10 @@ fn spawn_node_process(
     command.spawn()
 }
 
-fn spawn_funasr_process(
+fn spawn_python_process(
     python_path: &str,
     launcher_path: &Path,
     cwd: &Path,
-    host: &str,
-    port: u16,
     envs: &HashMap<String, String>,
 ) -> io::Result<Child> {
     let mut command = Command::new(python_path);
@@ -218,9 +249,7 @@ fn spawn_funasr_process(
         .current_dir(cwd)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .env("THUNDER_FUNASR_HOST", host)
-        .env("THUNDER_FUNASR_PORT", port.to_string());
+        .stderr(Stdio::null());
 
     for (key, value) in envs {
         command.env(key, value);
@@ -379,6 +408,167 @@ fn resolve_funasr_config<R: Runtime>(app: &AppHandle<R>) -> (PathBuf, String, St
     }
 }
 
+fn resolve_sherpa_paths<R: Runtime>(app: &AppHandle<R>) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    if cfg!(debug_assertions) {
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("..");
+        let service_root = workspace.join("services").join("sherpa-onnx");
+        let launcher = service_root.join("start_sherpa_onnx.py");
+        let manager = service_root.join("manage_models.py");
+        let catalog = service_root.join("model-catalog.json");
+        return (launcher, manager, catalog, service_root);
+    }
+
+    let resource_dir = app.path().resource_dir().unwrap_or_default();
+    let service_root = resource_dir.join("runtime").join("services").join("sherpa-onnx");
+    let launcher = service_root.join("start_sherpa_onnx.py");
+    let manager = service_root.join("manage_models.py");
+    let catalog = service_root.join("model-catalog.json");
+    (launcher, manager, catalog, service_root)
+}
+
+fn resolve_sherpa_config<R: Runtime>(
+    app: &AppHandle<R>,
+) -> (PathBuf, PathBuf, PathBuf, String, String, u16, PathBuf, PathBuf) {
+    let desktop_env = load_desktop_env(app).unwrap_or_default();
+    let (launcher, manager, catalog, service_root) = resolve_sherpa_paths(app);
+
+    let port = desktop_env
+        .get("THUNDER_SHERPA_PORT")
+        .and_then(|v| v.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_SHERPA_PORT);
+
+    let host = desktop_env
+        .get("THUNDER_SHERPA_HOST")
+        .cloned()
+        .unwrap_or_else(|| DEFAULT_SHERPA_HOST.into());
+
+    let python = desktop_env
+        .get("THUNDER_SHERPA_PYTHON")
+        .cloned()
+        .unwrap_or_else(|| {
+            let venv = service_root.join(".venv");
+            let bin = if cfg!(target_os = "windows") {
+                venv.join("Scripts").join("python.exe")
+            } else {
+                venv.join("bin").join("python")
+            };
+            if bin.exists() {
+                bin.to_string_lossy().into()
+            } else {
+                "python".into()
+            }
+        });
+
+    let app_data_root = app.path().app_data_dir().unwrap_or_else(|_| {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("..")
+            .join(".thunder")
+    });
+    let sherpa_root = app_data_root.join("speech").join("sherpa-onnx");
+    let model_dir = sherpa_root.join("models");
+    let state_dir = sherpa_root.join("state");
+
+    (
+        launcher, manager, catalog, python, host, port, model_dir, state_dir,
+    )
+}
+
+fn ensure_sherpa_storage(model_dir: &Path, state_dir: &Path) -> Result<(), String> {
+    fs::create_dir_all(model_dir).map_err(|e| format!("创建 sherpa 模型目录失败: {e}"))?;
+    fs::create_dir_all(state_dir).map_err(|e| format!("创建 sherpa 状态目录失败: {e}"))?;
+    Ok(())
+}
+
+fn load_sherpa_catalog(catalog: &Path) -> Result<Vec<SherpaModelCatalogEntry>, String> {
+    let content = fs::read_to_string(catalog)
+        .map_err(|e| format!("读取 sherpa 模型目录失败: {e}"))?;
+    serde_json::from_str(&content).map_err(|e| format!("解析 sherpa 模型目录失败: {e}"))
+}
+
+fn load_active_sherpa_model_id(state_dir: &Path) -> Option<String> {
+    let state_file = state_dir.join("active-model.json");
+    let content = fs::read_to_string(state_file).ok()?;
+    serde_json::from_str::<SherpaActiveModelState>(&content)
+        .ok()
+        .and_then(|state| state.id)
+}
+
+fn is_sherpa_model_installed(model_dir: &Path, model: &SherpaModelCatalogEntry) -> bool {
+    let model_root = model_dir.join(&model.archive_root);
+    model
+        .files
+        .values()
+        .all(|relative_path| model_root.join(relative_path).exists())
+}
+
+fn list_sherpa_models_from_catalog(
+    catalog: &Path,
+    model_dir: &Path,
+    state_dir: &Path,
+) -> Result<Vec<SherpaModelSummary>, String> {
+    let entries = load_sherpa_catalog(catalog)?;
+    let active_model_id = load_active_sherpa_model_id(state_dir);
+    let mut models = entries
+        .into_iter()
+        .map(|entry| {
+            let installed = is_sherpa_model_installed(model_dir, &entry);
+            SherpaModelSummary {
+                active: installed && active_model_id.as_deref() == Some(entry.id.as_str()),
+                id: entry.id,
+                name: entry.name,
+                description: entry.description,
+                language: entry.language,
+                runtime: entry.runtime,
+                installed,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    if !models.iter().any(|model| model.active) {
+        if let Some(first_installed) = models.iter_mut().find(|model| model.installed) {
+            first_installed.active = true;
+        }
+    }
+
+    Ok(models)
+}
+
+fn run_python_json_command(
+    python: &str,
+    script: &Path,
+    args: &[String],
+) -> Result<String, String> {
+    let output = Command::new(python)
+        .arg(script)
+        .args(args)
+        .output()
+        .map_err(|e| {
+            if e.kind() == io::ErrorKind::NotFound {
+                format!("未找到 Python 可执行文件 ({python})。")
+            } else {
+                format!("执行 Python 脚本失败: {e}")
+            }
+        })?;
+
+    if output.status.success() {
+        return String::from_utf8(output.stdout)
+            .map(|text| text.trim().to_string())
+            .map_err(|e| format!("Python 输出不是合法 UTF-8: {e}"));
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if stderr.is_empty() {
+        Err(format!("Python 脚本执行失败，退出码: {}", output.status))
+    } else {
+        Err(stderr)
+    }
+}
+
 #[tauri::command]
 fn check_funasr_running(app: tauri::AppHandle) -> bool {
     let (_, _, _, port) = resolve_funasr_config(&app);
@@ -403,7 +593,11 @@ fn start_funasr_service(app: tauri::AppHandle) -> Result<String, String> {
         .unwrap_or(Path::new("."))
         .to_path_buf();
 
-    let child = spawn_funasr_process(&python, &launcher, &cwd, &host, port, &HashMap::new())
+    let mut envs = HashMap::new();
+    envs.insert("THUNDER_FUNASR_HOST".into(), host.clone());
+    envs.insert("THUNDER_FUNASR_PORT".into(), port.to_string());
+
+    let child = spawn_python_process(&python, &launcher, &cwd, &envs)
         .map_err(|e| {
             if e.kind() == io::ErrorKind::NotFound {
                 format!(
@@ -421,6 +615,130 @@ fn start_funasr_service(app: tauri::AppHandle) -> Result<String, String> {
 
     wait_for_port(port, Duration::from_secs(120))
         .map_err(|_| "FunASR 服务启动超时，请检查 Python 环境和依赖是否正确安装。".to_string())?;
+
+    Ok(format!("ws://{}:{}", host, port))
+}
+
+#[tauri::command]
+fn check_sherpa_running(app: tauri::AppHandle) -> bool {
+    let (_, _, _, _, _, port, _, _) = resolve_sherpa_config(&app);
+    is_port_open(port)
+}
+
+#[tauri::command]
+fn list_sherpa_models(app: tauri::AppHandle) -> Result<Vec<SherpaModelSummary>, String> {
+    let (_, manager, catalog, python, _, _, model_dir, state_dir) = resolve_sherpa_config(&app);
+    ensure_sherpa_storage(&model_dir, &state_dir)?;
+    if catalog.exists() {
+        return list_sherpa_models_from_catalog(&catalog, &model_dir, &state_dir);
+    }
+
+    let args = vec![
+        "list".to_string(),
+        "--catalog".to_string(),
+        catalog.to_string_lossy().to_string(),
+        "--model-dir".to_string(),
+        model_dir.to_string_lossy().to_string(),
+        "--state-dir".to_string(),
+        state_dir.to_string_lossy().to_string(),
+    ];
+    let json = run_python_json_command(&python, &manager, &args)?;
+    serde_json::from_str(&json).map_err(|e| format!("解析 sherpa 模型列表失败: {e}"))
+}
+
+#[tauri::command]
+fn download_sherpa_model(
+    app: tauri::AppHandle,
+    model_id: String,
+) -> Result<Vec<SherpaModelSummary>, String> {
+    let (_, manager, catalog, python, _, _, model_dir, state_dir) = resolve_sherpa_config(&app);
+    ensure_sherpa_storage(&model_dir, &state_dir)?;
+    let args = vec![
+        "download".to_string(),
+        "--catalog".to_string(),
+        catalog.to_string_lossy().to_string(),
+        "--model-dir".to_string(),
+        model_dir.to_string_lossy().to_string(),
+        "--state-dir".to_string(),
+        state_dir.to_string_lossy().to_string(),
+        "--model-id".to_string(),
+        model_id,
+    ];
+
+    let json = run_python_json_command(&python, &manager, &args)?;
+
+    serde_json::from_str(&json).map_err(|e| format!("解析下载后的 sherpa 模型状态失败: {e}"))
+}
+
+#[tauri::command]
+fn activate_sherpa_model(
+    app: tauri::AppHandle,
+    model_id: String,
+) -> Result<Vec<SherpaModelSummary>, String> {
+    let (_, manager, catalog, python, _, _, model_dir, state_dir) = resolve_sherpa_config(&app);
+    ensure_sherpa_storage(&model_dir, &state_dir)?;
+    let args = vec![
+        "activate".to_string(),
+        "--catalog".to_string(),
+        catalog.to_string_lossy().to_string(),
+        "--model-dir".to_string(),
+        model_dir.to_string_lossy().to_string(),
+        "--state-dir".to_string(),
+        state_dir.to_string_lossy().to_string(),
+        "--model-id".to_string(),
+        model_id,
+    ];
+
+    let json = run_python_json_command(&python, &manager, &args)?;
+
+    serde_json::from_str(&json).map_err(|e| format!("解析激活后的 sherpa 模型状态失败: {e}"))
+}
+
+#[tauri::command]
+fn start_sherpa_service(app: tauri::AppHandle) -> Result<String, String> {
+    let (launcher, _, _, python, host, port, model_dir, state_dir) = resolve_sherpa_config(&app);
+    ensure_sherpa_storage(&model_dir, &state_dir)?;
+
+    if is_port_open(port) {
+        return Ok(format!("ws://{}:{}", host, port));
+    }
+
+    if !launcher.exists() {
+        return Err("Sherpa ONNX 启动脚本不存在，请检查是否已安装服务文件。".into());
+    }
+
+    let cwd = launcher
+        .parent()
+        .unwrap_or(Path::new("."))
+        .to_path_buf();
+
+    let mut envs = HashMap::new();
+    envs.insert("THUNDER_SHERPA_HOST".into(), host.clone());
+    envs.insert("THUNDER_SHERPA_PORT".into(), port.to_string());
+    envs.insert(
+        "THUNDER_SHERPA_MODEL_DIR".into(),
+        model_dir.to_string_lossy().to_string(),
+    );
+    envs.insert(
+        "THUNDER_SHERPA_STATE_DIR".into(),
+        state_dir.to_string_lossy().to_string(),
+    );
+
+    let child = spawn_python_process(&python, &launcher, &cwd, &envs).map_err(|e| {
+        if e.kind() == io::ErrorKind::NotFound {
+            format!("未找到 Python 可执行文件 ({python})。请先安装 Python 并配置 sherpa-onnx 环境。")
+        } else {
+            format!("Sherpa ONNX 进程启动失败: {e}")
+        }
+    })?;
+
+    {
+        let state = app.state::<DesktopState>();
+        state.sidecars.lock().unwrap().push(child);
+    }
+
+    wait_for_port(port, Duration::from_secs(120))
+        .map_err(|_| "Sherpa ONNX 服务启动超时，请检查 Python 环境、依赖和已激活模型。".to_string())?;
 
     Ok(format!("ws://{}:{}", host, port))
 }
@@ -443,6 +761,11 @@ pub fn run() {
             get_desktop_platform,
             check_funasr_running,
             start_funasr_service,
+            check_sherpa_running,
+            list_sherpa_models,
+            download_sherpa_model,
+            activate_sherpa_model,
+            start_sherpa_service,
         ])
         .setup(|app| {
             start_local_runtime(&app.handle())?;

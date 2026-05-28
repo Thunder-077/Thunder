@@ -1,0 +1,31 @@
+[
+  {
+    "id": "streaming-paraformer-zh-en",
+    "name": "Streaming Paraformer 中英双语",
+    "description": "低延迟流式识别，适合提词器连续跟读。",
+    "language": "zh-CN / en",
+    "runtime": "streaming-paraformer",
+    "archiveRoot": "sherpa-onnx-streaming-paraformer-bilingual-zh-en",
+    "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
+    "files": {
+      "tokens": "tokens.txt",
+      "paraformerEncoder": "encoder.int8.onnx",
+      "paraformerDecoder": "decoder.int8.onnx"
+    }
+  },
+  {
+    "id": "streaming-zipformer-zh-en",
+    "name": "Streaming Zipformer 中英双语",
+    "description": "通用流式识别模型，兼顾连续识别和稳定性。",
+    "language": "zh-CN / en",
+    "runtime": "streaming-zipformer",
+    "archiveRoot": "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
+    "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2",
+    "files": {
+      "tokens": "tokens.txt",
+      "encoder": "encoder-epoch-99-avg-1.int8.onnx",
+      "decoder": "decoder-epoch-99-avg-1.onnx",
+      "joiner": "joiner-epoch-99-avg-1.int8.onnx"
+    }
+  }
+]

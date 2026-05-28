@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react"
 import { PageHeader } from "@/components/page-header"
-import { checkFunAsrRunning, isTauriDesktop, startFunAsrService } from "@/lib/platform"
+import {
+  activateSherpaModel,
+  checkFunAsrRunning,
+  checkSherpaRunning,
+  downloadSherpaModel,
+  isTauriDesktop,
+  listSherpaModels,
+  startFunAsrService,
+  startSherpaService,
+  type SherpaModel,
+} from "@/lib/platform"
 import { useSpeechRecognition } from "../hooks/use-speech-recognition"
 import { createFollowEngine } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
@@ -11,13 +21,17 @@ import type { SpeechProvider } from "../transcribers"
 import { FollowStatusPanel } from "./follow-status-panel"
 import { PrompterStage } from "./prompter-stage"
 
-function getIncrementalAlignmentText(text: string, previousInterim: string, isFinal: boolean) {
+function getIncrementalAlignmentText(text: string, previousRecognitionText: string, isFinal: boolean) {
   const current = text.trim()
-  const previous = previousInterim.trim()
+  const previous = previousRecognitionText.trim()
   if (!current) return ""
   if (!previous) return current
   if (current.startsWith(previous)) {
-    return current.slice(previous.length).trim()
+    const suffix = current.slice(previous.length).trim()
+    if (isFinal && previous.length >= 2 && Array.from(suffix).length === 1) {
+      return ""
+    }
+    return suffix
   }
   if (!isFinal && previous.startsWith(current)) {
     return ""
@@ -45,9 +59,17 @@ export function TeleprompterPage() {
   const [interimTranscript, setInterimTranscript] = useState("")
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showFunAsr] = useState(() => isTauriDesktop())
+  const [showSherpa] = useState(() => isTauriDesktop())
   const [funasrReady, setFunasrReady] = useState(false)
   const [funasrStarting, setFunasrStarting] = useState(false)
   const [funAsrEndpoint, setFunAsrEndpoint] = useState("ws://127.0.0.1:10095")
+  const [sherpaReady, setSherpaReady] = useState(false)
+  const [sherpaStarting, setSherpaStarting] = useState(false)
+  const [sherpaBusy, setSherpaBusy] = useState(false)
+  const [sherpaLoading, setSherpaLoading] = useState(false)
+  const [sherpaOnnxEndpoint, setSherpaOnnxEndpoint] = useState("ws://127.0.0.1:10096")
+  const [sherpaModels, setSherpaModels] = useState<SherpaModel[]>([])
+  const [selectedSherpaModelId, setSelectedSherpaModelId] = useState<string | null>(null)
 
   const stageRef = useRef<HTMLDivElement | null>(null)
   const prompterViewportRef = useRef<HTMLDivElement | null>(null)
@@ -60,6 +82,7 @@ export function TeleprompterPage() {
   const speech = useSpeechRecognition({
     provider: speechProvider,
     funAsrEndpoint,
+    sherpaOnnxEndpoint,
   })
   const segments = useMemo(() => segmentScript(script), [script])
   const followEngine = useMemo(() => script ? createFollowEngine(script, segments) : null, [script, segments])
@@ -72,12 +95,44 @@ export function TeleprompterPage() {
   const visibleStatus: FollowStatus = speech.error ? "failed" : followStatus
   const visibleMessage = message ?? speech.error
 
+  const syncSherpaModels = useCallback((models: SherpaModel[]) => {
+    setSherpaModels(models)
+    setSelectedSherpaModelId((current) => {
+      if (current && models.some((model) => model.id === current)) {
+        return current
+      }
+
+      const preferredModel = models.find((model) => model.active) ?? models[0] ?? null
+      return preferredModel?.id ?? null
+    })
+  }, [])
+
+  const refreshSherpaModels = useCallback(async () => {
+    if (!isTauriDesktop()) {
+      return
+    }
+
+    setSherpaLoading(true)
+    try {
+      const models = await listSherpaModels()
+      syncSherpaModels(models)
+    } catch (error) {
+      setMessage(`Sherpa 模型列表加载失败: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setSherpaLoading(false)
+    }
+  }, [syncSherpaModels])
+
   useEffect(() => {
     if (!isTauriDesktop()) return
     checkFunAsrRunning()
       .then(setFunasrReady)
       .catch(() => setFunasrReady(false))
-  }, [])
+    checkSherpaRunning()
+      .then(setSherpaReady)
+      .catch(() => setSherpaReady(false))
+    void refreshSherpaModels()
+  }, [refreshSherpaModels])
 
   useEffect(() => {
     segmentRefs.current = segmentRefs.current.slice(0, segments.length)
@@ -240,7 +295,7 @@ export function TeleprompterPage() {
       interimAlignmentTextRef.current,
       speech.lastResult.isFinal,
     )
-    interimAlignmentTextRef.current = speech.lastResult.isFinal ? "" : speech.lastResult.text
+    interimAlignmentTextRef.current = speech.lastResult.isFinal ? "" : speech.lastResult.text.trim()
     if (!alignmentText) return
 
     const update = followEngine.push(
@@ -252,7 +307,7 @@ export function TeleprompterPage() {
     setConfidence(update.confidence)
     setIsOnScript(update.isOnScript)
     setCurrentIndex(update.segmentIndex)
-    setReadOffset(update.readOffset)
+    setReadOffset(update.confirmedReadOffset)
     setFollowStatus(update.status)
     setMessage(update.message ?? null)
   }, [followEngine, followStatus, speech.lastResult])
@@ -367,6 +422,75 @@ export function TeleprompterPage() {
       .finally(() => setFunasrStarting(false))
   }
 
+  const activateSelectedSherpaModel = async () => {
+    if (!selectedSherpaModelId) {
+      setMessage("请先选择一个 sherpa-onnx 模型")
+      return
+    }
+
+    setSherpaBusy(true)
+    try {
+      const models = await activateSherpaModel(selectedSherpaModelId)
+      syncSherpaModels(models)
+      setMessage(null)
+    } catch (error) {
+      setMessage(`Sherpa 模型激活失败: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setSherpaBusy(false)
+    }
+  }
+
+  const downloadSelectedSherpaModel = async () => {
+    if (!selectedSherpaModelId) {
+      setMessage("请先选择一个 sherpa-onnx 模型")
+      return
+    }
+
+    setSherpaBusy(true)
+    setMessage("正在下载 sherpa-onnx 模型…")
+    try {
+      const models = await downloadSherpaModel(selectedSherpaModelId)
+      syncSherpaModels(models)
+      setMessage(null)
+    } catch (error) {
+      setMessage(`Sherpa 模型下载失败: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setSherpaBusy(false)
+    }
+  }
+
+  const startSherpa = async () => {
+    const selectedModel = sherpaModels.find((model) => model.id === selectedSherpaModelId) ?? null
+    if (!selectedModel) {
+      setMessage("请先选择一个 sherpa-onnx 模型")
+      return
+    }
+    if (!selectedModel.installed) {
+      setMessage("所选 sherpa-onnx 模型尚未下载")
+      return
+    }
+
+    if (sherpaStarting) return
+    setSherpaStarting(true)
+    setMessage("正在启动 sherpa-onnx 引擎…")
+
+    try {
+      if (!selectedModel.active) {
+        const models = await activateSherpaModel(selectedModel.id)
+        syncSherpaModels(models)
+      }
+      const endpoint = await startSherpaService()
+      setSherpaOnnxEndpoint(endpoint)
+      setSpeechProvider("sherpa-onnx")
+      setSherpaReady(true)
+      setMessage(null)
+    } catch (error) {
+      setMessage(`Sherpa ONNX 启动失败: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setSherpaStarting(false)
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -388,8 +512,15 @@ export function TeleprompterPage() {
           fontSize={fontSize}
           lineHeight={lineHeight}
           showFunAsr={showFunAsr}
+          showSherpa={showSherpa}
           funasrReady={funasrReady}
           funasrStarting={funasrStarting}
+          sherpaReady={sherpaReady}
+          sherpaStarting={sherpaStarting}
+          sherpaBusy={sherpaBusy}
+          sherpaLoading={sherpaLoading}
+          sherpaModels={sherpaModels}
+          selectedSherpaModelId={selectedSherpaModelId}
           onFontSizeChange={setFontSize}
           onLineHeightChange={setLineHeight}
           onStartFollowing={() => void startFollowing()}
@@ -398,7 +529,12 @@ export function TeleprompterPage() {
           onStopFollowing={stopFollowing}
           onReturnToStart={returnToStart}
           onStartFunAsr={startFunAsr}
+          onStartSherpa={() => void startSherpa()}
           onSelectWebSpeech={() => setSpeechProvider("web-speech")}
+          onSelectSherpaModel={setSelectedSherpaModelId}
+          onRefreshSherpaModels={() => void refreshSherpaModels()}
+          onDownloadSelectedSherpaModel={() => void downloadSelectedSherpaModel()}
+          onActivateSelectedSherpaModel={() => void activateSelectedSherpaModel()}
         />
 
         <PrompterStage

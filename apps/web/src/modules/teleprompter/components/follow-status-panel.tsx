@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import type { SherpaModel } from "@/lib/platform"
 import type { SpeechProvider } from "../transcribers"
 import type { FollowStatus } from "../utils/follow-state-machine"
 import { ProviderSelector } from "./provider-selector"
@@ -25,8 +26,15 @@ type FollowStatusPanelProps = {
   fontSize: number
   lineHeight: number
   showFunAsr: boolean
+  showSherpa: boolean
   funasrReady: boolean
   funasrStarting: boolean
+  sherpaReady: boolean
+  sherpaStarting: boolean
+  sherpaBusy: boolean
+  sherpaLoading: boolean
+  sherpaModels: SherpaModel[]
+  selectedSherpaModelId: string | null
   onFontSizeChange: (value: number) => void
   onLineHeightChange: (value: number) => void
   onStartFollowing: () => void
@@ -35,7 +43,12 @@ type FollowStatusPanelProps = {
   onStopFollowing: () => void
   onReturnToStart: () => void
   onStartFunAsr: () => void
+  onStartSherpa: () => void
   onSelectWebSpeech: () => void
+  onSelectSherpaModel: (value: string) => void
+  onRefreshSherpaModels: () => void
+  onDownloadSelectedSherpaModel: () => void
+  onActivateSelectedSherpaModel: () => void
 }
 
 export function FollowStatusPanel({
@@ -51,8 +64,15 @@ export function FollowStatusPanel({
   fontSize,
   lineHeight,
   showFunAsr,
+  showSherpa,
   funasrReady,
   funasrStarting,
+  sherpaReady,
+  sherpaStarting,
+  sherpaBusy,
+  sherpaLoading,
+  sherpaModels,
+  selectedSherpaModelId,
   onFontSizeChange,
   onLineHeightChange,
   onStartFollowing,
@@ -61,7 +81,12 @@ export function FollowStatusPanel({
   onStopFollowing,
   onReturnToStart,
   onStartFunAsr,
+  onStartSherpa,
   onSelectWebSpeech,
+  onSelectSherpaModel,
+  onRefreshSherpaModels,
+  onDownloadSelectedSherpaModel,
+  onActivateSelectedSherpaModel,
 }: FollowStatusPanelProps) {
   return (
     <Card className="surface-card">
@@ -90,7 +115,13 @@ export function FollowStatusPanel({
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge variant={speechSupported ? "secondary" : "destructive"}>
-                {speechSupported ? (speechProvider === "funasr" ? "FunASR" : "浏览器识别") : "不支持识别"}
+                {speechSupported
+                  ? speechProvider === "funasr"
+                    ? "FunASR"
+                    : speechProvider === "sherpa-onnx"
+                    ? "Sherpa ONNX"
+                    : "浏览器识别"
+                  : "不支持识别"}
               </Badge>
               <span>{statusLabels[visibleStatus]}</span>
               <span>{isOnScript ? "匹配成功" : "等待匹配"}</span>
@@ -160,11 +191,23 @@ export function FollowStatusPanel({
 
             <ProviderSelector
               showFunAsr={showFunAsr}
+              showSherpa={showSherpa}
               funasrReady={funasrReady}
               funasrStarting={funasrStarting}
+              sherpaReady={sherpaReady}
+              sherpaStarting={sherpaStarting}
+              sherpaBusy={sherpaBusy}
+              sherpaLoading={sherpaLoading}
+              sherpaModels={sherpaModels}
+              selectedSherpaModelId={selectedSherpaModelId}
               speechProvider={speechProvider}
               onStartFunAsr={onStartFunAsr}
+              onStartSherpa={onStartSherpa}
               onSelectWebSpeech={onSelectWebSpeech}
+              onSelectSherpaModel={onSelectSherpaModel}
+              onRefreshSherpaModels={onRefreshSherpaModels}
+              onDownloadSelectedSherpaModel={onDownloadSelectedSherpaModel}
+              onActivateSelectedSherpaModel={onActivateSelectedSherpaModel}
             />
           </div>
         </div>
