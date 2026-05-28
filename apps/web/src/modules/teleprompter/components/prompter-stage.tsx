@@ -1,7 +1,7 @@
 "use client"
 
-import type { ClipboardEvent, FormEvent, RefObject } from "react"
-import { Maximize2 } from "lucide-react"
+import type { ClipboardEvent, KeyboardEvent, RefObject } from "react"
+import { Check, Maximize2, PencilLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ScriptSegment } from "../utils/script-segmenter"
@@ -15,16 +15,21 @@ type PrompterStageProps = {
   prompterViewportRef: RefObject<HTMLDivElement | null>
   segmentRefs: RefObject<Array<HTMLParagraphElement | null>>
   script: string
+  scriptDraft: string
   segments: ScriptSegment[]
+  isEditingScript: boolean
   fontSize: number
   lineHeight: number
   visibleStatus: FollowStatus
+  isMicActive: boolean
   visibleCurrentIndex: number
   visibleReadOffset: number
   isFullscreen: boolean
   onToggleFullscreen: () => void
+  onBeginScriptEditing: () => void
   onPrompterPaste: (event: ClipboardEvent<HTMLDivElement>) => void
-  onEmptyPrompterInput: (event: FormEvent<HTMLDivElement>) => void
+  onDraftScriptChange: (value: string) => void
+  onDraftScriptCommit: () => void
   onCalibrateToCharacter: (selectedIndex: number, selectedOffset: number) => void
 }
 
@@ -33,18 +38,30 @@ export function PrompterStage({
   prompterViewportRef,
   segmentRefs,
   script,
+  scriptDraft,
   segments,
+  isEditingScript,
   fontSize,
   lineHeight,
   visibleStatus,
+  isMicActive,
   visibleCurrentIndex,
   visibleReadOffset,
   isFullscreen,
   onToggleFullscreen,
+  onBeginScriptEditing,
   onPrompterPaste,
-  onEmptyPrompterInput,
+  onDraftScriptChange,
+  onDraftScriptCommit,
   onCalibrateToCharacter,
 }: PrompterStageProps) {
+  const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault()
+      onDraftScriptCommit()
+    }
+  }
+
   return (
     <section
       ref={stageRef}
@@ -64,13 +81,26 @@ export function PrompterStage({
       />
       <div className="relative z-10 flex items-center justify-between gap-3 border-b border-border/30 px-5 py-3">
         <div className="flex items-center gap-3 text-sm text-slate-300">
-          <VoiceWaveform status={visibleStatus} />
+          <VoiceWaveform status={visibleStatus} isMicActive={isMicActive} />
           <span className="font-medium tracking-wide">{statusLabels[visibleStatus]}</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={onToggleFullscreen} className="text-slate-200 hover:bg-muted/20 hover:text-foreground">
-          <Maximize2 className="h-4 w-4" />
-          {isFullscreen ? "还原提词" : "全屏提词"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {script ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={isEditingScript ? onDraftScriptCommit : onBeginScriptEditing}
+              className="text-slate-200 hover:bg-muted/20 hover:text-foreground"
+            >
+              {isEditingScript ? <Check className="h-4 w-4" /> : <PencilLine className="h-4 w-4" />}
+              {isEditingScript ? "保存稿件" : "编辑稿件"}
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="sm" onClick={onToggleFullscreen} className="text-slate-200 hover:bg-muted/20 hover:text-foreground">
+            <Maximize2 className="h-4 w-4" />
+            {isFullscreen ? "还原提词" : "全屏提词"}
+          </Button>
+        </div>
       </div>
 
       <div
@@ -81,14 +111,17 @@ export function PrompterStage({
         onPaste={onPrompterPaste}
         className="relative z-10 min-h-0 flex-1 overflow-y-auto px-5 py-16 outline-none sm:px-10 lg:px-16"
       >
-        {segments.length === 0 ? (
-          <div
-            contentEditable
-            suppressContentEditableWarning
-            onInput={onEmptyPrompterInput}
-            data-placeholder="点击这里输入或粘贴提词稿"
-            className="mx-auto flex min-h-full max-w-5xl items-center justify-center whitespace-pre-wrap text-center text-lg font-medium text-slate-200 outline-none empty:before:text-slate-500 empty:before:content-[attr(data-placeholder)]"
-          />
+        {segments.length === 0 || isEditingScript ? (
+          <div className="mx-auto flex min-h-full w-full max-w-5xl items-center justify-center">
+            <textarea
+              value={scriptDraft}
+              onChange={(event) => onDraftScriptChange(event.target.value)}
+              onBlur={onDraftScriptCommit}
+              onKeyDown={handleDraftKeyDown}
+              placeholder="点击这里输入或粘贴提词稿，失焦或 Ctrl+Enter 后开始提词"
+              className="min-h-[60vh] w-full resize-none border-0 bg-transparent text-center text-lg font-medium leading-9 text-slate-200 outline-none placeholder:text-slate-500"
+            />
+          </div>
         ) : (
           <div
             className="mx-auto max-w-5xl font-serif tracking-wide"

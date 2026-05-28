@@ -15,6 +15,7 @@ import { VoiceWaveform } from "./voice-waveform"
 type FollowStatusPanelProps = {
   visibleStatus: FollowStatus
   followStatus: FollowStatus
+  isMicActive: boolean
   speechProvider: SpeechProvider
   speechSupported: boolean
   isOnScript: boolean
@@ -40,6 +41,7 @@ type FollowStatusPanelProps = {
 export function FollowStatusPanel({
   visibleStatus,
   followStatus,
+  isMicActive,
   speechProvider,
   speechSupported,
   isOnScript,
@@ -83,7 +85,7 @@ export function FollowStatusPanel({
                     : "border-border bg-muted/40"
                 )}
               >
-                <VoiceWaveform status={visibleStatus} />
+                <VoiceWaveform status={visibleStatus} isMicActive={isMicActive} />
               </span>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -174,7 +176,12 @@ export function FollowStatusPanel({
               识别状态
             </div>
             <div>置信度 {Math.round(confidence * 100)}%</div>
-            <div className="min-w-0 flex-1 truncate">识别文本：{displayTranscript || "暂无"}</div>
+          </div>
+          <div className="mt-2 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-sm leading-6 text-foreground">
+            <div className="mb-1 text-[11px] text-muted-foreground">识别文本</div>
+            <div className="max-h-24 overflow-y-auto whitespace-pre-wrap break-all">
+              {displayTranscript || "暂无"}
+            </div>
           </div>
           {visibleMessage && (
             <div className="mt-2 rounded-xl border border-warning/35 bg-warning/10 px-3 py-2 text-warning-foreground">

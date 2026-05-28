@@ -67,6 +67,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions) {
       setLastResult(null)
       transcriber.stop()
     },
+    clearResult: () => setLastResult(null),
     clearError: () => setError(null),
   }
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react"
 import { PageHeader } from "@/components/page-header"
 import { checkFunAsrRunning, isTauriDesktop, startFunAsrService } from "@/lib/platform"
 import { useSpeechRecognition } from "../hooks/use-speech-recognition"
@@ -13,6 +13,8 @@ import { PrompterStage } from "./prompter-stage"
 
 export function TeleprompterPage() {
   const [script, setScript] = useState("")
+  const [scriptDraft, setScriptDraft] = useState("")
+  const [isEditingScript, setIsEditingScript] = useState(false)
   const [fontSize, setFontSize] = useState(44)
   const [lineHeight, setLineHeight] = useState(1.65)
   const [speechProvider, setSpeechProvider] = useState<SpeechProvider>("web-speech")
@@ -46,6 +48,7 @@ export function TeleprompterPage() {
 
   const displayTranscript = `${finalTranscript.slice(-160)}${interimTranscript}`.trim()
   const canFollow = segments.length > 0
+  const isMicActive = speech.status === "listening"
   const visibleCurrentIndex = Math.min(currentIndex, Math.max(segments.length - 1, 0))
   const visibleReadOffset = Math.max(0, Math.min(readOffset, script.length))
   const visibleStatus: FollowStatus = speech.error ? "failed" : followStatus
@@ -80,6 +83,13 @@ export function TeleprompterPage() {
     }
     scrollTargetRef.current = null
   }, [])
+
+  const clearRecognitionSession = useCallback(() => {
+    processedResultRef.current = null
+    setFinalTranscript("")
+    setInterimTranscript("")
+    speech.clearResult()
+  }, [speech])
 
   const animateScrollTo = useCallback((target: number) => {
     const viewport = prompterViewportRef.current
@@ -137,12 +147,13 @@ export function TeleprompterPage() {
     setConfidence(0)
     setIsOnScript(false)
     setMessage(null)
-    setFinalTranscript("")
-    setInterimTranscript("")
-  }, [followEngine])
+    clearRecognitionSession()
+  }, [clearRecognitionSession, followEngine])
 
   const replaceScript = (nextScript: string) => {
     setScript(nextScript)
+    setScriptDraft(nextScript)
+    setIsEditingScript(false)
     resetScriptPosition()
   }
 
@@ -156,11 +167,34 @@ export function TeleprompterPage() {
     replaceScript(pastedText)
   }
 
-  const handleEmptyPrompterInput = (event: FormEvent<HTMLDivElement>) => {
-    const nextScript = event.currentTarget.innerText.trim()
-    if (nextScript) {
-      replaceScript(nextScript)
+  const handleDraftScriptChange = (nextScript: string) => {
+    setScriptDraft(nextScript)
+  }
+
+  const beginScriptEditing = () => {
+    speech.stop()
+    speech.clearError()
+    clearRecognitionSession()
+    setFollowStatus("idle")
+    setCurrentIndex(0)
+    setReadOffset(0)
+    setConfidence(0)
+    setIsOnScript(false)
+    setMessage(null)
+    setScriptDraft(script)
+    setIsEditingScript(true)
+  }
+
+  const commitDraftScript = () => {
+    const nextScript = scriptDraft.trim()
+    if (!nextScript) {
+      return
     }
+    if (nextScript === script) {
+      setIsEditingScript(false)
+      return
+    }
+    replaceScript(nextScript)
   }
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -245,12 +279,13 @@ export function TeleprompterPage() {
     setFollowStatus("idle")
     setConfidence(0)
     setMessage(null)
-    setInterimTranscript("")
+    clearRecognitionSession()
   }
 
   const returnToStart = () => {
     followEngine?.reset()
     speech.clearError()
+    clearRecognitionSession()
     setCurrentIndex(0)
     setReadOffset(0)
     setConfidence(0)
@@ -261,12 +296,17 @@ export function TeleprompterPage() {
 
   const calibrateToCharacter = (selectedIndex: number, selectedOffset: number) => {
     const update = followEngine?.jump(selectedOffset)
+    const nextStatus: FollowStatus = isMicActive
+      ? "listening"
+      : followStatus === "paused"
+      ? "paused"
+      : "idle"
     setMessage(null)
     setCurrentIndex(selectedIndex)
     setReadOffset(selectedOffset)
     setConfidence(update?.confidence ?? 1)
     setIsOnScript(update?.isOnScript ?? true)
-    setFollowStatus(update?.status ?? "following")
+    setFollowStatus(nextStatus)
     speech.clearError()
     scrollToReadPosition(selectedOffset, selectedIndex)
   }
@@ -312,6 +352,7 @@ export function TeleprompterPage() {
         <FollowStatusPanel
           visibleStatus={visibleStatus}
           followStatus={followStatus}
+          isMicActive={isMicActive}
           speechProvider={speechProvider}
           speechSupported={speech.isSupported}
           isOnScript={isOnScript}
@@ -340,15 +381,20 @@ export function TeleprompterPage() {
           segmentRefs={segmentRefs}
           script={script}
           segments={segments}
+          isEditingScript={isEditingScript}
           fontSize={fontSize}
           lineHeight={lineHeight}
           visibleStatus={visibleStatus}
+          isMicActive={isMicActive}
           visibleCurrentIndex={visibleCurrentIndex}
           visibleReadOffset={visibleReadOffset}
           isFullscreen={isFullscreen}
           onToggleFullscreen={() => void toggleFullscreen()}
+          onBeginScriptEditing={beginScriptEditing}
           onPrompterPaste={handlePrompterPaste}
-          onEmptyPrompterInput={handleEmptyPrompterInput}
+          scriptDraft={scriptDraft}
+          onDraftScriptChange={handleDraftScriptChange}
+          onDraftScriptCommit={commitDraftScript}
           onCalibrateToCharacter={calibrateToCharacter}
         />
       </div>

@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import type { FollowStatus } from "../utils/follow-state-machine"
 
-export function VoiceWaveform({ status }: { status: FollowStatus }) {
+export function VoiceWaveform({ status, isMicActive = false }: { status: FollowStatus; isMicActive?: boolean }) {
   const barsRef = useRef<HTMLDivElement[]>([])
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const animationFrameIdRef = useRef<number | null>(null)
 
-  const isActive = status === "following" || status === "listening"
+  const isActive = isMicActive
 
   const cleanupAudio = useCallback(() => {
     if (animationFrameIdRef.current) {
@@ -109,6 +109,11 @@ export function VoiceWaveform({ status }: { status: FollowStatus }) {
     if (isActive) {
       return {
         transform: `scaleY(${[0.25, 0.4, 0.5, 0.4, 0.25][index]})`,
+        animationName: "none",
+        animationDuration: "0s",
+        animationTimingFunction: "linear",
+        animationIterationCount: "1",
+        animationDelay: "0s",
       }
     }
 
@@ -119,7 +124,10 @@ export function VoiceWaveform({ status }: { status: FollowStatus }) {
 
     return {
       transform: `scaleY(${baseScales[index]})`,
-      animation: `${animName} ${dur} ease-in-out infinite`,
+      animationName: animName,
+      animationDuration: dur,
+      animationTimingFunction: "ease-in-out",
+      animationIterationCount: "infinite",
       animationDelay: `${delays[index]}s`,
     }
   }
