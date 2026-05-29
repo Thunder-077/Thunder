@@ -143,6 +143,8 @@ const MAX_CANDIDATES = 5
 const TRACK_OFFSET_BUCKET = 8
 const TRACK_TTL_MS = 6000
 const MIN_CONFIRMED_ADVANCE_CONFIDENCE = 0.55
+const MAX_PREDICTION_ADVANCE_CHARS = 4
+const PREDICTION_ASR_SILENCE_MS = 800
 
 export function createFollowEngine(
   script: string,
@@ -1105,10 +1107,18 @@ function computePredictedReadOffset(input: {
     return undefined
   }
 
+  // 当 ASR 长时间无新结果时（说话者可能已暂停），停止语速预测
+  if (stats.lastSpeechChunkAt > 0 && now - stats.lastSpeechChunkAt > PREDICTION_ASR_SILENCE_MS) {
+    return undefined
+  }
+
   const predictionMs = Math.min(Math.max(0, now - stats.lastConfirmedAt), params.maxPredictionMs)
   if (predictionMs < 300) return undefined
 
-  const predictedAdvance = Math.floor(stats.charsPerSecond * (predictionMs / 1000))
+  const predictedAdvance = Math.min(
+    Math.floor(stats.charsPerSecond * (predictionMs / 1000)),
+    MAX_PREDICTION_ADVANCE_CHARS
+  )
   if (predictedAdvance <= 0) return undefined
 
   return confirmedReadOffset + predictedAdvance

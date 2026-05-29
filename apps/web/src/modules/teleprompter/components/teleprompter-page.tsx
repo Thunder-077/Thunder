@@ -15,6 +15,7 @@ import {
   type SherpaModel,
 } from "@/lib/platform"
 import { notificationStore } from "@/lib/notification-store"
+import { useAnimatedReadOffset } from "../hooks/use-animated-read-offset"
 import { useSpeechRecognition } from "../hooks/use-speech-recognition"
 import { createFollowEngine } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
@@ -80,6 +81,7 @@ export function TeleprompterPage() {
     highlightLine: true,
   })
   const [autoScrollActiveIndex, setAutoScrollActiveIndex] = useState(0)
+  const [readOffsetSnapKey, setReadOffsetSnapKey] = useState(0)
 
   const sherpaModelsRef = useRef(sherpaModels)
   useEffect(() => {
@@ -93,6 +95,8 @@ export function TeleprompterPage() {
   const processedResultRef = useRef<object | null>(null)
   const interimAlignmentTextRef = useRef("")
   const scrollTargetRef = useRef<number | null>(null)
+  const userScrollingRef = useRef(false)
+  const userScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const speech = useSpeechRecognition({
     provider: speechProvider,
@@ -109,7 +113,10 @@ export function TeleprompterPage() {
   )
   const isMicActive = speech.status === "listening"
   const visibleCurrentIndex = Math.min(currentIndex, Math.max(segments.length - 1, 0))
-  const visibleReadOffset = Math.max(0, Math.min(readOffset, script.length))
+  const isFollowAnimationActive = mode === "follow-read" && followStatus !== "idle"
+  const animatedReadOffset = useAnimatedReadOffset(readOffset, isFollowAnimationActive, readOffsetSnapKey)
+  const visibleReadOffset = Math.max(0, Math.min(animatedReadOffset, script.length))
+  const scrollReadOffset = Math.max(0, Math.min(readOffset, script.length))
   const visibleStatus: FollowStatus = speech.error ? "failed" : followStatus
   const visibleMessage = message ?? speech.error
 
@@ -335,6 +342,14 @@ export function TeleprompterPage() {
     animateScrollTo(Math.max(0, targetTop))
   }, [animateScrollTo])
 
+  const clearUserScrollLock = useCallback(() => {
+    userScrollingRef.current = false
+    if (userScrollTimeoutRef.current !== null) {
+      clearTimeout(userScrollTimeoutRef.current)
+      userScrollTimeoutRef.current = null
+    }
+  }, [])
+
   useEffect(() => cancelScrollAnimation, [cancelScrollAnimation])
 
   const resetScriptPosition = useCallback(() => {
@@ -440,9 +455,49 @@ export function TeleprompterPage() {
     if (followStatus === "paused" || followStatus === "idle") {
       return
     }
+    if (userScrollingRef.current) return
 
-    scrollToReadPosition(visibleReadOffset, visibleCurrentIndex)
-  }, [followStatus, visibleCurrentIndex, visibleReadOffset, scrollToReadPosition])
+    scrollToReadPosition(scrollReadOffset, visibleCurrentIndex)
+  }, [followStatus, visibleCurrentIndex, scrollReadOffset, scrollToReadPosition])
+
+  // 监听用户手动滚动，暂时挂起自动跟随滚动
+  useEffect(() => {
+    const viewport = prompterViewportRef.current
+    if (!viewport) return
+
+    const onUserScroll = () => {
+      // 无论处于何种状态，用户手动滚动时都应取消正在运行的滚动动画
+      cancelScrollAnimation()
+
+      if (followStatus === "idle" || followStatus === "paused") return
+
+      userScrollingRef.current = true
+
+      if (userScrollTimeoutRef.current !== null) {
+        clearTimeout(userScrollTimeoutRef.current)
+      }
+      userScrollTimeoutRef.current = setTimeout(() => {
+        userScrollingRef.current = false
+        userScrollTimeoutRef.current = null
+      }, 3000)
+    }
+
+    viewport.addEventListener("wheel", onUserScroll, { passive: true })
+    viewport.addEventListener("touchstart", onUserScroll, { passive: true })
+
+    return () => {
+      viewport.removeEventListener("wheel", onUserScroll)
+      viewport.removeEventListener("touchstart", onUserScroll)
+      clearUserScrollLock()
+    }
+  }, [followStatus, cancelScrollAnimation, clearUserScrollLock])
+
+  // 跟读停止或暂停时释放滚动锁
+  useEffect(() => {
+    if (followStatus === "idle" || followStatus === "paused") {
+      clearUserScrollLock()
+    }
+  }, [followStatus, clearUserScrollLock])
 
   const startFollowing = async () => {
     if (!canFollow) {
@@ -512,10 +567,12 @@ export function TeleprompterPage() {
     setMessage(null)
     setCurrentIndex(selectedIndex)
     setReadOffset(selectedOffset)
+    setReadOffsetSnapKey((k) => k + 1)
     setConfidence(update?.confidence ?? 1)
     setIsOnScript(update?.isOnScript ?? true)
     setFollowStatus(nextStatus)
     speech.clearError()
+    clearUserScrollLock()
     scrollToReadPosition(selectedOffset, selectedIndex)
   }
 

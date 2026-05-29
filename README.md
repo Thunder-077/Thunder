@@ -4,7 +4,7 @@
   </a>
 </p>
 
-<h1 align="center">⚡️ Thunder</h1>
+<h1 align="center">Thunder</h1>
 
 <p align="center">
   <strong>面向未来的私有化、轻量插件式多运行时应用平台架构</strong><br />
