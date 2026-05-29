@@ -651,8 +651,6 @@ export function TeleprompterPage() {
             visibleMessage={visibleMessage}
             fontSize={fontSize}
             lineHeight={lineHeight}
-            totalSegments={segments.length}
-            visibleCurrentIndex={visibleCurrentIndex}
             showFunAsr={showFunAsr}
             showSherpa={showSherpa}
             funasrReady={funasrReady}

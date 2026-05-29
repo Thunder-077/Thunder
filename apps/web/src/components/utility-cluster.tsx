@@ -2,7 +2,7 @@
 
 import { type ChangeEvent, type PointerEvent, type WheelEvent, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, Camera, LogOut, Menu, Palette, Settings, UserRound, Check, Trash2, Loader2, X } from "lucide-react"
+import { Bell, Camera, LogOut, Menu, Palette, Settings, UserRound, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,

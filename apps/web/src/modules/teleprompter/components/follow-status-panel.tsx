@@ -24,8 +24,6 @@ type FollowStatusPanelProps = {
   visibleMessage: string | null
   fontSize: number
   lineHeight: number
-  totalSegments: number
-  visibleCurrentIndex: number
   showFunAsr: boolean
   showSherpa: boolean
   funasrReady: boolean
@@ -64,8 +62,6 @@ export function FollowStatusPanel({
   visibleMessage,
   fontSize,
   lineHeight,
-  totalSegments,
-  visibleCurrentIndex,
   showFunAsr,
   showSherpa,
   funasrReady,
