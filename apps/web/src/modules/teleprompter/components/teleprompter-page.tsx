@@ -430,7 +430,7 @@ export function TeleprompterPage() {
     setConfidence(update.confidence)
     setIsOnScript(update.isOnScript)
     setCurrentIndex(update.segmentIndex)
-    setReadOffset(update.confirmedReadOffset)
+    setReadOffset(update.displayReadOffset)
     setFollowStatus(update.status)
     setMessage(update.message ?? null)
   }, [followEngine, followStatus, speech.lastResult])

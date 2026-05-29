@@ -139,6 +139,7 @@ const DEFAULT_MIN_LOCAL_MATCH_TOKENS = 2
 const MAX_CANDIDATES = 5
 const TRACK_OFFSET_BUCKET = 8
 const TRACK_TTL_MS = 6000
+const MIN_CONFIRMED_ADVANCE_CONFIDENCE = 0.55
 
 export function createFollowEngine(
   script: string,
@@ -282,7 +283,7 @@ export function createFollowEngine(
     const isOnScript = bestCandidate.source === "dtw"
       ? state.isOnScript
       : isCandidateAccepted(bestCandidate, params, candidateTracks, state.isOnScript)
-    const nextUpdate = toUpdate({
+    const candidateUpdate = toUpdate({
       scriptPosition: findTokenIndexByOffset(index, bestCandidate.readOffset),
       confidence: bestCandidate.confidence,
       isOnScript,
@@ -298,6 +299,17 @@ export function createFollowEngine(
       decision,
       reason: buildDecisionReason(bestCandidate, state.isOnScript, candidateTracks),
     })
+    const nextUpdate = shouldHoldLowConfidenceAdvance(lastUpdate, candidateUpdate)
+      ? createLowConfidenceHoldUpdate({
+          previousUpdate: lastUpdate,
+          candidateUpdate,
+          stateMachine,
+          candidates,
+          candidateTracks,
+          stats,
+          params,
+        })
+      : candidateUpdate
 
     updateStatsAfterDecision(stats, lastUpdate, nextUpdate, now)
     params = deriveAdaptiveParams(baseParams, stats)
@@ -427,6 +439,50 @@ export function createFollowEngine(
   }
 
   return { push, pushChunk, jump, reset, getState, getStats, getParams, getSessionSummary, transitionStatus }
+}
+
+function shouldHoldLowConfidenceAdvance(previousUpdate: FollowUpdate, candidateUpdate: FollowUpdate): boolean {
+  if (candidateUpdate.confirmedReadOffset <= previousUpdate.confirmedReadOffset) {
+    return false
+  }
+
+  if (candidateUpdate.confidence >= MIN_CONFIRMED_ADVANCE_CONFIDENCE) {
+    return false
+  }
+
+  return candidateUpdate.decision === "dtw" || candidateUpdate.decision === "hold"
+}
+
+function createLowConfidenceHoldUpdate(input: {
+  previousUpdate: FollowUpdate
+  candidateUpdate: FollowUpdate
+  stateMachine: FollowStateMachine
+  candidates: FollowCandidate[]
+  candidateTracks: CandidateTrack[]
+  stats: FollowRuntimeStats
+  params: AdaptiveFollowParams
+}): FollowUpdate {
+  const status = input.stateMachine.transition({
+    type: "alignment",
+    isOnScript: false,
+    confidence: input.candidateUpdate.confidence,
+  })
+
+  return createUpdate({
+    ...input.previousUpdate,
+    status,
+    confidence: input.candidateUpdate.confidence,
+    isOnScript: false,
+    candidates: input.candidates,
+    candidateTracks: input.candidateTracks,
+    statsSnapshot: snapshotStats(input.stats),
+    paramsSnapshot: { ...input.params },
+    decision: "hold",
+    reason: `low-confidence-hold:${input.candidateUpdate.confidence.toFixed(2)}`,
+    matchedText: input.candidateUpdate.matchedText,
+    isFinal: input.candidateUpdate.isFinal,
+    message: "识别结果置信度偏低，暂不推进提词位置",
+  })
 }
 
 function toUpdate(

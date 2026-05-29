@@ -53,6 +53,7 @@ for (const fixture of loadFixtures()) {
 
 runSegmenterCases()
 runSpeakerGateCase()
+runLowConfidenceHoldCase()
 
 function loadFixtures(): ReplayFixture[] {
   return readdirSync(fixtureDir)
@@ -238,4 +239,20 @@ function runSpeakerGateCase() {
   assert.ok(accepted.readOffset > 0)
   assert.equal(accepted.isOnScript, true)
   console.log("PASS 说话人过滤会忽略非目标说话人")
+}
+
+function runLowConfidenceHoldCase() {
+  const script = "第一句内容。第二句内容。第三句内容。第四句内容。"
+  const segments = segmentScript(script)
+  const engine = createFollowEngine(script, segments)
+
+  const update = engine.push("第一完全不同", true)
+  assert.equal(update.readOffset, 0)
+  assert.equal(update.displayReadOffset, 0)
+  assert.equal(update.confirmedReadOffset, 0)
+  assert.equal(update.status, "off-script")
+  assert.equal(update.decision, "hold")
+  assert.ok(update.confidence < 0.55)
+  assert.match(update.reason, /^low-confidence-hold:/)
+  console.log("PASS 低置信度识别不会推进提词滚动")
 }
