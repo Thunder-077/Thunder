@@ -1,6 +1,6 @@
 "use client"
 
-import { Download, RefreshCw } from "lucide-react"
+import { Check, Download, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, type SelectOption } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
@@ -31,9 +31,7 @@ type ProviderSelectorProps = {
 export function ProviderSelector({
   showFunAsr,
   showSherpa,
-  funasrReady,
   funasrStarting,
-  sherpaReady,
   sherpaBusy,
   sherpaLoading,
   sherpaModels,
@@ -59,51 +57,67 @@ export function ProviderSelector({
   const selectedModelProgress = selectedSherpaModelId ? downloadProgress[selectedSherpaModelId] : null
 
   return (
-    <div className="min-w-0 rounded-2xl border border-border/70 bg-background/60 p-3">
-      <div className="mb-3 text-xs font-medium text-muted-foreground">识别引擎</div>
-      <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2.5">
         {showSherpa && (
           <button
             type="button"
             onClick={onSelectSherpa}
             className={cn(
-              "h-8 min-w-0 flex-1 truncate rounded-lg border px-3 text-xs font-semibold transition-all",
+              "relative flex items-center justify-center rounded-xl border p-2 text-center transition-all h-12 cursor-pointer select-none",
               speechProvider === "sherpa-onnx"
-                ? "border-primary/35 bg-primary text-primary-foreground shadow-sm"
-                : "border-transparent text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                ? "border-primary bg-primary/5 text-primary shadow-[0_0_0_1px_rgba(59,130,246,0.1)]"
+                : "border-border bg-background text-muted-foreground hover:bg-muted/40 hover:border-muted-foreground/30"
             )}
           >
-            {sherpaReady ? "Sherpa ONNX · 已就绪" : "Sherpa ONNX"}
+            <span className="text-xs font-bold leading-tight">Sherpa ONNX</span>
+            {speechProvider === "sherpa-onnx" && (
+              <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                <Check className="h-2.5 w-2.5 stroke-[3]" />
+              </span>
+            )}
           </button>
         )}
+
         {showFunAsr && (
           <button
             type="button"
             disabled={funasrStarting}
             onClick={onStartFunAsr}
             className={cn(
-              "h-8 min-w-0 flex-1 truncate rounded-lg border px-3 text-xs font-semibold transition-all",
+              "relative flex items-center justify-center rounded-xl border p-2 text-center transition-all h-12 cursor-pointer select-none",
               speechProvider === "funasr"
-                ? "border-primary/35 bg-primary text-primary-foreground shadow-sm"
+                ? "border-primary bg-primary/5 text-primary shadow-[0_0_0_1px_rgba(59,130,246,0.1)]"
                 : funasrStarting
-                  ? "cursor-not-allowed border-transparent text-muted-foreground/50"
-                  : "border-transparent text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                  ? "cursor-not-allowed border-transparent opacity-50 bg-muted/20 text-muted-foreground/50"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted/40 hover:border-muted-foreground/30"
             )}
           >
-            {funasrStarting ? "启动中…" : funasrReady ? "FunASR · 已就绪" : "FunASR"}
+            <span className="text-xs font-bold leading-tight">FunASR</span>
+            {speechProvider === "funasr" && (
+              <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                <Check className="h-2.5 w-2.5 stroke-[3]" />
+              </span>
+            )}
           </button>
         )}
+
         <button
           type="button"
           onClick={onSelectWebSpeech}
           className={cn(
-            "h-8 min-w-0 flex-1 truncate rounded-lg border px-3 text-xs font-semibold transition-all",
+            "relative flex items-center justify-center rounded-xl border p-2 text-center transition-all h-12 cursor-pointer select-none",
             speechProvider === "web-speech"
-              ? "border-primary/35 bg-primary text-primary-foreground shadow-sm"
-              : "border-transparent text-muted-foreground hover:bg-background/70 hover:text-foreground"
+              ? "border-primary bg-primary/5 text-primary shadow-[0_0_0_1px_rgba(59,130,246,0.1)]"
+              : "border-border bg-background text-muted-foreground hover:bg-muted/40 hover:border-muted-foreground/30"
           )}
         >
-          Web Speech
+          <span className="text-xs font-bold leading-tight">Web Speech</span>
+          {speechProvider === "web-speech" && (
+            <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+              <Check className="h-2.5 w-2.5 stroke-[3]" />
+            </span>
+          )}
         </button>
       </div>
 

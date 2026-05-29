@@ -1,7 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react"
+import { Mic, Play } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
+import { cn } from "@/lib/utils"
 import {
   activateSherpaModel,
   checkFunAsrRunning,
@@ -18,8 +20,11 @@ import { createFollowEngine } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
 import { segmentScript } from "../utils/script-segmenter"
 import type { SpeechProvider } from "../transcribers"
+import { AutoScrollPanel } from "./auto-scroll-panel"
 import { FollowStatusPanel } from "./follow-status-panel"
 import { PrompterStage } from "./prompter-stage"
+
+type TeleprompterMode = "follow-read" | "auto-scroll"
 
 function getIncrementalAlignmentText(text: string, previousRecognitionText: string, isFinal: boolean) {
   const current = text.trim()
@@ -43,6 +48,7 @@ function getIncrementalAlignmentText(text: string, previousRecognitionText: stri
 }
 
 export function TeleprompterPage() {
+  const [mode, setMode] = useState<TeleprompterMode>("auto-scroll")
   const [script, setScript] = useState("")
   const [scriptDraft, setScriptDraft] = useState("")
   const [isEditingScript, setIsEditingScript] = useState(false)
@@ -565,43 +571,85 @@ export function TeleprompterPage() {
       />
 
       <div className="grid gap-4">
-        <FollowStatusPanel
-          visibleStatus={visibleStatus}
-          followStatus={followStatus}
-          isMicActive={isMicActive}
-          speechProvider={speechProvider}
-          speechSupported={speech.isSupported}
-          isOnScript={isOnScript}
-          confidence={confidence}
-          displayTranscript={displayTranscript}
-          visibleMessage={visibleMessage}
-          fontSize={fontSize}
-          lineHeight={lineHeight}
-          showFunAsr={showFunAsr}
-          showSherpa={showSherpa}
-          funasrReady={funasrReady}
-          funasrStarting={funasrStarting}
-          sherpaReady={sherpaReady}
-          sherpaBusy={sherpaBusy}
-          sherpaLoading={sherpaLoading}
-          sherpaModels={sherpaModels}
-          selectedSherpaModelId={selectedSherpaModelId}
-          downloadProgress={downloadProgress}
-          onFontSizeChange={setFontSize}
-          onLineHeightChange={setLineHeight}
-          onStartFollowing={() => void startFollowing()}
-          onPauseFollowing={pauseFollowing}
-          onResumeFollowing={() => void resumeFollowing()}
-          onStopFollowing={stopFollowing}
-          onReturnToStart={returnToStart}
-          onStartFunAsr={startFunAsr}
-          onSelectSherpa={() => setSpeechProvider("sherpa-onnx")}
-          onSelectWebSpeech={() => setSpeechProvider("web-speech")}
-          onSelectSherpaModel={setSelectedSherpaModelId}
-          onRefreshSherpaModels={() => void refreshSherpaModels()}
-          onDownloadSelectedSherpaModel={() => void downloadSelectedSherpaModel()}
-          onActivateSelectedSherpaModel={() => void activateSelectedSherpaModel()}
-        />
+        {/* ── 模式切换 Tab ── */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("follow-read")}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border px-5 py-2 text-sm font-medium transition-all",
+              mode === "follow-read"
+                ? "border-primary bg-primary/8 text-primary"
+                : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
+            )}
+          >
+            <Mic className="h-4 w-4" />
+            跟读模式
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("auto-scroll")}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border px-5 py-2 text-sm font-medium transition-all",
+              mode === "auto-scroll"
+                ? "border-primary bg-primary/8 text-primary"
+                : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
+            )}
+          >
+            <Play className="h-4 w-4" />
+            自动滚动模式
+          </button>
+        </div>
+
+        {/* ── 模式对应面板 ── */}
+        {mode === "follow-read" ? (
+          <FollowStatusPanel
+            visibleStatus={visibleStatus}
+            followStatus={followStatus}
+            isMicActive={isMicActive}
+            speechProvider={speechProvider}
+            speechSupported={speech.isSupported}
+            isOnScript={isOnScript}
+            confidence={confidence}
+            displayTranscript={displayTranscript}
+            visibleMessage={visibleMessage}
+            fontSize={fontSize}
+            lineHeight={lineHeight}
+            totalSegments={segments.length}
+            visibleCurrentIndex={visibleCurrentIndex}
+            showFunAsr={showFunAsr}
+            showSherpa={showSherpa}
+            funasrReady={funasrReady}
+            funasrStarting={funasrStarting}
+            sherpaReady={sherpaReady}
+            sherpaBusy={sherpaBusy}
+            sherpaLoading={sherpaLoading}
+            sherpaModels={sherpaModels}
+            selectedSherpaModelId={selectedSherpaModelId}
+            downloadProgress={downloadProgress}
+            onFontSizeChange={setFontSize}
+            onLineHeightChange={setLineHeight}
+            onStartFollowing={() => void startFollowing()}
+            onPauseFollowing={pauseFollowing}
+            onResumeFollowing={() => void resumeFollowing()}
+            onStopFollowing={stopFollowing}
+            onReturnToStart={returnToStart}
+            onStartFunAsr={startFunAsr}
+            onSelectSherpa={() => setSpeechProvider("sherpa-onnx")}
+            onSelectWebSpeech={() => setSpeechProvider("web-speech")}
+            onSelectSherpaModel={setSelectedSherpaModelId}
+            onRefreshSherpaModels={() => void refreshSherpaModels()}
+            onDownloadSelectedSherpaModel={() => void downloadSelectedSherpaModel()}
+            onActivateSelectedSherpaModel={() => void activateSelectedSherpaModel()}
+          />
+        ) : (
+          <AutoScrollPanel
+            fontSize={fontSize}
+            lineHeight={lineHeight}
+            onFontSizeChange={setFontSize}
+            onLineHeightChange={setLineHeight}
+          />
+        )}
 
         <PrompterStage
           stageRef={stageRef}
@@ -617,6 +665,7 @@ export function TeleprompterPage() {
           visibleCurrentIndex={visibleCurrentIndex}
           visibleReadOffset={visibleReadOffset}
           isFullscreen={isFullscreen}
+          mode={mode}
           onToggleFullscreen={() => void toggleFullscreen()}
           onBeginScriptEditing={beginScriptEditing}
           onPrompterPaste={handlePrompterPaste}

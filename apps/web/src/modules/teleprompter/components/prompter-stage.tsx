@@ -10,6 +10,8 @@ import type { FollowStatus } from "../utils/follow-state-machine"
 import { statusLabels } from "./follow-status-labels"
 import { VoiceWaveform } from "./voice-waveform"
 
+type TeleprompterMode = "follow-read" | "auto-scroll"
+
 type PrompterStageProps = {
   stageRef: RefObject<HTMLDivElement | null>
   prompterViewportRef: RefObject<HTMLDivElement | null>
@@ -25,6 +27,7 @@ type PrompterStageProps = {
   visibleCurrentIndex: number
   visibleReadOffset: number
   isFullscreen: boolean
+  mode: TeleprompterMode
   onToggleFullscreen: () => void
   onBeginScriptEditing: () => void
   onPrompterPaste: (event: ClipboardEvent<HTMLDivElement>) => void
@@ -48,6 +51,7 @@ export function PrompterStage({
   visibleCurrentIndex,
   visibleReadOffset,
   isFullscreen,
+  mode,
   onToggleFullscreen,
   onBeginScriptEditing,
   onPrompterPaste,
@@ -62,6 +66,11 @@ export function PrompterStage({
     }
   }
 
+  const totalSegments = segments.length
+  const progressPercent = totalSegments > 0
+    ? Math.round(((visibleCurrentIndex + 1) / totalSegments) * 100)
+    : 0
+
   return (
     <section
       ref={stageRef}
@@ -72,6 +81,7 @@ export function PrompterStage({
         color: "oklch(0.94 0.004 252)",
       }}
     >
+      {/* ── 装饰渐变 ── */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -79,10 +89,24 @@ export function PrompterStage({
             "radial-gradient(circle at 18% 10%, oklch(0.62 0.16 250 / 0.2), transparent 34%), radial-gradient(circle at 82% 0%, oklch(0.78 0.14 78 / 0.16), transparent 30%), linear-gradient(180deg, oklch(1 0 0 / 0.04), transparent 36%)",
         }}
       />
+
+      {/* ── 顶部状态栏 ── */}
       <div className="relative z-10 flex items-center justify-between gap-3 border-b border-border/30 px-5 py-3">
         <div className="flex items-center gap-3 text-sm text-slate-300">
-          <VoiceWaveform status={visibleStatus} isMicActive={isMicActive} />
-          <span className="font-medium tracking-wide">{statusLabels[visibleStatus]}</span>
+          {mode === "follow-read" ? (
+            <>
+              <VoiceWaveform status={visibleStatus} isMicActive={isMicActive} />
+              <span className="font-medium tracking-wide">{statusLabels[visibleStatus]}</span>
+            </>
+          ) : (
+            <>
+              <span className={cn(
+                "h-2 w-2 rounded-full",
+                "bg-slate-500"
+              )} />
+              <span className="font-medium tracking-wide">自动滚动</span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {script ? (
@@ -103,13 +127,14 @@ export function PrompterStage({
         </div>
       </div>
 
+      {/* ── 滚动内容区 ── */}
       <div
         ref={prompterViewportRef}
         role="textbox"
         aria-label="提词稿输入和跟读显示区"
         tabIndex={0}
         onPaste={onPrompterPaste}
-        className="relative z-10 min-h-0 flex-1 overflow-y-auto px-5 py-16 outline-none sm:px-10 lg:px-16"
+        className="relative z-10 min-h-0 flex-1 overflow-y-auto px-5 pt-6 pb-24 outline-none sm:px-10 lg:px-16"
       >
         {segments.length === 0 || isEditingScript ? (
           <div className="mx-auto flex min-h-full w-full max-w-5xl items-center justify-center">
@@ -130,49 +155,78 @@ export function PrompterStage({
               lineHeight,
             }}
           >
-            {segments.map((segment, index) => {
+             {segments.map((segment, index) => {
               const textStartOffset = getSegmentTextStartOffset(script, segment)
+              const isActive = index === visibleCurrentIndex
 
               return (
-                <p
-                  key={segment.id}
-                  ref={(node) => {
-                    segmentRefs.current[index] = node
-                  }}
-                  className={cn(
-                    "my-8 scroll-m-40 rounded-2xl px-4 py-2 transition-all duration-300",
-                    index === visibleCurrentIndex && "bg-amber-300/18 shadow-[0_0_42px_rgba(251,191,36,0.14)]"
-                  )}
-                >
-                  {Array.from(segment.raw).map((char, charIndex) => {
-                    const absoluteOffset = textStartOffset + charIndex
-                    const charEndOffset = absoluteOffset + 1
-                    const isRead = charEndOffset < visibleReadOffset
-                    const isCurrentChar = charEndOffset === visibleReadOffset && index === visibleCurrentIndex
+                <div key={segment.id} className="my-3 flex items-center gap-5">
+                  {/* ── 行号 ── */}
+                  <span
+                    className={cn(
+                      "w-8 shrink-0 select-none text-right font-mono text-sm leading-[inherit]",
+                      isActive ? "text-cyan-300 animate-pulse" : "text-slate-600"
+                    )}
+                  >
+                    {index + 1}
+                  </span>
 
-                    return (
-                      <button
-                        key={`${segment.id}-${charEndOffset}`}
-                        type="button"
-                        data-offset={charEndOffset}
-                        onClick={() => onCalibrateToCharacter(index, charEndOffset)}
-                        className={cn(
-                          "inline cursor-pointer appearance-none rounded-sm border-0 bg-transparent px-0.5 py-0 text-left font-[inherit] leading-[inherit] transition-colors hover:bg-muted/20",
-                          isRead && "text-slate-500/70",
-                          !isRead && "text-slate-100",
-                          isCurrentChar && "bg-amber-300/25 text-amber-50"
-                        )}
-                      >
-                        {char}
-                      </button>
-                    )
-                  })}
-                </p>
+                  {/* ── 段落内容（保留逐字跟随 + 点击校准） ── */}
+                  <p
+                    ref={(node) => {
+                      segmentRefs.current[index] = node
+                    }}
+                    className={cn(
+                      "flex-1 scroll-m-40 rounded-xl border-l-[3px] border-transparent px-4 py-2 transition-all duration-300",
+                      isActive && "border-l-cyan-400/80 bg-cyan-500/10 shadow-[0_0_42px_rgba(34,211,238,0.08)]"
+                    )}
+                  >
+                    {Array.from(segment.raw).map((char, charIndex) => {
+                      const absoluteOffset = textStartOffset + charIndex
+                      const charEndOffset = absoluteOffset + 1
+                      const isRead = charEndOffset < visibleReadOffset
+                      const isCurrentChar = charEndOffset === visibleReadOffset && index === visibleCurrentIndex
+
+                      return (
+                        <span
+                          key={`${segment.id}-${charEndOffset}`}
+                          data-offset={charEndOffset}
+                          onClick={() => {
+                            // 如果用户当前正在划选/选择文本，不触发进度校准
+                            const selection = window.getSelection()?.toString()
+                            if (selection && selection.length > 0) return
+                            onCalibrateToCharacter(index, charEndOffset)
+                          }}
+                          className={cn(
+                            "inline cursor-pointer rounded-sm px-0.5 py-0 text-left font-[inherit] leading-[inherit] transition-colors hover:bg-muted/20 select-text",
+                            isRead && "text-slate-500/70",
+                            !isRead && "text-slate-100",
+                            isCurrentChar && "bg-cyan-400/25 text-cyan-50"
+                          )}
+                        >
+                          {char}
+                        </span>
+                      )
+                    })}
+                  </p>
+                </div>
               )
             })}
           </div>
         )}
       </div>
+
+      {/* ── 底部进度条 ── */}
+      {segments.length > 0 && !isEditingScript && (
+        <div className="absolute bottom-5 left-6 right-6 z-10">
+          <div className="h-1 overflow-hidden rounded-full bg-border/20">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
+      )}
     </section>
   )
 }
