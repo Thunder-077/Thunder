@@ -23,7 +23,7 @@ export function NumberStepper({
   const increment = () => onChange(Math.min(max, +(value + step).toFixed(4)))
 
   return (
-    <div className="flex items-center overflow-hidden rounded-lg border border-border/70">
+    <div className="flex items-center shrink-0 overflow-hidden rounded-lg border border-border/70">
       <button
         type="button"
         onClick={decrement}
@@ -31,7 +31,7 @@ export function NumberStepper({
       >
         <Minus className="h-3.5 w-3.5" />
       </button>
-      <span className="min-w-[3rem] select-none text-center text-sm font-medium tabular-nums">
+      <span className="min-w-[3.5rem] select-none text-center text-sm font-medium tabular-nums">
         {formatValue ? formatValue(value) : value}
       </span>
       <button

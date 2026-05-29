@@ -28,6 +28,9 @@ type PrompterStageProps = {
   visibleReadOffset: number
   isFullscreen: boolean
   mode: TeleprompterMode
+  autoScrollMirrorDisplay: boolean
+  autoScrollHighlightLine: boolean
+  autoScrollActiveIndex: number
   onToggleFullscreen: () => void
   onBeginScriptEditing: () => void
   onPrompterPaste: (event: ClipboardEvent<HTMLDivElement>) => void
@@ -52,6 +55,9 @@ export function PrompterStage({
   visibleReadOffset,
   isFullscreen,
   mode,
+  autoScrollMirrorDisplay,
+  autoScrollHighlightLine,
+  autoScrollActiveIndex,
   onToggleFullscreen,
   onBeginScriptEditing,
   onPrompterPaste,
@@ -67,8 +73,9 @@ export function PrompterStage({
   }
 
   const totalSegments = segments.length
+  const stageCurrentIndex = mode === "auto-scroll" ? autoScrollActiveIndex : visibleCurrentIndex
   const progressPercent = totalSegments > 0
-    ? Math.round(((visibleCurrentIndex + 1) / totalSegments) * 100)
+    ? Math.round(((stageCurrentIndex + 1) / totalSegments) * 100)
     : 0
 
   return (
@@ -122,7 +129,7 @@ export function PrompterStage({
           ) : null}
           <Button variant="ghost" size="sm" onClick={onToggleFullscreen} className="text-slate-200 hover:bg-muted/20 hover:text-foreground">
             <Maximize2 className="h-4 w-4" />
-            {isFullscreen ? "还原提词" : "全屏提词"}
+            {isFullscreen ? "还原" : "全屏"}
           </Button>
         </div>
       </div>
@@ -134,7 +141,10 @@ export function PrompterStage({
         aria-label="提词稿输入和跟读显示区"
         tabIndex={0}
         onPaste={onPrompterPaste}
-        className="relative z-10 min-h-0 flex-1 overflow-y-auto px-5 pt-6 pb-24 outline-none sm:px-10 lg:px-16"
+        className={cn(
+          "relative z-10 min-h-0 flex-1 overflow-y-auto px-5 pt-6 pb-24 outline-none sm:px-10 lg:px-16",
+          mode === "auto-scroll" && autoScrollMirrorDisplay && "[transform:scaleX(-1)]"
+        )}
       >
         {segments.length === 0 || isEditingScript ? (
           <div className="mx-auto flex min-h-full w-full max-w-5xl items-center justify-center">
@@ -143,7 +153,7 @@ export function PrompterStage({
               onChange={(event) => onDraftScriptChange(event.target.value)}
               onBlur={onDraftScriptCommit}
               onKeyDown={handleDraftKeyDown}
-              placeholder="点击这里输入或粘贴提词稿，失焦或 Ctrl+Enter 后开始提词"
+              placeholder="点击这里输入或粘贴提词稿。"
               className="min-h-[60vh] w-full resize-none border-0 bg-transparent text-center text-lg font-medium leading-9 text-slate-200 outline-none placeholder:text-slate-500"
             />
           </div>
@@ -155,9 +165,10 @@ export function PrompterStage({
               lineHeight,
             }}
           >
-             {segments.map((segment, index) => {
+            {segments.map((segment, index) => {
               const textStartOffset = getSegmentTextStartOffset(script, segment)
-              const isActive = index === visibleCurrentIndex
+              const isFollowActive = mode === "follow-read" && index === visibleCurrentIndex
+              const isAutoScrollActive = mode === "auto-scroll" && autoScrollHighlightLine && index === autoScrollActiveIndex
 
               return (
                 <div key={segment.id} className="my-3 flex items-center gap-5">
@@ -165,7 +176,7 @@ export function PrompterStage({
                   <span
                     className={cn(
                       "w-8 shrink-0 select-none text-right font-mono text-sm leading-[inherit]",
-                      isActive ? "text-cyan-300 animate-pulse" : "text-slate-600"
+                      isFollowActive || isAutoScrollActive ? "text-cyan-300 animate-pulse" : "text-slate-600"
                     )}
                   >
                     {index + 1}
@@ -178,7 +189,8 @@ export function PrompterStage({
                     }}
                     className={cn(
                       "flex-1 scroll-m-40 rounded-xl border-l-[3px] border-transparent px-4 py-2 transition-all duration-300",
-                      isActive && "border-l-cyan-400/80 bg-cyan-500/10 shadow-[0_0_42px_rgba(34,211,238,0.08)]"
+                      isFollowActive && "border-l-cyan-400/80 bg-cyan-500/10 shadow-[0_0_42px_rgba(34,211,238,0.08)]",
+                      isAutoScrollActive && "border-l-cyan-400/50 bg-cyan-500/5"
                     )}
                   >
                     {Array.from(segment.raw).map((char, charIndex) => {

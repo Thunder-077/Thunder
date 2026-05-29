@@ -1,194 +1,322 @@
 "use client"
 
-import { useState } from "react"
-import { Pause, Play, RotateCcw, Square } from "lucide-react"
+import { useEffect, useRef, useState, type RefObject } from "react"
+import { Pause, Play, RotateCcw, Settings2, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Select, type SelectOption } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { NumberStepper } from "./number-stepper"
+import { cn } from "@/lib/utils"
+import { AutoScrollSettingsDialog } from "./auto-scroll-settings-dialog"
 
-type AutoScrollStatus = "idle" | "scrolling" | "paused"
+type AutoScrollStatus = "idle" | "countdown" | "scrolling" | "paused"
+type AutoScrollDirection = "up" | "down"
+
+export type AutoScrollViewOptions = {
+  mirrorDisplay: boolean
+  highlightLine: boolean
+}
 
 type AutoScrollPanelProps = {
   fontSize: number
   lineHeight: number
+  canScroll: boolean
+  prompterViewportRef: RefObject<HTMLDivElement | null>
   onFontSizeChange: (value: number) => void
   onLineHeightChange: (value: number) => void
+  onViewOptionsChange: (options: AutoScrollViewOptions) => void
 }
-
-const directionOptions: SelectOption[] = [
-  { value: "up", label: "向上滚动" },
-  { value: "down", label: "向下滚动" },
-]
-
-const countdownOptions: SelectOption[] = [
-  { value: "off", label: "关闭" },
-  { value: "on", label: "开启" },
-]
 
 export function AutoScrollPanel({
   fontSize,
   lineHeight,
+  canScroll,
+  prompterViewportRef,
   onFontSizeChange,
   onLineHeightChange,
+  onViewOptionsChange,
 }: AutoScrollPanelProps) {
   const [status, setStatus] = useState<AutoScrollStatus>("idle")
   const [speed, setSpeed] = useState(1.25)
-  const [direction, setDirection] = useState("up")
+  const [direction, setDirection] = useState<AutoScrollDirection>("up")
   const [countdown, setCountdown] = useState("off")
   const [countdownSeconds, setCountdownSeconds] = useState(3)
+  const [countdownRemaining, setCountdownRemaining] = useState(0)
   const [smoothScroll, setSmoothScroll] = useState(true)
   const [loopPlayback, setLoopPlayback] = useState(false)
   const [mirrorDisplay, setMirrorDisplay] = useState(false)
   const [highlightLine, setHighlightLine] = useState(true)
+  const [progress, setProgress] = useState(0)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const animationFrameRef = useRef<number | null>(null)
+  const lastFrameTimeRef = useRef<number | null>(null)
+  const elapsedBaseRef = useRef(0)
+  const startedAtRef = useRef<number | null>(null)
 
-  const handleStart = () => setStatus("scrolling")
-  const handlePause = () => setStatus("paused")
-  const handleStop = () => setStatus("idle")
-  const handleReset = () => setStatus("idle")
+  useEffect(() => {
+    onViewOptionsChange({ mirrorDisplay, highlightLine })
+  }, [highlightLine, mirrorDisplay, onViewOptionsChange])
+
+  useEffect(() => {
+    if (canScroll || status === "idle") return
+
+    const timer = window.setTimeout(() => {
+      setStatus("idle")
+      setCountdownRemaining(0)
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [canScroll, status])
+
+  useEffect(() => {
+    if (status !== "countdown") return
+    if (countdownRemaining <= 0) {
+      const timer = window.setTimeout(() => {
+        startedAtRef.current = performance.now()
+        lastFrameTimeRef.current = null
+        setStatus("scrolling")
+      }, 0)
+      return () => window.clearTimeout(timer)
+    }
+
+    const timer = window.setTimeout(() => {
+      setCountdownRemaining((value) => Math.max(0, value - 1))
+    }, 1000)
+
+    return () => window.clearTimeout(timer)
+  }, [countdownRemaining, status])
+
+  useEffect(() => {
+    if (status !== "scrolling") return
+
+    const viewport = prompterViewportRef.current
+    if (!viewport) {
+      setStatus("idle")
+      return
+    }
+
+    const step = (time: number) => {
+      if (lastFrameTimeRef.current === null) {
+        lastFrameTimeRef.current = time
+      }
+      if (startedAtRef.current === null) {
+        startedAtRef.current = time
+      }
+
+      const deltaSeconds = Math.max(0, (time - lastFrameTimeRef.current) / 1000)
+      lastFrameTimeRef.current = time
+
+      const pixelsPerSecond = speed * fontSize * lineHeight
+      const directionMultiplier = direction === "up" ? 1 : -1
+      const rawDelta = pixelsPerSecond * deltaSeconds * directionMultiplier
+      // scrollTop 支持小数累积；非平滑模式只关闭 CSS 行为，不应把低速位移截断成 0。
+      viewport.scrollTop += rawDelta
+
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+      const reachedEnd = direction === "up"
+        ? viewport.scrollTop >= maxScrollTop - 1
+        : viewport.scrollTop <= 1
+
+      if (reachedEnd && maxScrollTop > 0) {
+        if (loopPlayback) {
+          viewport.scrollTop = direction === "up" ? 0 : maxScrollTop
+        } else {
+          setStatus("idle")
+          setProgress(100)
+          setElapsedSeconds(elapsedBaseRef.current + Math.floor((time - startedAtRef.current) / 1000))
+          return
+        }
+      }
+
+      const currentProgress = maxScrollTop <= 0
+        ? 0
+        : direction === "up"
+          ? (viewport.scrollTop / maxScrollTop) * 100
+          : ((maxScrollTop - viewport.scrollTop) / maxScrollTop) * 100
+      setProgress(Math.max(0, Math.min(100, Math.round(currentProgress))))
+      setElapsedSeconds(elapsedBaseRef.current + Math.floor((time - startedAtRef.current) / 1000))
+
+      animationFrameRef.current = requestAnimationFrame(step)
+    }
+
+    animationFrameRef.current = requestAnimationFrame(step)
+
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+      }
+    }
+  }, [direction, fontSize, lineHeight, loopPlayback, prompterViewportRef, smoothScroll, speed, status])
+
+  const updateProgressFromViewport = () => {
+    const viewport = prompterViewportRef.current
+    if (!viewport) {
+      setProgress(0)
+      return
+    }
+
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+    if (maxScrollTop <= 0) {
+      setProgress(0)
+      return
+    }
+
+    const currentProgress = direction === "up"
+      ? (viewport.scrollTop / maxScrollTop) * 100
+      : ((maxScrollTop - viewport.scrollTop) / maxScrollTop) * 100
+    setProgress(Math.max(0, Math.min(100, Math.round(currentProgress))))
+  }
+
+  const handleStart = () => {
+    if (!canScroll) return
+    const viewport = prompterViewportRef.current
+    if (viewport) {
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+      if (direction === "down" && viewport.scrollTop <= 1) {
+        viewport.scrollTop = maxScrollTop
+      }
+      if (direction === "up" && viewport.scrollTop >= maxScrollTop - 1) {
+        viewport.scrollTop = 0
+      }
+      updateProgressFromViewport()
+    }
+    elapsedBaseRef.current = elapsedSeconds
+    lastFrameTimeRef.current = null
+    startedAtRef.current = null
+
+    if (countdown === "on" && countdownSeconds > 0) {
+      setCountdownRemaining(countdownSeconds)
+      setStatus("countdown")
+      return
+    }
+
+    setStatus("scrolling")
+  }
+  const handlePause = () => {
+    if (startedAtRef.current !== null) {
+      elapsedBaseRef.current = elapsedSeconds
+    }
+    setStatus("paused")
+  }
+  const handleStop = () => {
+    setStatus("idle")
+    setCountdownRemaining(0)
+  }
+  const handleReset = () => {
+    const viewport = prompterViewportRef.current
+    if (viewport) {
+      viewport.scrollTop = direction === "up" ? 0 : Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+    }
+    elapsedBaseRef.current = 0
+    startedAtRef.current = null
+    lastFrameTimeRef.current = null
+    setElapsedSeconds(0)
+    setStatus("idle")
+    setCountdownRemaining(0)
+    updateProgressFromViewport()
+  }
+
+  const formattedElapsed = `${String(Math.floor(elapsedSeconds / 60)).padStart(2, "0")}:${String(elapsedSeconds % 60).padStart(2, "0")}`
 
   return (
     <div className="space-y-3">
-      {/* ── 三列仪表盘 ── */}
-      <div className="grid gap-3 lg:grid-cols-[1fr_1.5fr_1fr]">
-        {/* ── 左列：自动滚动控制 ── */}
-        <Card size="sm">
-          <CardContent className="space-y-3 p-4">
-            <div className="text-sm font-semibold">自动滚动控制</div>
-            <p className="text-xs text-muted-foreground">
-              自动滚动您的台词，助您从容表达，专注演讲。
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                onClick={status === "paused" ? handleStart : handleStart}
-                className="h-9 gap-1.5 text-xs"
-                disabled={status === "scrolling"}
-              >
-                <Play className="h-3.5 w-3.5" />
-                开始
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handlePause}
-                disabled={status !== "scrolling"}
-                className="h-9 gap-1.5 text-xs"
-              >
-                <Pause className="h-3.5 w-3.5" />
-                暂停
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleStop}
-                className="h-9 gap-1.5 text-xs text-destructive hover:text-destructive"
-              >
-                <Square className="h-3.5 w-3.5" />
-                停止
-              </Button>
-            </div>
-            <Button variant="outline" onClick={handleReset} className="h-9 w-full gap-1.5 text-xs">
+      {/* ── 操作栏（顶部水平条） ── */}
+      <Card size="sm">
+        <CardContent className="p-3 flex flex-col md:flex-row items-center justify-between gap-4">
+          {/* 左侧：滚动状态圆点 + 状态文字 + 滚动动画 */}
+          <div className="flex items-center gap-2.5 text-xs">
+            <span className={cn(
+              "h-2.5 w-2.5 rounded-full transition-all duration-300",
+              status === "scrolling" ? "bg-success animate-pulse" : status === "paused" ? "bg-warning animate-pulse" : "bg-muted-foreground/40"
+            )} />
+            <span className="text-muted-foreground">滚动状态:</span>
+            <span className="font-semibold text-foreground">
+              {status === "countdown"
+                ? `${countdownRemaining} 秒后开始`
+                : status === "scrolling"
+                  ? "正在滚动"
+                  : status === "paused"
+                    ? "已暂停"
+                    : "未启动"}
+            </span>
+            <span className="text-muted-foreground">进度 {progress}%</span>
+            <span className="text-muted-foreground">时间 {formattedElapsed}</span>
+            {status === "scrolling" && (
+              <span className="flex gap-0.5 items-end h-3 ml-1">
+                <span className="w-[3px] bg-success rounded-full animate-[bounce_0.8s_infinite_100ms] h-2" />
+                <span className="w-[3px] bg-success rounded-full animate-[bounce_0.8s_infinite_200ms] h-3" />
+                <span className="w-[3px] bg-success rounded-full animate-[bounce_0.8s_infinite_300ms] h-1.5" />
+              </span>
+            )}
+          </div>
+
+          {/* 中间：4个按钮水平排列（开始、暂停、停止、回到开头） */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={handleStart}
+              className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm px-3"
+              disabled={!canScroll || status === "scrolling" || status === "countdown"}
+            >
+              <Play className="h-3.5 w-3.5 fill-current" />
+              {status === "paused" ? "继续" : "开始"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handlePause}
+              disabled={status !== "scrolling"}
+              className="h-8 gap-1.5 text-xs px-3"
+            >
+              <Pause className="h-3.5 w-3.5" />
+              暂停
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleStop}
+              className="h-8 gap-1.5 text-xs text-destructive border-destructive/20 hover:bg-destructive/10 hover:text-destructive px-3"
+            >
+              <Square className="h-3.5 w-3.5 fill-destructive/80 stroke-none" />
+              停止
+            </Button>
+            <Button variant="outline" onClick={handleReset} className="h-8 gap-1.5 text-xs px-3">
               <RotateCcw className="h-3.5 w-3.5" />
               回到开头
             </Button>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* ── 中列：滚动设置 ── */}
-        <Card size="sm">
-          <CardContent className="space-y-3 p-4">
-            <div className="text-sm font-semibold">滚动设置</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <label className="space-y-1.5">
-                <span className="text-xs text-muted-foreground">滚动速度</span>
-                <NumberStepper value={speed} onChange={setSpeed} min={0.25} max={5} step={0.25} formatValue={(v) => v.toFixed(2)} />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-xs text-muted-foreground">字体大小</span>
-                <NumberStepper value={fontSize} onChange={onFontSizeChange} min={28} max={88} step={2} />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-xs text-muted-foreground">行距</span>
-                <NumberStepper value={lineHeight} onChange={onLineHeightChange} min={1.2} max={2.4} step={0.05} formatValue={(v) => v.toFixed(2)} />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-xs text-muted-foreground">滚动方向</span>
-                <Select value={direction} onChange={setDirection} options={directionOptions} size="compact" className="w-full" />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-xs text-muted-foreground">倒计时</span>
-                <Select value={countdown} onChange={setCountdown} options={countdownOptions} size="compact" className="w-full" />
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-xs text-muted-foreground">开始前倒计时</span>
-                <NumberStepper value={countdownSeconds} onChange={setCountdownSeconds} min={0} max={10} step={1} />
-              </label>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ── 右列：滚动状态 ── */}
-        <Card size="sm">
-          <CardContent className="space-y-3 p-4">
-            <div className="text-sm font-semibold">滚动状态</div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs text-muted-foreground">当前进度</div>
-                <div className="mt-1 text-2xl font-bold tabular-nums">0%</div>
-                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted/60">
-                  <div className="h-full rounded-full bg-primary" style={{ width: "0%" }} />
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">预计剩余时间</div>
-                <div className="mt-1 text-2xl font-bold tabular-nums">--:--</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">当前速度</div>
-                <div className="mt-1 text-base font-bold tabular-nums">
-                  {speed.toFixed(2)}{" "}
-                  <span className="text-xs font-normal text-muted-foreground">行/秒</span>
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">已滚动时间</div>
-                <div className="mt-1 text-base font-bold tabular-nums">00:00</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── 开关选项栏 ── */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card px-4 py-3">
-          <div>
-            <div className="text-sm font-medium">平滑滚动</div>
-            <p className="text-xs text-muted-foreground">开启后滚动更平滑自然</p>
-          </div>
-          <Switch checked={smoothScroll} onCheckedChange={setSmoothScroll} size="sm" />
-        </div>
-        <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card px-4 py-3">
-          <div>
-            <div className="text-sm font-medium">循环播放</div>
-            <p className="text-xs text-muted-foreground">到结尾后自动回到开头</p>
-          </div>
-          <Switch checked={loopPlayback} onCheckedChange={setLoopPlayback} size="sm" />
-        </div>
-        <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card px-4 py-3">
-          <div>
-            <div className="text-sm font-medium">镜像显示</div>
-            <p className="text-xs text-muted-foreground">适合摄像机拍摄使用</p>
-          </div>
-          <Switch checked={mirrorDisplay} onCheckedChange={setMirrorDisplay} size="sm" />
-        </div>
-        <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card px-4 py-3">
-          <div>
-            <div className="text-sm font-medium">高亮当前行</div>
-            <p className="text-xs text-muted-foreground">突出显示正在阅读的行</p>
-          </div>
-          <Switch checked={highlightLine} onCheckedChange={setHighlightLine} size="sm" />
-        </div>
-      </div>
+          {/* 右侧：滚动设置按钮（打开 Sheet/Dialog） */}
+          <AutoScrollSettingsDialog
+            fontSize={fontSize}
+            lineHeight={lineHeight}
+            speed={speed}
+            direction={direction}
+            countdown={countdown}
+            countdownSeconds={countdownSeconds}
+            smoothScroll={smoothScroll}
+            loopPlayback={loopPlayback}
+            mirrorDisplay={mirrorDisplay}
+            highlightLine={highlightLine}
+            onFontSizeChange={onFontSizeChange}
+            onLineHeightChange={onLineHeightChange}
+            onSpeedChange={setSpeed}
+            onDirectionChange={(value) => setDirection(value as AutoScrollDirection)}
+            onCountdownChange={setCountdown}
+            onCountdownSecondsChange={setCountdownSeconds}
+            onSmoothScrollChange={setSmoothScroll}
+            onLoopPlaybackChange={setLoopPlayback}
+            onMirrorDisplayChange={setMirrorDisplay}
+            onHighlightLineChange={setHighlightLine}
+            trigger={(
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                滚动设置
+              </Button>
+            )}
+          />
+        </CardContent>
+      </Card>
     </div>
   )
 }

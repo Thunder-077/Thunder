@@ -59,7 +59,7 @@ weather.get("/now", async (c) => {
     }
 
     const token = await getQWeatherToken()
-    const url = `https://${QWEATHER_API_HOST}/v7/weather/now?location=${encodeURIComponent(location)}`
+    const url = `https://${QWEATHER_API_HOST}/v7/weather/now?location=${encodeURIComponent(location)}&lang=zh`
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,

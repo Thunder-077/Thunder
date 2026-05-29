@@ -20,7 +20,7 @@ import { createFollowEngine } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
 import { segmentScript } from "../utils/script-segmenter"
 import type { SpeechProvider } from "../transcribers"
-import { AutoScrollPanel } from "./auto-scroll-panel"
+import { AutoScrollPanel, type AutoScrollViewOptions } from "./auto-scroll-panel"
 import { FollowStatusPanel } from "./follow-status-panel"
 import { PrompterStage } from "./prompter-stage"
 
@@ -75,6 +75,11 @@ export function TeleprompterPage() {
   const [sherpaModels, setSherpaModels] = useState<SherpaModel[]>([])
   const [selectedSherpaModelId, setSelectedSherpaModelId] = useState<string | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<Record<string, { percentage: number; downloadedText: string; totalText: string }>>({})
+  const [autoScrollViewOptions, setAutoScrollViewOptions] = useState<AutoScrollViewOptions>({
+    mirrorDisplay: false,
+    highlightLine: true,
+  })
+  const [autoScrollActiveIndex, setAutoScrollActiveIndex] = useState(0)
 
   const sherpaModelsRef = useRef(sherpaModels)
   useEffect(() => {
@@ -144,7 +149,10 @@ export function TeleprompterPage() {
     checkSherpaRunning()
       .then(setSherpaReady)
       .catch(() => setSherpaReady(false))
-    void refreshSherpaModels()
+    const refreshTimer = window.setTimeout(() => {
+      void refreshSherpaModels()
+    }, 0)
+    return () => window.clearTimeout(refreshTimer)
   }, [refreshSherpaModels])
 
   useEffect(() => {
@@ -163,17 +171,17 @@ export function TeleprompterPage() {
           const { modelId, percentage, downloaded, total, status } = event.payload
           const downloadedText = (downloaded / 1024 / 1024).toFixed(1) + " MB"
           const totalText = (total / 1024 / 1024).toFixed(1) + " MB"
-          
+
           setDownloadProgress((prev) => ({
             ...prev,
-            [modelId]: { 
-              percentage, 
-              downloadedText, 
+            [modelId]: {
+              percentage,
+              downloadedText,
               totalText,
               status: status || "downloading"
             }
           }))
-          
+
           notificationStore.updateProgress(modelId, percentage, downloaded, total)
         }
       )
@@ -181,13 +189,13 @@ export function TeleprompterPage() {
       unlistenInstalled = await listen<string>("sherpa-model-installed", (event) => {
         void refreshSherpaModels()
         const modelId = event.payload
-        
+
         setDownloadProgress((prev) => {
           const next = { ...prev }
           delete next[modelId]
           return next
         })
-        
+
         const modelName = sherpaModelsRef.current.find((m) => m.id === modelId)?.name || modelId
         notificationStore.completeNotification(modelId, true, `模型 ${modelName} 下载并激活成功！`)
         setMessage(`模型 ${modelName} 下载并激活成功！`)
@@ -198,13 +206,13 @@ export function TeleprompterPage() {
         (event) => {
           void refreshSherpaModels()
           const { modelId, error } = event.payload
-          
+
           setDownloadProgress((prev) => {
             const next = { ...prev }
             delete next[modelId]
             return next
           })
-          
+
           const modelName = sherpaModelsRef.current.find((m) => m.id === modelId)?.name || modelId
           notificationStore.completeNotification(modelId, false, `模型 ${modelName} 下载失败: ${error}`)
           setMessage(`模型 ${modelName} 下载失败: ${error}`)
@@ -224,6 +232,34 @@ export function TeleprompterPage() {
   useEffect(() => {
     segmentRefs.current = segmentRefs.current.slice(0, segments.length)
   }, [segments.length])
+
+  useEffect(() => {
+    if (mode !== "auto-scroll") return
+    const viewport = prompterViewportRef.current
+    if (!viewport) return
+
+    const updateActiveIndex = () => {
+      const viewportMiddle = viewport.scrollTop + viewport.clientHeight / 2
+      let closestIndex = 0
+      let closestDistance = Number.POSITIVE_INFINITY
+
+      segmentRefs.current.forEach((segment, index) => {
+        if (!segment) return
+        const segmentMiddle = segment.offsetTop + segment.offsetHeight / 2
+        const distance = Math.abs(segmentMiddle - viewportMiddle)
+        if (distance < closestDistance) {
+          closestDistance = distance
+          closestIndex = index
+        }
+      })
+
+      setAutoScrollActiveIndex(closestIndex)
+    }
+
+    updateActiveIndex()
+    viewport.addEventListener("scroll", updateActiveIndex, { passive: true })
+    return () => viewport.removeEventListener("scroll", updateActiveIndex)
+  }, [mode, segments.length])
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -471,8 +507,8 @@ export function TeleprompterPage() {
     const nextStatus: FollowStatus = isMicActive
       ? "listening"
       : followStatus === "paused"
-      ? "paused"
-      : "idle"
+        ? "paused"
+        : "idle"
     setMessage(null)
     setCurrentIndex(selectedIndex)
     setReadOffset(selectedOffset)
@@ -538,7 +574,7 @@ export function TeleprompterPage() {
     }
 
     const modelName = sherpaModels.find((m) => m.id === selectedSherpaModelId)?.name || selectedSherpaModelId
-    
+
     notificationStore.addNotificationWithId(selectedSherpaModelId, {
       title: "下载 Sherpa 模型",
       description: `准备下载并激活 ${modelName}…`,
@@ -597,7 +633,7 @@ export function TeleprompterPage() {
             )}
           >
             <Play className="h-4 w-4" />
-            自动滚动模式
+            滚动模式
           </button>
         </div>
 
@@ -646,8 +682,11 @@ export function TeleprompterPage() {
           <AutoScrollPanel
             fontSize={fontSize}
             lineHeight={lineHeight}
+            canScroll={segments.length > 0 && !isEditingScript}
+            prompterViewportRef={prompterViewportRef}
             onFontSizeChange={setFontSize}
             onLineHeightChange={setLineHeight}
+            onViewOptionsChange={setAutoScrollViewOptions}
           />
         )}
 
@@ -666,6 +705,9 @@ export function TeleprompterPage() {
           visibleReadOffset={visibleReadOffset}
           isFullscreen={isFullscreen}
           mode={mode}
+          autoScrollMirrorDisplay={autoScrollViewOptions.mirrorDisplay}
+          autoScrollHighlightLine={autoScrollViewOptions.highlightLine}
+          autoScrollActiveIndex={autoScrollActiveIndex}
           onToggleFullscreen={() => void toggleFullscreen()}
           onBeginScriptEditing={beginScriptEditing}
           onPrompterPaste={handlePrompterPaste}

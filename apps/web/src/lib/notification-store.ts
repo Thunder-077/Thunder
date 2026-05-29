@@ -14,6 +14,9 @@ export interface AppNotification {
 }
 
 type Listener = (notifications: AppNotification[]) => void
+type StoredNotification = Partial<AppNotification> & {
+  timestamp?: string | number | Date
+}
 
 class NotificationStore {
   private notifications: AppNotification[] = []
@@ -25,15 +28,18 @@ class NotificationStore {
       try {
         const saved = localStorage.getItem("thunder_notifications")
         if (saved) {
-          const parsed = JSON.parse(saved) as any[]
+          const parsed = JSON.parse(saved) as StoredNotification[]
           this.notifications = parsed.map((n) => ({
             ...n,
-            timestamp: new Date(n.timestamp),
+            id: n.id ?? Math.random().toString(36).substring(2, 9),
+            title: n.title ?? "通知",
+            timestamp: new Date(n.timestamp ?? Date.now()),
             // 重置正在下载中的临时状态
             percentage: n.type === "progress" ? 0 : n.percentage,
             status: n.type === "progress" ? "failed" : n.status,
-            description: n.type === "progress" ? "下载已中断" : n.description,
-            type: n.type === "progress" ? "error" : n.type,
+            description: n.type === "progress" ? "下载已中断" : n.description ?? "",
+            type: n.type === "progress" ? "error" : n.type ?? "info",
+            unread: n.unread ?? false,
           }))
         }
       } catch (e) {
