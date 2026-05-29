@@ -9,8 +9,16 @@ export type SherpaModel = {
   description: string
   language: string
   runtime: string
+  size: string
   installed: boolean
   active: boolean
+  downloading?: boolean
+}
+
+export type SherpaRecognitionUpdate = {
+  text: string
+  segment: number
+  isFinal: boolean
 }
 
 export async function getTauriDesktopPlatform(): Promise<DesktopPlatform | null> {
@@ -78,9 +86,33 @@ export async function activateSherpaModel(modelId: string): Promise<SherpaModel[
 
 export async function startSherpaService(): Promise<string> {
   if (!isTauriDesktop()) {
-    throw new Error("仅桌面端支持启动 sherpa-onnx 服务")
+    throw new Error("仅桌面端支持启动 sherpa-onnx 引擎")
   }
 
   const { invoke } = await import("@tauri-apps/api/core")
   return invoke<string>("start_sherpa_service")
+}
+
+export async function stopSherpaService(): Promise<void> {
+  if (!isTauriDesktop()) {
+    return
+  }
+
+  const { invoke } = await import("@tauri-apps/api/core")
+  await invoke("stop_sherpa_service")
+}
+
+export async function feedSherpaAudio(
+  samples: number[],
+  inputFinished = false,
+): Promise<SherpaRecognitionUpdate | null> {
+  if (!isTauriDesktop()) {
+    throw new Error("仅桌面端支持 sherpa-onnx 直连识别")
+  }
+
+  const { invoke } = await import("@tauri-apps/api/core")
+  return invoke<SherpaRecognitionUpdate | null>("feed_sherpa_audio", {
+    samples,
+    inputFinished,
+  })
 }

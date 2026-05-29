@@ -10,9 +10,9 @@ import {
   isTauriDesktop,
   listSherpaModels,
   startFunAsrService,
-  startSherpaService,
   type SherpaModel,
 } from "@/lib/platform"
+import { notificationStore } from "@/lib/notification-store"
 import { useSpeechRecognition } from "../hooks/use-speech-recognition"
 import { createFollowEngine } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
@@ -64,12 +64,16 @@ export function TeleprompterPage() {
   const [funasrStarting, setFunasrStarting] = useState(false)
   const [funAsrEndpoint, setFunAsrEndpoint] = useState("ws://127.0.0.1:10095")
   const [sherpaReady, setSherpaReady] = useState(false)
-  const [sherpaStarting, setSherpaStarting] = useState(false)
   const [sherpaBusy, setSherpaBusy] = useState(false)
   const [sherpaLoading, setSherpaLoading] = useState(false)
-  const [sherpaOnnxEndpoint, setSherpaOnnxEndpoint] = useState("ws://127.0.0.1:10096")
   const [sherpaModels, setSherpaModels] = useState<SherpaModel[]>([])
   const [selectedSherpaModelId, setSelectedSherpaModelId] = useState<string | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, { percentage: number; downloadedText: string; totalText: string }>>({})
+
+  const sherpaModelsRef = useRef(sherpaModels)
+  useEffect(() => {
+    sherpaModelsRef.current = sherpaModels
+  }, [sherpaModels])
 
   const stageRef = useRef<HTMLDivElement | null>(null)
   const prompterViewportRef = useRef<HTMLDivElement | null>(null)
@@ -82,13 +86,16 @@ export function TeleprompterPage() {
   const speech = useSpeechRecognition({
     provider: speechProvider,
     funAsrEndpoint,
-    sherpaOnnxEndpoint,
   })
   const segments = useMemo(() => segmentScript(script), [script])
   const followEngine = useMemo(() => script ? createFollowEngine(script, segments) : null, [script, segments])
 
   const displayTranscript = `${finalTranscript.slice(-160)}${interimTranscript}`.trim()
   const canFollow = segments.length > 0
+  const installedSherpaModels = useMemo(
+    () => sherpaModels.filter((model) => model.installed),
+    [sherpaModels],
+  )
   const isMicActive = speech.status === "listening"
   const visibleCurrentIndex = Math.min(currentIndex, Math.max(segments.length - 1, 0))
   const visibleReadOffset = Math.max(0, Math.min(readOffset, script.length))
@@ -132,6 +139,80 @@ export function TeleprompterPage() {
       .then(setSherpaReady)
       .catch(() => setSherpaReady(false))
     void refreshSherpaModels()
+  }, [refreshSherpaModels])
+
+  useEffect(() => {
+    if (!isTauriDesktop()) return
+
+    let unlistenProgress: (() => void) | null = null
+    let unlistenInstalled: (() => void) | null = null
+    let unlistenFailed: (() => void) | null = null
+
+    const setupListeners = async () => {
+      const { listen } = await import("@tauri-apps/api/event")
+
+      unlistenProgress = await listen<{ modelId: string; percentage: number; downloaded: number; total: number; status?: string }>(
+        "sherpa-download-progress",
+        (event) => {
+          const { modelId, percentage, downloaded, total, status } = event.payload
+          const downloadedText = (downloaded / 1024 / 1024).toFixed(1) + " MB"
+          const totalText = (total / 1024 / 1024).toFixed(1) + " MB"
+          
+          setDownloadProgress((prev) => ({
+            ...prev,
+            [modelId]: { 
+              percentage, 
+              downloadedText, 
+              totalText,
+              status: status || "downloading"
+            }
+          }))
+          
+          notificationStore.updateProgress(modelId, percentage, downloaded, total)
+        }
+      )
+
+      unlistenInstalled = await listen<string>("sherpa-model-installed", (event) => {
+        void refreshSherpaModels()
+        const modelId = event.payload
+        
+        setDownloadProgress((prev) => {
+          const next = { ...prev }
+          delete next[modelId]
+          return next
+        })
+        
+        const modelName = sherpaModelsRef.current.find((m) => m.id === modelId)?.name || modelId
+        notificationStore.completeNotification(modelId, true, `模型 ${modelName} 下载并激活成功！`)
+        setMessage(`模型 ${modelName} 下载并激活成功！`)
+      })
+
+      unlistenFailed = await listen<{ modelId: string; error: string }>(
+        "sherpa-model-download-failed",
+        (event) => {
+          void refreshSherpaModels()
+          const { modelId, error } = event.payload
+          
+          setDownloadProgress((prev) => {
+            const next = { ...prev }
+            delete next[modelId]
+            return next
+          })
+          
+          const modelName = sherpaModelsRef.current.find((m) => m.id === modelId)?.name || modelId
+          notificationStore.completeNotification(modelId, false, `模型 ${modelName} 下载失败: ${error}`)
+          setMessage(`模型 ${modelName} 下载失败: ${error}`)
+        }
+      )
+    }
+
+    void setupListeners()
+
+    return () => {
+      if (unlistenProgress) unlistenProgress()
+      if (unlistenInstalled) unlistenInstalled()
+      if (unlistenFailed) unlistenFailed()
+    }
   }, [refreshSherpaModels])
 
   useEffect(() => {
@@ -326,6 +407,10 @@ export function TeleprompterPage() {
       setMessage("请先输入一篇提词稿")
       return
     }
+    if (speechProvider === "sherpa-onnx" && installedSherpaModels.length === 0) {
+      setMessage("暂无可用的 Sherpa ONNX 模型，请先下载模型。")
+      return
+    }
 
     speech.clearError()
     setMessage(null)
@@ -446,48 +531,30 @@ export function TeleprompterPage() {
       return
     }
 
+    const modelName = sherpaModels.find((m) => m.id === selectedSherpaModelId)?.name || selectedSherpaModelId
+    
+    notificationStore.addNotificationWithId(selectedSherpaModelId, {
+      title: "下载 Sherpa 模型",
+      description: `准备下载并激活 ${modelName}…`,
+      type: "progress",
+      percentage: 0,
+      status: "downloading",
+    })
+
     setSherpaBusy(true)
-    setMessage("正在下载 sherpa-onnx 模型…")
+    setMessage("已在后台启动模型下载，您可在下方模型按钮上实时查看进度。")
     try {
       const models = await downloadSherpaModel(selectedSherpaModelId)
       syncSherpaModels(models)
-      setMessage(null)
     } catch (error) {
-      setMessage(`Sherpa 模型下载失败: ${error instanceof Error ? error.message : String(error)}`)
+      notificationStore.completeNotification(
+        selectedSherpaModelId,
+        false,
+        `Sherpa 模型启动下载失败: ${error instanceof Error ? error.message : String(error)}`
+      )
+      setMessage(`Sherpa 模型启动下载失败: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setSherpaBusy(false)
-    }
-  }
-
-  const startSherpa = async () => {
-    const selectedModel = sherpaModels.find((model) => model.id === selectedSherpaModelId) ?? null
-    if (!selectedModel) {
-      setMessage("请先选择一个 sherpa-onnx 模型")
-      return
-    }
-    if (!selectedModel.installed) {
-      setMessage("所选 sherpa-onnx 模型尚未下载")
-      return
-    }
-
-    if (sherpaStarting) return
-    setSherpaStarting(true)
-    setMessage("正在启动 sherpa-onnx 引擎…")
-
-    try {
-      if (!selectedModel.active) {
-        const models = await activateSherpaModel(selectedModel.id)
-        syncSherpaModels(models)
-      }
-      const endpoint = await startSherpaService()
-      setSherpaOnnxEndpoint(endpoint)
-      setSpeechProvider("sherpa-onnx")
-      setSherpaReady(true)
-      setMessage(null)
-    } catch (error) {
-      setMessage(`Sherpa ONNX 启动失败: ${error instanceof Error ? error.message : String(error)}`)
-    } finally {
-      setSherpaStarting(false)
     }
   }
 
@@ -495,7 +562,6 @@ export function TeleprompterPage() {
     <div>
       <PageHeader
         title="提词器"
-        description="桌面端使用本地 FunASR 跟读定位，纯 Web 端自动使用浏览器 Web Speech。"
       />
 
       <div className="grid gap-4">
@@ -516,11 +582,11 @@ export function TeleprompterPage() {
           funasrReady={funasrReady}
           funasrStarting={funasrStarting}
           sherpaReady={sherpaReady}
-          sherpaStarting={sherpaStarting}
           sherpaBusy={sherpaBusy}
           sherpaLoading={sherpaLoading}
           sherpaModels={sherpaModels}
           selectedSherpaModelId={selectedSherpaModelId}
+          downloadProgress={downloadProgress}
           onFontSizeChange={setFontSize}
           onLineHeightChange={setLineHeight}
           onStartFollowing={() => void startFollowing()}
@@ -529,7 +595,7 @@ export function TeleprompterPage() {
           onStopFollowing={stopFollowing}
           onReturnToStart={returnToStart}
           onStartFunAsr={startFunAsr}
-          onStartSherpa={() => void startSherpa()}
+          onSelectSherpa={() => setSpeechProvider("sherpa-onnx")}
           onSelectWebSpeech={() => setSpeechProvider("web-speech")}
           onSelectSherpaModel={setSelectedSherpaModelId}
           onRefreshSherpaModels={() => void refreshSherpaModels()}

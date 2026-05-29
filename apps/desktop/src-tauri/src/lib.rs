@@ -1,6 +1,8 @@
 use std::{
-    collections::HashMap,
-    fs, io,
+    collections::{HashMap, HashSet},
+    fs,
+    fs::File,
+    io::{self, BufReader, Read, Write},
     net::{TcpStream, ToSocketAddrs},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
@@ -12,7 +14,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+use bzip2::read::BzDecoder;
+use sherpa_onnx::{OnlineRecognizer, OnlineRecognizerConfig, OnlineStream};
 use serde::{Deserialize, Serialize};
+use tar::Archive;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -29,8 +34,6 @@ const DESKTOP_SHORTCUT: &str = "CommandOrControl+Shift+T";
 const DESKTOP_ENV_FILE_NAME: &str = "desktop.env";
 const DEFAULT_FUNASR_PORT: u16 = 10095;
 const DEFAULT_FUNASR_HOST: &str = "127.0.0.1";
-const DEFAULT_SHERPA_PORT: u16 = 10096;
-const DEFAULT_SHERPA_HOST: &str = "127.0.0.1";
 
 #[allow(dead_code)]
 #[derive(Deserialize, Clone)]
@@ -53,8 +56,10 @@ struct SherpaModelSummary {
     description: String,
     language: String,
     runtime: String,
+    size: String,
     installed: bool,
     active: bool,
+    downloading: bool,
 }
 
 #[derive(Deserialize)]
@@ -65,8 +70,18 @@ struct SherpaModelCatalogEntry {
     description: String,
     language: String,
     runtime: String,
+    size: String,
     archive_root: String,
+    download_url: String,
     files: HashMap<String, String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SherpaRecognitionUpdate {
+    text: String,
+    segment: i32,
+    is_final: bool,
 }
 
 #[derive(Deserialize)]
@@ -74,9 +89,161 @@ struct SherpaActiveModelState {
     id: Option<String>,
 }
 
+struct SherpaSession {
+    recognizer: OnlineRecognizer,
+    stream: OnlineStream,
+    sample_rate: i32,
+    segment: i32,
+    last_text: String,
+}
+
+#[cfg(target_os = "windows")]
+struct WindowsJob {
+    handle: *mut std::ffi::c_void,
+}
+
+#[cfg(target_os = "windows")]
+impl WindowsJob {
+    fn new() -> io::Result<Self> {
+        use std::ptr;
+        extern "system" {
+            fn CreateJobObjectW(lpJobAttributes: *mut std::ffi::c_void, lpName: *const u16) -> *mut std::ffi::c_void;
+            fn SetInformationJobObject(
+                hJob: *mut std::ffi::c_void,
+                JobObjectInformationClass: u32,
+                lpJobObjectInformation: *mut std::ffi::c_void,
+                cbJobObjectInformationLength: u32,
+            ) -> i32;
+        }
+
+        let handle = unsafe { CreateJobObjectW(ptr::null_mut(), ptr::null()) };
+        if handle.is_null() {
+            return Err(io::Error::last_os_error());
+        }
+
+        #[repr(C)]
+        struct JOBOBJECT_BASIC_LIMIT_INFORMATION {
+            per_process_user_time_limit: i64,
+            per_job_user_time_limit: i64,
+            limit_flags: u32,
+            minimum_working_set_size: usize,
+            maximum_working_set_size: usize,
+            active_process_limit: u32,
+            affinity: usize,
+            priority_class: u32,
+            scheduling_class: u32,
+        }
+
+        #[repr(C)]
+        struct IO_COUNTERS {
+            read_operation_count: u64,
+            write_operation_count: u64,
+            other_operation_count: u64,
+            read_transfer_count: u64,
+            write_transfer_count: u64,
+            other_transfer_count: u64,
+        }
+
+        #[repr(C)]
+        struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+            basic_limit_information: JOBOBJECT_BASIC_LIMIT_INFORMATION,
+            io_info: IO_COUNTERS,
+            process_memory_limit: usize,
+            job_memory_limit: usize,
+            peak_process_memory_used: usize,
+            peak_job_memory_used: usize,
+        }
+
+        const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: u32 = 0x2000;
+        const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS: u32 = 9;
+
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+            basic_limit_information: JOBOBJECT_BASIC_LIMIT_INFORMATION {
+                per_process_user_time_limit: 0,
+                per_job_user_time_limit: 0,
+                limit_flags: JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+                minimum_working_set_size: 0,
+                maximum_working_set_size: 0,
+                active_process_limit: 0,
+                affinity: 0,
+                priority_class: 0,
+                scheduling_class: 0,
+            },
+            io_info: IO_COUNTERS {
+                read_operation_count: 0,
+                write_operation_count: 0,
+                other_operation_count: 0,
+                read_transfer_count: 0,
+                write_transfer_count: 0,
+                other_transfer_count: 0,
+            },
+            process_memory_limit: 0,
+            job_memory_limit: 0,
+            peak_process_memory_used: 0,
+            peak_job_memory_used: 0,
+        };
+
+        let res = unsafe {
+            SetInformationJobObject(
+                handle,
+                JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS,
+                &mut info as *mut _ as *mut std::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+        };
+
+        if res == 0 {
+            unsafe {
+                extern "system" {
+                    fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
+                }
+                CloseHandle(handle);
+            }
+            return Err(io::Error::last_os_error());
+        }
+
+        Ok(WindowsJob { handle })
+    }
+
+    fn assign(&self, child: &Child) -> io::Result<()> {
+        use std::os::windows::io::AsRawHandle;
+        extern "system" {
+            fn AssignProcessToJobObject(hJob: *mut std::ffi::c_void, hProcess: *mut std::ffi::c_void) -> i32;
+        }
+
+        let process_handle = child.as_raw_handle();
+        let res = unsafe { AssignProcessToJobObject(self.handle, process_handle as *mut std::ffi::c_void) };
+        if res == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for WindowsJob {
+    fn drop(&mut self) {
+        extern "system" {
+            fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
+        }
+        unsafe {
+            CloseHandle(self.handle);
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+unsafe impl Send for WindowsJob {}
+#[cfg(target_os = "windows")]
+unsafe impl Sync for WindowsJob {}
+
 struct DesktopState {
     is_quitting: AtomicBool,
     sidecars: Mutex<Vec<Child>>,
+    sherpa_session: Mutex<Option<SherpaSession>>,
+    downloading_models: Mutex<HashSet<String>>,
+    #[cfg(target_os = "windows")]
+    job: Option<WindowsJob>,
 }
 
 fn get_main_window<R: Runtime>(app: &AppHandle<R>) -> Option<WebviewWindow<R>> {
@@ -112,6 +279,7 @@ fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
 
 fn kill_sidecars<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<DesktopState>();
+    state.sherpa_session.lock().unwrap().take();
     let mut sidecars = state.sidecars.lock().unwrap();
     for child in sidecars.iter_mut() {
         let _ = child.kill();
@@ -323,6 +491,13 @@ fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     {
         let state = app.state::<DesktopState>();
+
+        #[cfg(target_os = "windows")]
+        if let Some(ref job) = state.job {
+            let _ = job.assign(&api_child);
+            let _ = job.assign(&web_child);
+        }
+
         let mut sidecars = state.sidecars.lock().unwrap();
         sidecars.push(api_child);
         sidecars.push(web_child);
@@ -408,60 +583,26 @@ fn resolve_funasr_config<R: Runtime>(app: &AppHandle<R>) -> (PathBuf, String, St
     }
 }
 
-fn resolve_sherpa_paths<R: Runtime>(app: &AppHandle<R>) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+fn resolve_sherpa_catalog_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
     if cfg!(debug_assertions) {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
             .join("..");
         let service_root = workspace.join("services").join("sherpa-onnx");
-        let launcher = service_root.join("start_sherpa_onnx.py");
-        let manager = service_root.join("manage_models.py");
         let catalog = service_root.join("model-catalog.json");
-        return (launcher, manager, catalog, service_root);
+        return catalog;
     }
 
     let resource_dir = app.path().resource_dir().unwrap_or_default();
     let service_root = resource_dir.join("runtime").join("services").join("sherpa-onnx");
-    let launcher = service_root.join("start_sherpa_onnx.py");
-    let manager = service_root.join("manage_models.py");
-    let catalog = service_root.join("model-catalog.json");
-    (launcher, manager, catalog, service_root)
+    service_root.join("model-catalog.json")
 }
 
 fn resolve_sherpa_config<R: Runtime>(
     app: &AppHandle<R>,
-) -> (PathBuf, PathBuf, PathBuf, String, String, u16, PathBuf, PathBuf) {
-    let desktop_env = load_desktop_env(app).unwrap_or_default();
-    let (launcher, manager, catalog, service_root) = resolve_sherpa_paths(app);
-
-    let port = desktop_env
-        .get("THUNDER_SHERPA_PORT")
-        .and_then(|v| v.parse::<u16>().ok())
-        .unwrap_or(DEFAULT_SHERPA_PORT);
-
-    let host = desktop_env
-        .get("THUNDER_SHERPA_HOST")
-        .cloned()
-        .unwrap_or_else(|| DEFAULT_SHERPA_HOST.into());
-
-    let python = desktop_env
-        .get("THUNDER_SHERPA_PYTHON")
-        .cloned()
-        .unwrap_or_else(|| {
-            let venv = service_root.join(".venv");
-            let bin = if cfg!(target_os = "windows") {
-                venv.join("Scripts").join("python.exe")
-            } else {
-                venv.join("bin").join("python")
-            };
-            if bin.exists() {
-                bin.to_string_lossy().into()
-            } else {
-                "python".into()
-            }
-        });
-
+) -> (PathBuf, PathBuf, PathBuf) {
+    let catalog = resolve_sherpa_catalog_path(app);
     let app_data_root = app.path().app_data_dir().unwrap_or_else(|_| {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
@@ -473,9 +614,7 @@ fn resolve_sherpa_config<R: Runtime>(
     let model_dir = sherpa_root.join("models");
     let state_dir = sherpa_root.join("state");
 
-    (
-        launcher, manager, catalog, python, host, port, model_dir, state_dir,
-    )
+    (catalog, model_dir, state_dir)
 }
 
 fn ensure_sherpa_storage(model_dir: &Path, state_dir: &Path) -> Result<(), String> {
@@ -498,6 +637,16 @@ fn load_active_sherpa_model_id(state_dir: &Path) -> Option<String> {
         .and_then(|state| state.id)
 }
 
+fn save_active_sherpa_model_id(state_dir: &Path, model_id: &str) -> Result<(), String> {
+    let content = serde_json::to_string_pretty(&serde_json::json!({ "id": model_id }))
+        .map_err(|e| format!("序列化 sherpa 当前模型状态失败: {e}"))?;
+    fs::write(
+        state_dir.join("active-model.json"),
+        format!("{content}\n"),
+    )
+    .map_err(|e| format!("写入 sherpa 当前模型状态失败: {e}"))
+}
+
 fn is_sherpa_model_installed(model_dir: &Path, model: &SherpaModelCatalogEntry) -> bool {
     let model_root = model_dir.join(&model.archive_root);
     model
@@ -510,6 +659,7 @@ fn list_sherpa_models_from_catalog(
     catalog: &Path,
     model_dir: &Path,
     state_dir: &Path,
+    downloading_models: &HashSet<String>,
 ) -> Result<Vec<SherpaModelSummary>, String> {
     let entries = load_sherpa_catalog(catalog)?;
     let active_model_id = load_active_sherpa_model_id(state_dir);
@@ -517,6 +667,7 @@ fn list_sherpa_models_from_catalog(
         .into_iter()
         .map(|entry| {
             let installed = is_sherpa_model_installed(model_dir, &entry);
+            let downloading = downloading_models.contains(&entry.id);
             SherpaModelSummary {
                 active: installed && active_model_id.as_deref() == Some(entry.id.as_str()),
                 id: entry.id,
@@ -524,7 +675,9 @@ fn list_sherpa_models_from_catalog(
                 description: entry.description,
                 language: entry.language,
                 runtime: entry.runtime,
+                size: entry.size,
                 installed,
+                downloading,
             }
         })
         .collect::<Vec<_>>();
@@ -538,35 +691,251 @@ fn list_sherpa_models_from_catalog(
     Ok(models)
 }
 
-fn run_python_json_command(
-    python: &str,
-    script: &Path,
-    args: &[String],
-) -> Result<String, String> {
-    let output = Command::new(python)
-        .arg(script)
-        .args(args)
-        .output()
-        .map_err(|e| {
-            if e.kind() == io::ErrorKind::NotFound {
-                format!("未找到 Python 可执行文件 ({python})。")
-            } else {
-                format!("执行 Python 脚本失败: {e}")
+fn find_sherpa_model<'a>(
+    catalog: &'a [SherpaModelCatalogEntry],
+    model_id: &str,
+) -> Result<&'a SherpaModelCatalogEntry, String> {
+    catalog
+        .iter()
+        .find(|model| model.id == model_id)
+        .ok_or_else(|| format!("未知 sherpa 模型: {model_id}"))
+}
+
+fn download_sherpa_model_archive<R: Runtime>(
+    app: &AppHandle<R>,
+    model: &SherpaModelCatalogEntry,
+    state_dir: &Path,
+) -> Result<PathBuf, String> {
+    let archive_path = state_dir.join(format!("{}.download.tar.bz2", model.id));
+    let response = ureq::get(&model.download_url)
+        .call()
+        .map_err(|e| format!("下载 sherpa 模型失败: {e}"))?;
+    
+    let total_bytes = response
+        .header("Content-Length")
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
+    
+    let mut reader = response.into_reader();
+    let mut file = File::create(&archive_path)
+        .map_err(|e| format!("创建 sherpa 模型临时文件失败: {e}"))?;
+    
+    let mut buffer = [0; 65536];
+    let mut downloaded_bytes = 0u64;
+    let mut last_percentage = 0u32;
+    
+    let _ = app.emit("sherpa-download-progress", serde_json::json!({
+        "modelId": model.id,
+        "percentage": 0,
+        "downloaded": 0,
+        "total": total_bytes,
+        "status": "downloading",
+    }));
+
+    loop {
+        let bytes_read = reader.read(&mut buffer)
+            .map_err(|e| format!("读取 sherpa 模型数据失败: {e}"))?;
+        
+        if bytes_read == 0 {
+            break;
+        }
+        
+        file.write_all(&buffer[..bytes_read])
+            .map_err(|e| format!("写入 sherpa 模型临时文件失败: {e}"))?;
+        
+        downloaded_bytes += bytes_read as u64;
+        
+        if total_bytes > 0 {
+            let percentage = ((downloaded_bytes as f64 / total_bytes as f64) * 100.0) as u32;
+            if percentage > last_percentage {
+                last_percentage = percentage;
+                let _ = app.emit("sherpa-download-progress", serde_json::json!({
+                    "modelId": model.id,
+                    "percentage": percentage,
+                    "downloaded": downloaded_bytes,
+                    "total": total_bytes,
+                    "status": "downloading",
+                }));
             }
-        })?;
+            
+            if downloaded_bytes >= total_bytes {
+                break;
+            }
+        }
+    }
+    
+    file.sync_all().map_err(|e| format!("刷新数据到磁盘失败: {e}"))?;
+    Ok(archive_path)
+}
 
-    if output.status.success() {
-        return String::from_utf8(output.stdout)
-            .map(|text| text.trim().to_string())
-            .map_err(|e| format!("Python 输出不是合法 UTF-8: {e}"));
+fn extract_sherpa_archive(archive_path: &Path, model_dir: &Path) -> Result<(), String> {
+    let file = File::open(archive_path).map_err(|e| format!("打开 sherpa 模型压缩包失败: {e}"))?;
+    let reader = BufReader::new(file);
+    let decoder = BzDecoder::new(reader);
+    let mut archive = Archive::new(decoder);
+    archive
+        .unpack(model_dir)
+        .map_err(|e| format!("解压 sherpa 模型失败: {e}"))
+}
+
+fn install_sherpa_model<R: Runtime>(
+    app: &AppHandle<R>,
+    model: &SherpaModelCatalogEntry,
+    model_dir: &Path,
+    state_dir: &Path,
+) -> Result<(), String> {
+    if is_sherpa_model_installed(model_dir, model) {
+        return Ok(());
     }
 
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    if stderr.is_empty() {
-        Err(format!("Python 脚本执行失败，退出码: {}", output.status))
-    } else {
-        Err(stderr)
+    let archive_path = download_sherpa_model_archive(app, model, state_dir)?;
+    
+    // 发送正在解压状态事件
+    let _ = app.emit("sherpa-download-progress", serde_json::json!({
+        "modelId": model.id,
+        "percentage": 100,
+        "downloaded": 0,
+        "total": 0,
+        "status": "extracting",
+    }));
+
+    let result = extract_sherpa_archive(&archive_path, model_dir);
+    let _ = fs::remove_file(&archive_path);
+    result
+}
+
+fn resolve_active_sherpa_model(
+    catalog: &Path,
+    model_dir: &Path,
+    state_dir: &Path,
+) -> Result<(SherpaModelCatalogEntry, PathBuf), String> {
+    let entries = load_sherpa_catalog(catalog)?;
+    let active_model_id = load_active_sherpa_model_id(state_dir);
+    let mut candidates = entries;
+
+    if let Some(active_model_id) = active_model_id.as_deref() {
+        candidates.retain(|model| model.id == active_model_id);
     }
+
+    for model in candidates {
+        if is_sherpa_model_installed(model_dir, &model) {
+            let model_root = model_dir.join(&model.archive_root);
+            return Ok((model, model_root));
+        }
+    }
+
+    Err("未找到可用的 sherpa-onnx 模型，请先下载并激活一个模型。".into())
+}
+
+fn create_sherpa_recognizer(
+    catalog: &Path,
+    model_dir: &Path,
+    state_dir: &Path,
+) -> Result<OnlineRecognizer, String> {
+    let (model, model_root) = resolve_active_sherpa_model(catalog, model_dir, state_dir)?;
+    let mut config = OnlineRecognizerConfig::default();
+
+    config.model_config.tokens = Some(
+        model_root
+            .join(
+                model
+                    .files
+                    .get("tokens")
+                    .ok_or_else(|| "模型定义缺少 tokens 文件".to_string())?,
+            )
+            .to_string_lossy()
+            .to_string(),
+    );
+    config.model_config.num_threads = 2;
+    config.model_config.provider = Some("cpu".into());
+    config.decoding_method = Some("greedy_search".into());
+    config.max_active_paths = 4;
+    config.enable_endpoint = true;
+    config.rule1_min_trailing_silence = 2.4;
+    config.rule2_min_trailing_silence = 1.0;
+    config.rule3_min_utterance_length = 20.0;
+
+    match model.runtime.as_str() {
+        "streaming-paraformer" => {
+            config.model_config.paraformer.encoder = Some(
+                model_root
+                    .join(
+                        model
+                            .files
+                            .get("paraformerEncoder")
+                            .ok_or_else(|| "模型定义缺少 paraformer encoder".to_string())?,
+                    )
+                    .to_string_lossy()
+                    .to_string(),
+            );
+            config.model_config.paraformer.decoder = Some(
+                model_root
+                    .join(
+                        model
+                            .files
+                            .get("paraformerDecoder")
+                            .ok_or_else(|| "模型定义缺少 paraformer decoder".to_string())?,
+                    )
+                    .to_string_lossy()
+                    .to_string(),
+            );
+        }
+        "streaming-zipformer" => {
+            config.model_config.transducer.encoder = Some(
+                model_root
+                    .join(
+                        model
+                            .files
+                            .get("encoder")
+                            .ok_or_else(|| "模型定义缺少 encoder".to_string())?,
+                    )
+                    .to_string_lossy()
+                    .to_string(),
+            );
+            config.model_config.transducer.decoder = Some(
+                model_root
+                    .join(
+                        model
+                            .files
+                            .get("decoder")
+                            .ok_or_else(|| "模型定义缺少 decoder".to_string())?,
+                    )
+                    .to_string_lossy()
+                    .to_string(),
+            );
+            config.model_config.transducer.joiner = Some(
+                model_root
+                    .join(
+                        model
+                            .files
+                            .get("joiner")
+                            .ok_or_else(|| "模型定义缺少 joiner".to_string())?,
+                    )
+                    .to_string_lossy()
+                    .to_string(),
+            );
+        }
+        other => return Err(format!("当前模型运行时暂不支持: {other}")),
+    }
+
+    OnlineRecognizer::create(&config).ok_or_else(|| "创建 sherpa-onnx 识别器失败。".into())
+}
+
+fn create_sherpa_session(
+    catalog: &Path,
+    model_dir: &Path,
+    state_dir: &Path,
+) -> Result<SherpaSession, String> {
+    let recognizer = create_sherpa_recognizer(catalog, model_dir, state_dir)?;
+    let stream = recognizer.create_stream();
+
+    Ok(SherpaSession {
+        recognizer,
+        stream,
+        sample_rate: 16_000,
+        segment: 0,
+        last_text: String::new(),
+    })
 }
 
 #[tauri::command]
@@ -610,6 +979,12 @@ fn start_funasr_service(app: tauri::AppHandle) -> Result<String, String> {
 
     {
         let state = app.state::<DesktopState>();
+
+        #[cfg(target_os = "windows")]
+        if let Some(ref job) = state.job {
+            let _ = job.assign(&child);
+        }
+
         state.sidecars.lock().unwrap().push(child);
     }
 
@@ -621,29 +996,18 @@ fn start_funasr_service(app: tauri::AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 fn check_sherpa_running(app: tauri::AppHandle) -> bool {
-    let (_, _, _, _, _, port, _, _) = resolve_sherpa_config(&app);
-    is_port_open(port)
+    let state = app.state::<DesktopState>();
+    let is_running = state.sherpa_session.lock().unwrap().is_some();
+    is_running
 }
 
 #[tauri::command]
 fn list_sherpa_models(app: tauri::AppHandle) -> Result<Vec<SherpaModelSummary>, String> {
-    let (_, manager, catalog, python, _, _, model_dir, state_dir) = resolve_sherpa_config(&app);
+    let (catalog, model_dir, state_dir) = resolve_sherpa_config(&app);
     ensure_sherpa_storage(&model_dir, &state_dir)?;
-    if catalog.exists() {
-        return list_sherpa_models_from_catalog(&catalog, &model_dir, &state_dir);
-    }
-
-    let args = vec![
-        "list".to_string(),
-        "--catalog".to_string(),
-        catalog.to_string_lossy().to_string(),
-        "--model-dir".to_string(),
-        model_dir.to_string_lossy().to_string(),
-        "--state-dir".to_string(),
-        state_dir.to_string_lossy().to_string(),
-    ];
-    let json = run_python_json_command(&python, &manager, &args)?;
-    serde_json::from_str(&json).map_err(|e| format!("解析 sherpa 模型列表失败: {e}"))
+    let state = app.state::<DesktopState>();
+    let downloading = state.downloading_models.lock().unwrap();
+    list_sherpa_models_from_catalog(&catalog, &model_dir, &state_dir, &downloading)
 }
 
 #[tauri::command]
@@ -651,23 +1015,56 @@ fn download_sherpa_model(
     app: tauri::AppHandle,
     model_id: String,
 ) -> Result<Vec<SherpaModelSummary>, String> {
-    let (_, manager, catalog, python, _, _, model_dir, state_dir) = resolve_sherpa_config(&app);
+    let (catalog_path, model_dir, state_dir) = resolve_sherpa_config(&app);
     ensure_sherpa_storage(&model_dir, &state_dir)?;
-    let args = vec![
-        "download".to_string(),
-        "--catalog".to_string(),
-        catalog.to_string_lossy().to_string(),
-        "--model-dir".to_string(),
-        model_dir.to_string_lossy().to_string(),
-        "--state-dir".to_string(),
-        state_dir.to_string_lossy().to_string(),
-        "--model-id".to_string(),
-        model_id,
-    ];
+    
+    let state = app.state::<DesktopState>();
+    let mut downloading = state.downloading_models.lock().unwrap();
+    
+    if downloading.contains(&model_id) {
+        return list_sherpa_models_from_catalog(&catalog_path, &model_dir, &state_dir, &downloading);
+    }
+    
+    downloading.insert(model_id.clone());
+    
+    let app_clone = app.clone();
+    let model_id_clone = model_id.clone();
+    
+    tauri::async_runtime::spawn(async move {
+        let (catalog_path, model_dir, state_dir) = resolve_sherpa_config(&app_clone);
+        let result = (|| -> Result<(), String> {
+            let catalog = load_sherpa_catalog(&catalog_path)?;
+            let model = find_sherpa_model(&catalog, &model_id_clone)?;
+            install_sherpa_model(&app_clone, model, &model_dir, &state_dir)?;
+            save_active_sherpa_model_id(&state_dir, &model.id)?;
+            app_clone.state::<DesktopState>()
+                .sherpa_session
+                .lock()
+                .unwrap()
+                .take();
+            Ok(())
+        })();
 
-    let json = run_python_json_command(&python, &manager, &args)?;
+        {
+            let state = app_clone.state::<DesktopState>();
+            let mut downloading = state.downloading_models.lock().unwrap();
+            downloading.remove(&model_id_clone);
+        }
 
-    serde_json::from_str(&json).map_err(|e| format!("解析下载后的 sherpa 模型状态失败: {e}"))
+        match result {
+            Ok(_) => {
+                let _ = app_clone.emit("sherpa-model-installed", model_id_clone);
+            }
+            Err(err) => {
+                let _ = app_clone.emit("sherpa-model-download-failed", serde_json::json!({
+                    "modelId": model_id_clone,
+                    "error": err,
+                }));
+            }
+        }
+    });
+
+    list_sherpa_models_from_catalog(&catalog_path, &model_dir, &state_dir, &downloading)
 }
 
 #[tauri::command]
@@ -675,72 +1072,102 @@ fn activate_sherpa_model(
     app: tauri::AppHandle,
     model_id: String,
 ) -> Result<Vec<SherpaModelSummary>, String> {
-    let (_, manager, catalog, python, _, _, model_dir, state_dir) = resolve_sherpa_config(&app);
+    let (catalog_path, model_dir, state_dir) = resolve_sherpa_config(&app);
     ensure_sherpa_storage(&model_dir, &state_dir)?;
-    let args = vec![
-        "activate".to_string(),
-        "--catalog".to_string(),
-        catalog.to_string_lossy().to_string(),
-        "--model-dir".to_string(),
-        model_dir.to_string_lossy().to_string(),
-        "--state-dir".to_string(),
-        state_dir.to_string_lossy().to_string(),
-        "--model-id".to_string(),
-        model_id,
-    ];
-
-    let json = run_python_json_command(&python, &manager, &args)?;
-
-    serde_json::from_str(&json).map_err(|e| format!("解析激活后的 sherpa 模型状态失败: {e}"))
+    let catalog = load_sherpa_catalog(&catalog_path)?;
+    let model = find_sherpa_model(&catalog, &model_id)?;
+    if !is_sherpa_model_installed(&model_dir, model) {
+        return Err("模型尚未下载，无法激活。".into());
+    }
+    save_active_sherpa_model_id(&state_dir, &model.id)?;
+    app.state::<DesktopState>()
+        .sherpa_session
+        .lock()
+        .unwrap()
+        .take();
+    let state = app.state::<DesktopState>();
+    let downloading = state.downloading_models.lock().unwrap();
+    list_sherpa_models_from_catalog(&catalog_path, &model_dir, &state_dir, &downloading)
 }
 
 #[tauri::command]
 fn start_sherpa_service(app: tauri::AppHandle) -> Result<String, String> {
-    let (launcher, _, _, python, host, port, model_dir, state_dir) = resolve_sherpa_config(&app);
+    let (catalog, model_dir, state_dir) = resolve_sherpa_config(&app);
     ensure_sherpa_storage(&model_dir, &state_dir)?;
+    let session = create_sherpa_session(&catalog, &model_dir, &state_dir)?;
+    let state = app.state::<DesktopState>();
+    *state.sherpa_session.lock().unwrap() = Some(session);
+    Ok("direct".into())
+}
 
-    if is_port_open(port) {
-        return Ok(format!("ws://{}:{}", host, port));
+#[tauri::command]
+fn stop_sherpa_service(app: tauri::AppHandle) {
+    let state = app.state::<DesktopState>();
+    state.sherpa_session.lock().unwrap().take();
+}
+
+#[tauri::command]
+fn feed_sherpa_audio(
+    app: tauri::AppHandle,
+    samples: Vec<i16>,
+    input_finished: bool,
+) -> Result<Option<SherpaRecognitionUpdate>, String> {
+    let state = app.state::<DesktopState>();
+    let mut session_guard = state.sherpa_session.lock().unwrap();
+    let session = session_guard
+        .as_mut()
+        .ok_or_else(|| "Sherpa ONNX 尚未就绪，请先启动引擎。".to_string())?;
+
+    if !samples.is_empty() {
+        let float_samples = samples
+            .into_iter()
+            .map(|sample| sample as f32 / 32768.0)
+            .collect::<Vec<_>>();
+        session.stream.accept_waveform(session.sample_rate, &float_samples);
     }
 
-    if !launcher.exists() {
-        return Err("Sherpa ONNX 启动脚本不存在，请检查是否已安装服务文件。".into());
+    if input_finished {
+        session.stream.input_finished();
     }
 
-    let cwd = launcher
-        .parent()
-        .unwrap_or(Path::new("."))
-        .to_path_buf();
+    let mut latest = session.recognizer.get_result(&session.stream);
+    while session.recognizer.is_ready(&session.stream) {
+        session.recognizer.decode(&session.stream);
+        latest = session.recognizer.get_result(&session.stream);
+    }
 
-    let mut envs = HashMap::new();
-    envs.insert("THUNDER_SHERPA_HOST".into(), host.clone());
-    envs.insert("THUNDER_SHERPA_PORT".into(), port.to_string());
-    envs.insert(
-        "THUNDER_SHERPA_MODEL_DIR".into(),
-        model_dir.to_string_lossy().to_string(),
-    );
-    envs.insert(
-        "THUNDER_SHERPA_STATE_DIR".into(),
-        state_dir.to_string_lossy().to_string(),
-    );
-
-    let child = spawn_python_process(&python, &launcher, &cwd, &envs).map_err(|e| {
-        if e.kind() == io::ErrorKind::NotFound {
-            format!("未找到 Python 可执行文件 ({python})。请先安装 Python 并配置 sherpa-onnx 环境。")
-        } else {
-            format!("Sherpa ONNX 进程启动失败: {e}")
+    let Some(result) = latest else {
+        if input_finished {
+            session.recognizer.reset(&session.stream);
+            session.segment = 0;
+            session.last_text.clear();
         }
-    })?;
+        return Ok(None);
+    };
 
-    {
-        let state = app.state::<DesktopState>();
-        state.sidecars.lock().unwrap().push(child);
+    let text = result.text.trim().to_string();
+    let is_final = result.is_final || input_finished || session.recognizer.is_endpoint(&session.stream);
+    let should_emit = !text.is_empty() && (text != session.last_text || is_final);
+
+    let update = if should_emit {
+        Some(SherpaRecognitionUpdate {
+            text: text.clone(),
+            segment: session.segment,
+            is_final: is_final,
+        })
+    } else {
+        None
+    };
+
+    if is_final {
+        session.recognizer.reset(&session.stream);
+        session.segment += 1;
+        session.last_text.clear();
+    } else if !text.is_empty() {
+        session.last_text = text;
     }
 
-    wait_for_port(port, Duration::from_secs(120))
-        .map_err(|_| "Sherpa ONNX 服务启动超时，请检查 Python 环境、依赖和已激活模型。".to_string())?;
-
-    Ok(format!("ws://{}:{}", host, port))
+    Ok(update)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -749,6 +1176,10 @@ pub fn run() {
         .manage(DesktopState {
             is_quitting: AtomicBool::new(false),
             sidecars: Mutex::new(Vec::new()),
+            sherpa_session: Mutex::new(None),
+            downloading_models: Mutex::new(HashSet::new()),
+            #[cfg(target_os = "windows")]
+            job: WindowsJob::new().ok(),
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -766,6 +1197,8 @@ pub fn run() {
             download_sherpa_model,
             activate_sherpa_model,
             start_sherpa_service,
+            stop_sherpa_service,
+            feed_sherpa_audio,
         ])
         .setup(|app| {
             start_local_runtime(&app.handle())?;

@@ -1,41 +1,27 @@
-# Thunder Sherpa ONNX Service
+# Thunder Sherpa ONNX Workspace
 
-Thunder uses this folder as the local `sherpa-onnx` service workspace.
+Thunder uses this folder as the local `sherpa-onnx` model and tooling workspace.
 
 The desktop app manages three things for this provider:
 
 1. A small built-in model catalog.
 2. Downloading and activating a model chosen by the user.
-3. Starting a local WebSocket ASR service for the teleprompter.
+3. Loading the active model into the Tauri desktop runtime for direct ASR.
 
 ## Desktop Defaults
 
 ```text
-THUNDER_SHERPA_HOST=127.0.0.1
-THUNDER_SHERPA_PORT=10096
-THUNDER_SHERPA_PYTHON=python
+模型目录: <app_data_dir>/speech/sherpa-onnx/models
+状态目录: <app_data_dir>/speech/sherpa-onnx/state
 ```
 
-The teleprompter connects to:
+## Local Dev Notes
 
-```text
-ws://127.0.0.1:10096
-```
+当前 sherpa 模型列表、下载、解压、激活和识别都已经收进 Tauri + Rust。
 
-## Local Dev Setup
+这个目录现在只保留：
 
-Thunder dev mode prefers the local venv at:
-
-```text
-services/sherpa-onnx/.venv/Scripts/python.exe
-```
-
-Recommended setup on Windows:
-
-```powershell
-D:\Program\Python3.11\python.exe -m venv services\sherpa-onnx\.venv
-services\sherpa-onnx\.venv\Scripts\python.exe -m pip install -U pip setuptools wheel
-services\sherpa-onnx\.venv\Scripts\python.exe -m pip install -r services\sherpa-onnx\requirements-dev.txt
-```
+- `model-catalog.json`：内置模型目录
+- `requirements-dev.txt` / `start_sherpa_onnx.py` / `manage_models.py`：历史调试脚本，当前桌面主链路不再依赖
 
 模型文件不会提交进仓库。桌面端会下载到用户本地应用数据目录，并记录当前激活模型。

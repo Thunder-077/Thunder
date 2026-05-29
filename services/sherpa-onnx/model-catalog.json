@@ -5,6 +5,7 @@
     "description": "低延迟流式识别，适合提词器连续跟读。",
     "language": "zh-CN / en",
     "runtime": "streaming-paraformer",
+    "size": "103 MB",
     "archiveRoot": "sherpa-onnx-streaming-paraformer-bilingual-zh-en",
     "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
     "files": {
@@ -19,6 +20,7 @@
     "description": "通用流式识别模型，兼顾连续识别和稳定性。",
     "language": "zh-CN / en",
     "runtime": "streaming-zipformer",
+    "size": "129 MB",
     "archiveRoot": "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
     "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2",
     "files": {

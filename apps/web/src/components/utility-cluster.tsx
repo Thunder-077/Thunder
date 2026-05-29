@@ -2,7 +2,7 @@
 
 import { type ChangeEvent, type PointerEvent, type WheelEvent, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, Camera, LogOut, Menu, Palette, Settings, UserRound } from "lucide-react"
+import { Bell, Camera, LogOut, Menu, Palette, Settings, UserRound, Check, Trash2, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,20 +12,113 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { WeatherSummary } from "@/components/weather-widget"
+import { cn } from "@/lib/utils"
+import { notificationStore, type AppNotification } from "@/lib/notification-store"
 
 interface UtilityClusterProps {
   onToggleSidebar?: () => void
 }
 
 function NotificationButton() {
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
+
+  useEffect(() => {
+    return notificationStore.subscribe((notifs) => {
+      setNotifications(notifs)
+    })
+  }, [])
+
+  const visibleNotifications = notifications.filter(
+    (n) => !(n.type === "progress" && n.status === "downloading")
+  )
+  const unreadCount = visibleNotifications.filter((n) => n.unread).length
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      notificationStore.markAllAsRead()
+    }
+  }
+
   return (
-    <Button
-      variant="ghost"
-      className="h-10 w-10 rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted/60 hover:text-foreground active:scale-95"
-      aria-label="通知"
-    >
-      <Bell className="size-5" strokeWidth={2.1} />
-    </Button>
+    <DropdownMenu onOpenChange={handleOpenChange}>
+      <DropdownMenuTrigger className="outline-none">
+        <span className="relative flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted/60 hover:text-foreground active:scale-95">
+          <Bell className="size-5" strokeWidth={2.1} />
+          {unreadCount > 0 && (
+            <span className="absolute top-2.5 right-2.5 flex h-2 w-2 rounded-full bg-emerald-500" />
+          )}
+        </span>
+      </DropdownMenuTrigger>
+      
+      <DropdownMenuContent align="end" sideOffset={8} className="w-80 p-2 sm:max-w-xs surface-card backdrop-blur-md bg-background/95 border border-border/80 rounded-2xl shadow-xl z-[var(--z-dropdown)]">
+        <div className="flex items-center justify-between px-2 py-1.5 border-b border-border/50 mb-1">
+          <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            系统通知 
+            {unreadCount > 0 && (
+              <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          {visibleNotifications.length > 0 && (
+            <button
+              type="button"
+              onClick={() => notificationStore.clearNotifications()}
+              className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-1 transition"
+            >
+              <Trash2 className="h-3 w-3" />
+              清空
+            </button>
+          )}
+        </div>
+
+        <div className="max-h-[280px] overflow-y-auto space-y-1.5 py-1">
+          {visibleNotifications.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              暂无任何系统通知
+            </div>
+          ) : (
+            visibleNotifications.map((notif) => (
+              <div
+                key={notif.id}
+                className={cn(
+                  "group/item relative p-2.5 rounded-xl transition border text-xs text-foreground bg-muted/20 border-transparent",
+                  notif.unread && "bg-brand/5 border-brand/10 animate-fade-in"
+                )}
+              >
+                <div className="flex items-start justify-between gap-1 pr-3">
+                  <div className="flex items-center gap-1.5 font-semibold truncate max-w-[170px]">
+                    {notif.unread && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 animate-pulse" />
+                    )}
+                    {notif.title}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
+                    {notif.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                
+                <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed break-all">
+                  {notif.description}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    notificationStore.deleteNotification(notif.id)
+                  }}
+                  className="absolute top-2.5 right-2 opacity-0 group-hover/item:opacity-100 text-muted-foreground hover:text-destructive transition duration-150"
+                  title="删除此通知"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

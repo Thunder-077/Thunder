@@ -30,11 +30,11 @@ type FollowStatusPanelProps = {
   funasrReady: boolean
   funasrStarting: boolean
   sherpaReady: boolean
-  sherpaStarting: boolean
   sherpaBusy: boolean
   sherpaLoading: boolean
   sherpaModels: SherpaModel[]
   selectedSherpaModelId: string | null
+  downloadProgress: Record<string, { percentage: number; downloadedText: string; totalText: string; status?: string }>
   onFontSizeChange: (value: number) => void
   onLineHeightChange: (value: number) => void
   onStartFollowing: () => void
@@ -43,7 +43,7 @@ type FollowStatusPanelProps = {
   onStopFollowing: () => void
   onReturnToStart: () => void
   onStartFunAsr: () => void
-  onStartSherpa: () => void
+  onSelectSherpa: () => void
   onSelectWebSpeech: () => void
   onSelectSherpaModel: (value: string) => void
   onRefreshSherpaModels: () => void
@@ -68,11 +68,11 @@ export function FollowStatusPanel({
   funasrReady,
   funasrStarting,
   sherpaReady,
-  sherpaStarting,
   sherpaBusy,
   sherpaLoading,
   sherpaModels,
   selectedSherpaModelId,
+  downloadProgress,
   onFontSizeChange,
   onLineHeightChange,
   onStartFollowing,
@@ -81,7 +81,7 @@ export function FollowStatusPanel({
   onStopFollowing,
   onReturnToStart,
   onStartFunAsr,
-  onStartSherpa,
+  onSelectSherpa,
   onSelectWebSpeech,
   onSelectSherpaModel,
   onRefreshSherpaModels,
@@ -195,14 +195,14 @@ export function FollowStatusPanel({
               funasrReady={funasrReady}
               funasrStarting={funasrStarting}
               sherpaReady={sherpaReady}
-              sherpaStarting={sherpaStarting}
               sherpaBusy={sherpaBusy}
               sherpaLoading={sherpaLoading}
               sherpaModels={sherpaModels}
               selectedSherpaModelId={selectedSherpaModelId}
+              downloadProgress={downloadProgress}
               speechProvider={speechProvider}
               onStartFunAsr={onStartFunAsr}
-              onStartSherpa={onStartSherpa}
+              onSelectSherpa={onSelectSherpa}
               onSelectWebSpeech={onSelectWebSpeech}
               onSelectSherpaModel={onSelectSherpaModel}
               onRefreshSherpaModels={onRefreshSherpaModels}

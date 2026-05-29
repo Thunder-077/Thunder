@@ -7,7 +7,6 @@ import type { SpeechProvider, SpeechTranscriber, TranscriberStatus, Transcriptio
 type UseSpeechRecognitionOptions = {
   provider: SpeechProvider
   funAsrEndpoint: string
-  sherpaOnnxEndpoint: string
   funAsrHotwords?: string
 }
 
@@ -21,22 +20,19 @@ function createTranscriber(options: UseSpeechRecognitionOptions): SpeechTranscri
   }
 
   if (options.provider === "sherpa-onnx") {
-    return new SherpaOnnxTranscriber({
-      endpoint: options.sherpaOnnxEndpoint,
-    })
+    return new SherpaOnnxTranscriber()
   }
 
   return new WebSpeechTranscriber()
 }
 
 export function useSpeechRecognition(options: UseSpeechRecognitionOptions) {
-  const { provider, funAsrEndpoint, sherpaOnnxEndpoint, funAsrHotwords } = options
+  const { provider, funAsrEndpoint, funAsrHotwords } = options
   const transcriber = useMemo(() => createTranscriber({
     provider,
     funAsrEndpoint,
-    sherpaOnnxEndpoint,
     funAsrHotwords,
-  }), [provider, funAsrEndpoint, sherpaOnnxEndpoint, funAsrHotwords])
+  }), [provider, funAsrEndpoint, funAsrHotwords])
   const [status, setStatus] = useState<TranscriberStatus>("idle")
   const [error, setError] = useState<string | null>(null)
   const [lastResult, setLastResult] = useState<TranscriptionResult | null>(null)

@@ -13,14 +13,14 @@ type ProviderSelectorProps = {
   funasrReady: boolean
   funasrStarting: boolean
   sherpaReady: boolean
-  sherpaStarting: boolean
   sherpaBusy: boolean
   sherpaLoading: boolean
   sherpaModels: SherpaModel[]
   selectedSherpaModelId: string | null
+  downloadProgress: Record<string, { percentage: number; downloadedText: string; totalText: string; status?: string }>
   speechProvider: SpeechProvider
   onStartFunAsr: () => void
-  onStartSherpa: () => void
+  onSelectSherpa: () => void
   onSelectWebSpeech: () => void
   onSelectSherpaModel: (value: string) => void
   onRefreshSherpaModels: () => void
@@ -34,26 +34,29 @@ export function ProviderSelector({
   funasrReady,
   funasrStarting,
   sherpaReady,
-  sherpaStarting,
   sherpaBusy,
   sherpaLoading,
   sherpaModels,
   selectedSherpaModelId,
+  downloadProgress,
   speechProvider,
   onStartFunAsr,
-  onStartSherpa,
+  onSelectSherpa,
   onSelectWebSpeech,
   onSelectSherpaModel,
   onRefreshSherpaModels,
   onDownloadSelectedSherpaModel,
   onActivateSelectedSherpaModel,
 }: ProviderSelectorProps) {
+  const installedSherpaModels = sherpaModels.filter((model) => model.installed)
   const sherpaOptions: SelectOption[] = sherpaModels.map((model) => ({
     value: model.id,
-    label: model.name,
-    description: `${model.language} · ${model.installed ? (model.active ? "已激活" : "已下载") : "未下载"}`,
+    label: `${model.name} (${model.size})`,
   }))
   const selectedSherpaModel = sherpaModels.find((model) => model.id === selectedSherpaModelId) ?? null
+  const showSherpaPanel = showSherpa && speechProvider === "sherpa-onnx"
+  const hasInstalledSherpaModel = installedSherpaModels.length > 0
+  const selectedModelProgress = selectedSherpaModelId ? downloadProgress[selectedSherpaModelId] : null
 
   return (
     <div className="min-w-0 rounded-2xl border border-border/70 bg-background/60 p-3">
@@ -62,18 +65,15 @@ export function ProviderSelector({
         {showSherpa && (
           <button
             type="button"
-            disabled={sherpaStarting}
-            onClick={onStartSherpa}
+            onClick={onSelectSherpa}
             className={cn(
               "h-8 min-w-0 flex-1 truncate rounded-lg border px-3 text-xs font-semibold transition-all",
               speechProvider === "sherpa-onnx"
                 ? "border-primary/35 bg-primary text-primary-foreground shadow-sm"
-                : sherpaStarting
-                  ? "cursor-not-allowed border-transparent text-muted-foreground/50"
-                  : "border-transparent text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:bg-background/70 hover:text-foreground"
             )}
           >
-            {sherpaStarting ? "启动中…" : sherpaReady ? "Sherpa ONNX · 已就绪" : "Sherpa ONNX"}
+            {sherpaReady ? "Sherpa ONNX · 已就绪" : "Sherpa ONNX"}
           </button>
         )}
         {showFunAsr && (
@@ -107,7 +107,7 @@ export function ProviderSelector({
         </button>
       </div>
 
-      {showSherpa && (
+      {showSherpaPanel && (
         <div className="mt-3 space-y-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[11px] font-medium text-muted-foreground">Sherpa 模型</div>
@@ -128,15 +128,32 @@ export function ProviderSelector({
             onChange={onSelectSherpaModel}
             options={sherpaOptions}
             size="compact"
-            placeholder={sherpaLoading ? "加载模型中…" : "选择可下载模型"}
+            placeholder={sherpaLoading ? "加载模型中…" : sherpaModels.length === 0 ? "暂无模型" : "选择模型"}
             disabled={sherpaLoading || sherpaModels.length === 0}
             className="w-full"
           />
 
+          {!hasInstalledSherpaModel && (
+            <div className="text-[11px] text-muted-foreground">暂无模型，不可用 Sherpa ONNX 引擎。</div>
+          )}
+
           {selectedSherpaModel && (
             <>
-              <div className="text-[11px] leading-5 text-muted-foreground">{selectedSherpaModel.description}</div>
-              {!selectedSherpaModel.installed ? (
+              {selectedSherpaModel.downloading ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled
+                  className="h-8 w-full gap-2 text-xs font-mono"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  {selectedModelProgress 
+                    ? selectedModelProgress.status === "extracting"
+                      ? "正在解压并激活模型，请稍候…"
+                      : `正在后台下载并激活 (${selectedModelProgress.percentage}% - ${selectedModelProgress.downloadedText}/${selectedModelProgress.totalText})`
+                    : "正在后台下载并激活…"}
+                </Button>
+              ) : !selectedSherpaModel.installed ? (
                 <Button
                   type="button"
                   variant="outline"

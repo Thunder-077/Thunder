@@ -221,20 +221,21 @@
 - 当前安装包只包含启动器和工作区，不包含上游 FunASR 仓库、Python 运行时、模型和依赖；如需他人安装后开箱即用，需要单独设计 runtime/vendor 打包流程。
 - 前端仍只依赖语音 provider 抽象，不依赖 FunASR 内部实现。
 
-## ADR-013：将 sherpa-onnx 作为可选本地 ASR 引擎，并由桌面端管理模型下载
+## ADR-013：将 sherpa-onnx 作为可选本地 ASR 引擎，并由桌面端直连运行时管理模型
 
 **背景**：提词器除了 FunASR 之外，还需要一个更轻量、可由用户自行选择下载模型的本地识别引擎。
 
-**决策**：新增 `services/sherpa-onnx/` 作为 Thunder 托管的 `sherpa-onnx` 服务工作区。桌面端负责内置模型目录、下载/激活模型、启动本地 WebSocket 服务，前端提词器只消费统一的 speech provider 抽象。
+**决策**：新增 `services/sherpa-onnx/` 作为 Thunder 托管的 `sherpa-onnx` 模型与下载工作区。桌面端使用 Rust `sherpa-onnx` 运行时直接加载模型并接收前端音频流，不再依赖 Python WebSocket sidecar。
 
 **理由**：
 - `sherpa-onnx` 提供了适合桌面端本地运行的 ONNX 语音识别能力，适合作为 FunASR 之外的可选 provider。
 - 模型体积和类型差异较大，应该由用户按需下载，而不是打进仓库或默认安装包。
 - 模型选择、下载和激活放在桌面端命令层，可以保持 Web UI 简洁，不让前端直接处理文件系统和下载细节。
+- 识别链路改为 `AudioWorklet -> Tauri invoke -> Rust sherpa runtime`，比 `WebSocket sidecar` 更短，故障点更少。
 - Provider 继续走提词器已有抽象，跟读算法层不绑定具体引擎实现。
 
 **影响**：
-- `services/sherpa-onnx/` 保存模型目录、下载脚本、启动脚本和依赖说明，不提交模型文件。
-- 桌面端新增 sherpa-onnx 模型列表、下载、激活、启动命令。
+- `services/sherpa-onnx/` 保存模型目录和历史调试脚本说明，不提交模型文件。
+- 桌面端新增 sherpa-onnx 模型列表、下载、激活和直连识别命令。
 - 模型文件下载到用户本地应用数据目录，而不是资源目录，避免安装包只读限制。
 - 前端提词器在现有 provider 选择区增加 sherpa-onnx 和模型选择入口，不大改主页面结构。
