@@ -17,11 +17,10 @@ The desktop app manages three things for this provider:
 
 ## Local Dev Notes
 
-当前 sherpa 模型列表、下载、解压、激活和识别都已经收进 Tauri + Rust。
+当前 sherpa 模型列表、下载、解压、激活和识别都已经收进 Tauri + Rust 原生运行。
 
 这个目录现在只保留：
 
 - `model-catalog.json`：内置模型目录
-- `requirements-dev.txt` / `start_sherpa_onnx.py` / `manage_models.py`：历史调试脚本，当前桌面主链路不再依赖
 
 模型文件不会提交进仓库。桌面端会下载到用户本地应用数据目录，并记录当前激活模型。

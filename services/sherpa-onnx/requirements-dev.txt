@@ -1,3 +1,0 @@
-sherpa-onnx
-websockets==16.0
-numpy
