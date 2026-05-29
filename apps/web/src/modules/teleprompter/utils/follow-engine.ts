@@ -136,6 +136,9 @@ const DEFAULT_MIN_RECOVERY_HITS = 2
 const DEFAULT_MAX_PREDICTION_MS = 1200
 const DEFAULT_MAX_LOCAL_LEAD_TOKENS = 20
 const DEFAULT_MIN_LOCAL_MATCH_TOKENS = 2
+const DEFAULT_CURSOR_LOOK_AHEAD_TOKENS = 8
+const DEFAULT_CURSOR_CONFIRM_JUMP_TOKENS = 2
+const CURSOR_CANDIDATE_BONUS = 0.14
 const MAX_CANDIDATES = 5
 const TRACK_OFFSET_BUCKET = 8
 const TRACK_TTL_MS = 6000
@@ -249,6 +252,15 @@ export function createFollowEngine(
 
     const dtwCandidate = toDtwCandidate(state, index, tokens.length)
     const searchMode = state.isOnScript ? "local" : "recovery"
+    const cursorCandidate = searchMode === "local"
+      ? findLocalCursorCandidate({
+          speechTokens: tokens,
+          index,
+          anchorOffset: lastUpdate.confirmedReadOffset,
+          params,
+          isFinal,
+        })
+      : null
     const lexicalCandidates = findLexicalCandidates({
       speechTokens: tokens,
       index,
@@ -262,6 +274,7 @@ export function createFollowEngine(
       : null
     const candidates = rankCandidates([
       dtwCandidate,
+      ...(cursorCandidate ? [cursorCandidate] : []),
       ...lexicalCandidates,
       ...(timestampCandidate ? [timestampCandidate] : []),
     ])
@@ -591,6 +604,97 @@ function findLexicalCandidates(options: {
   return rankCandidates(candidates).slice(0, MAX_CANDIDATES)
 }
 
+function findLocalCursorCandidate(options: {
+  speechTokens: string[]
+  index: ScriptIndex
+  anchorOffset: number
+  params: AdaptiveFollowParams
+  isFinal: boolean
+}): FollowCandidate | null {
+  const { speechTokens, index, anchorOffset, params, isFinal } = options
+  if (speechTokens.length === 0 || index.tokens.length === 0) return null
+
+  const anchorIndex = findTokenIndexByOffset(index, anchorOffset)
+  let cursor = anchorOffset <= 0 ? 0 : Math.min(index.tokens.length - 1, anchorIndex + 1)
+  let matchedTokens = 0
+  let consumedScriptTokens = 0
+  let firstMatchedIndex: number | null = null
+  const lookAhead = Math.min(DEFAULT_CURSOR_LOOK_AHEAD_TOKENS, params.maxLocalLeadTokens)
+
+  for (let speechIndex = 0; speechIndex < speechTokens.length && cursor < index.tokens.length; speechIndex += 1) {
+    const speechToken = speechTokens[speechIndex]
+
+    if (index.tokens[cursor] === speechToken) {
+      firstMatchedIndex ??= cursor
+      cursor += 1
+      matchedTokens += 1
+      consumedScriptTokens += 1
+      continue
+    }
+
+    const scanEnd = Math.min(index.tokens.length - 1, cursor + lookAhead)
+    let foundIndex = -1
+    for (let probe = cursor + 1; probe <= scanEnd; probe += 1) {
+      if (index.tokens[probe] === speechToken) {
+        foundIndex = probe
+        break
+      }
+    }
+
+    if (foundIndex < 0) {
+      continue
+    }
+
+    const jumpDistance = foundIndex - cursor
+    if (jumpDistance > DEFAULT_CURSOR_CONFIRM_JUMP_TOKENS || matchedTokens === 0) {
+      const nextSpeechToken = speechTokens[speechIndex + 1]
+      const nextScriptToken = index.tokens[foundIndex + 1]
+      if (matchedTokens === 0 && speechIndex > 0) {
+        continue
+      }
+      if (!nextSpeechToken || nextSpeechToken !== nextScriptToken) {
+        continue
+      }
+    }
+
+    firstMatchedIndex ??= foundIndex
+    cursor = foundIndex + 1
+    matchedTokens += 1
+    consumedScriptTokens += jumpDistance + 1
+  }
+
+  const minMatchedTokens = speechTokens.length === 1
+    ? 1
+    : Math.min(params.minLocalMatchTokens, speechTokens.length)
+  if (matchedTokens < minMatchedTokens) return null
+
+  const endTokenIndex = cursor - 1
+  if (endTokenIndex < 0 || endTokenIndex <= anchorIndex) return null
+
+  const readOffset = index.offsets[endTokenIndex] ?? 0
+  if (readOffset <= anchorOffset) return null
+
+  const matchRatio = matchedTokens / speechTokens.length
+  if (matchRatio < 0.45) return null
+
+  const continuityBonus = consumedScriptTokens <= speechTokens.length + DEFAULT_CURSOR_CONFIRM_JUMP_TOKENS ? 0.08 : 0
+  const finalBonus = isFinal ? 0.03 : 0
+  const score = clamp(matchRatio + continuityBonus + finalBonus + CURSOR_CANDIDATE_BONUS, 0, 1)
+
+  return {
+    scriptOffset: readOffset,
+    readOffset,
+    segmentIndex: index.segmentIndices[endTokenIndex] ?? 0,
+    startTokenIndex: firstMatchedIndex ?? Math.max(0, endTokenIndex - matchedTokens + 1),
+    endTokenIndex,
+    confidence: score,
+    score,
+    source: "local",
+    matchedTokens,
+    totalTokens: speechTokens.length,
+  }
+}
+
 function scoreCandidateEndingAt(options: {
   speechTokens: string[]
   index: ScriptIndex
@@ -604,6 +708,14 @@ function scoreCandidateEndingAt(options: {
   const startIndex = endIndex - speechTokens.length + 1
   if (startIndex < 0) return null
   if (mode === "local" && !isLocalCandidateInRange(startIndex, endIndex, anchorIndex, params)) {
+    return null
+  }
+  // 单字识别很容易来自噪声或 ASR 修订，远距离跳转必须交给本地游标的双 token 确认。
+  if (
+    mode === "local"
+    && speechTokens.length === 1
+    && startIndex > anchorIndex + DEFAULT_CURSOR_CONFIRM_JUMP_TOKENS + 1
+  ) {
     return null
   }
 

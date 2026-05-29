@@ -54,6 +54,8 @@ for (const fixture of loadFixtures()) {
 runSegmenterCases()
 runSpeakerGateCase()
 runLowConfidenceHoldCase()
+runLocalCursorLookAheadCase()
+runLocalCursorRejectsSingleTokenJumpCase()
 
 function loadFixtures(): ReplayFixture[] {
   return readdirSync(fixtureDir)
@@ -255,4 +257,33 @@ function runLowConfidenceHoldCase() {
   assert.ok(update.confidence < 0.55)
   assert.match(update.reason, /^low-confidence-hold:/)
   console.log("PASS 低置信度识别不会推进提词滚动")
+}
+
+function runLocalCursorLookAheadCase() {
+  const script = "检测声纹验证全部伪造。下一句继续。"
+  const segments = segmentScript(script)
+  const engine = createFollowEngine(script, segments)
+
+  const first = engine.push("检测", true)
+  assert.ok(first.readOffset > 0)
+
+  const jumped = engine.push("全部伪造", true)
+  const targetOffset = script.indexOf("伪造") + "伪造".length
+  assert.ok(jumped.confirmedReadOffset >= targetOffset, `cursor did not jump to confirmed phrase: ${formatUpdate(jumped)}`)
+  assert.equal(jumped.status, "following")
+  assert.equal(jumped.decision, "local-candidate")
+  assert.equal(jumped.candidates[0]?.source, "local")
+  console.log("PASS 本地游标可在短窗口内跳过漏识别文本并继续跟读")
+}
+
+function runLocalCursorRejectsSingleTokenJumpCase() {
+  const script = "检测声纹验证全部伪造。"
+  const segments = segmentScript(script)
+  const engine = createFollowEngine(script, segments)
+
+  const first = engine.push("检测", true)
+  const held = engine.push("全", true)
+  assert.equal(held.confirmedReadOffset, first.confirmedReadOffset, `single token jump should be held: ${formatUpdate(held)}`)
+  assert.equal(held.displayReadOffset, first.displayReadOffset, `single token jump should not move display: ${formatUpdate(held)}`)
+  console.log("PASS 孤立单字不会触发远距离跳转")
 }
