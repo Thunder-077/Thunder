@@ -23,3 +23,8 @@ services/funasr/models/
 services/funasr/modelscope-cache/
 services/funasr/__pycache__/
 services/funasr/*.log
+
+# AI assistant directories
+.claude/
+.codex/
+
