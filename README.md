@@ -1,26 +1,50 @@
-# ⚡️ Thunder
+<p align="center">
+  <a href="./README.md">
+    <img src="apps/web/public/logo.png" alt="Thunder Logo" width="120" height="120" style="border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);" />
+  </a>
+</p>
 
-> **面向个人的极简模块化应用平台**  
-> An elegant, modular personal application platform.
+<h1 align="center">⚡️ Thunder</h1>
 
-<p align="left">
+<p align="center">
+  <strong>面向未来的私有化、轻量插件式多运行时应用平台架构</strong><br />
+  <em>Next-Generation Private, Modular, and Lightweight Multi-Runtime Application Container.</em>
+</p>
+
+<p align="center">
   <a href="./README.md">🇨🇳 简体中文</a> | 
   <a href="./README_EN.md">🇺🇸 English</a>
 </p>
 
 ---
 
-## 🌟 项目定位 (Overview)
+## 🌟 核心定位 (Overview)
 
-**Thunder** 是一个专为个人打造的模块化应用平台。项目采用**前后端分离**、**契约优先 (Contract-First)**、**TypeScript-first (业务层)** 的现代架构，并提供**渐进式 Tauri 桌面壳**，支持跨 Web 端与桌面原生端运行。
+**Thunder** 是一个面向未来的**私有化、轻量插件式多运行时应用平台架构**（Private & Modular Multi-Runtime Application Container）。它基于前后端分离、契约优先 (Contract-First)、TypeScript-First (业务编排层) 的现代软件工程范式构建，深度融合了 **Next.js 现代微前端架构**、**Hono 轻量化边缘 API 网关** 与 **Tauri 渐进式多端原生桌面容器**。
 
-它不仅仅是一个单一的工具，而是一个高度可扩展的“个人数字化生活中心”。通过松耦合的插件化模块系统，您可以按需启用不同的功能块。
+通过去中心化的松耦合微应用模块系统，Thunder 致力于打破传统巨石应用（Monolith）与散乱孤立工具之间的技术壁垒，在确保极度安全、私密、高性能的前提下，为多维数据及核心业务场景提供高度聚合、弹性扩展的运行容器。
 
-### 📦 当前已包含的核心模块
-- 🎤 **提词器 (Teleprompter)**：支持滚动模式与语音实时自动跟读模式（集成 Web Speech、FunASR 与 Sherpa-ONNX 离线语音引擎）。
-- 🔐 **保险箱 (Vault)**：零知识客户端加密，确保个人私密数据物理级的安全存储。
-- 🎬 **流媒体管家 (Emby)**：集成 EMOS 与 TMDB 服务，实现便捷的流媒体数据辅助管理。
-- 🌦️ **天气看板 (Weather)**：集成和风天气 API，提供精准的实时天气与预报看板。
+---
+
+## 📐 三大架构支柱 (Architectural Pillars)
+
+- **🖥️ 多端轻量原生容器 (Cross-Platform Native Container)**  
+  整合现代 Web 前端渲染与 Tauri 极速 Rust 原生桌面外壳，实现统一代码基下的多终端高效运行与低开销系统原生 API 级桥接，提供媲美原生应用的交互体验。
+  
+- **🔐 零知识加密隐私边界 (Zero-Knowledge Cryptography)**  
+  深度集成端到端硬件级客户端加密体系，任何高密敏感字段和存储内容在传输和云存储前均在本地完成高强度密码学隔离，在物理层面绝对保障个人私密数据安全。
+  
+- **🧩 弹性松耦合微生态 (Plugin-Driven Micro-Ecosystem)**  
+  采用高内聚、低耦合的模块化路由与数据库注册仓，提供清晰的项目边界。各场景业务微应用（如提词器、加密保险箱、流媒体管家等）完全独立，可按需动态装配与按需扩展。
+
+---
+
+## 📦 当前已包含的核心模块
+
+- 🎤 **智能提词器 (Teleprompter)**：支持滚动模式与语音实时自动跟读模式（集成 Web Speech、FunASR 与 Sherpa-ONNX 离线语音引擎）。
+- 🔐 **加密保险箱 (Vault)**：零知识客户端加密，确保个人私密数据物理级的安全存储。
+- 🎬 **流媒体管家 (Emby Manager)**：集成 EMOS 与 TMDB 开放服务，实现便捷的流媒体数据辅助管理。
+- 🌦️ **智能天气看板 (Weather Board)**：集成和风天气 API，提供精准的实时天气与预报看板。
 
 ---
 
@@ -28,22 +52,12 @@
 
 | 层级 | 选用技术 | 路径 | 核心职责 |
 | :--- | :--- | :--- | :--- |
-| **前端主应用** | Next.js 15 (App Router) + shadcn/ui + Tailwind CSS | `apps/web` | 提供沉浸式的现代 UI 交互，状态管理及客户端数据加密 |
-| **后端 API** | Hono (Hono REST API) + Cloudflare Workers / Node.js | `apps/api` | 轻量化、极速响应的 RESTful 路由与业务逻辑编排 |
-| **桌面运行时** | Tauri v2 + Rust | `apps/desktop` | 原生桌面外壳，负责多窗口管理及系统原生 API 桥接 |
-| **数据库/ORM** | Prisma + PostgreSQL (Neon 托管 / 本地 PostgreSQL) | `packages/database` | 单例模式的 Prisma Client 数据持久化支持 |
+| **前端微应用** | Next.js 15 (App Router) + shadcn/ui + Tailwind CSS | `apps/web` | 提供沉浸式的现代 UI 交互，状态管理及客户端数据加密 |
+| **微网关 API** | Hono (Hono REST API) + Cloudflare Workers / Node.js | `apps/api` | 轻量化、极速响应的 RESTful 路由与业务逻辑编排 |
+| **原生运行时** | Tauri v2 + Rust | `apps/desktop` | 原生桌面外壳，负责多窗口管理及系统原生 API 桥接 |
+| **数据持久化** | Prisma + PostgreSQL (Neon 托管 / 本地 PostgreSQL) | `packages/database` | 单例模式的 Prisma Client 数据持久化支持 |
 | **API 契约** | OpenAPI 规范 + TypeScript 契约定义 | `packages/contracts` | 契约优先的路由参数、API 错误码及统一响应体定义 |
-| **平台能力抽象** | TypeScript 原生平台适配层 | `packages/platform` | 屏蔽环境差异，统一 Web 端与 Tauri 原生文件/外链访问 |
-
----
-
-## 📐 架构设计与边界 (Architecture & Boundaries)
-
-项目遵循严苛的设计原则，保障代码的长期可维护性：
-- **TypeScript-first**：业务和应用层（包括 API 客户端、Repository、业务编排、通用工具等）默认 100% 采用 TypeScript，保证类型强安全。
-- **前后端分离**：前端主应用通过统一的 `@thunder/api-client` 与后端 API 交互，绝不直接跨边界访问 ORM、数据库或底层文件。
-- **契约优先**：所有 API 变更均在 `packages/contracts/openapi/` 中先定义规范，再进行前端及后端的具体实现。
-- **模块独立化**：新模块代码严格按照 `apps/web/src/modules/{id}/` 与 `apps/api/src/modules/{id}/` 路径完全解耦，严禁跨模块直接共享数据库键或页面状态。
+| **平台适配器** | TypeScript 原生平台适配层 | `packages/platform` | 屏蔽环境差异，统一 Web 端与 Tauri 原生文件/外链访问 |
 
 ---
 
@@ -102,7 +116,7 @@ Thunder/
 │   ├── database/       # Prisma Schema 与 Client 单例定义
 │   ├── core/           # 核心通用类型及业务模块注册机 (ModuleRegistry)
 │   └── platform/       # Web/Tauri 原生文件读写、外链与剪贴板适配层
-├── modules/            # 业务模块专有的抽象接口与共享定义定义（不含实现）
+├── modules/            # 业务模块专有的抽象接口与共享定义（不含实现）
 ├── docs/               # 极为详尽的 API 设计、架构、模块系统及部署规范文档
 └── pnpm-workspace.yaml # Monorepo 多包管理配置文件
 ```

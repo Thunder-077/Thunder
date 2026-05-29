@@ -1,24 +1,48 @@
-# ⚡️ Thunder
+<p align="center">
+  <a href="./README_EN.md">
+    <img src="apps/web/public/logo.png" alt="Thunder Logo" width="120" height="120" style="border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);" />
+  </a>
+</p>
 
-> **An elegant, modular personal application platform.**  
-> 面向个人的极简模块化应用平台。
+<h1 align="center">⚡️ Thunder</h1>
 
-<p align="left">
+<p align="center">
+  <strong>Next-Generation Private, Modular, and Lightweight Multi-Runtime Application Platform Architecture</strong><br />
+  <em>面向未来的私有化、轻量插件式多运行时应用平台架构。</em>
+</p>
+
+<p align="center">
   <a href="./README.md">🇨🇳 简体中文</a> | 
   <a href="./README_EN.md">🇺🇸 English</a>
 </p>
 
 ---
 
-## 🌟 Overview
+## 🌟 Core Vision (Overview)
 
-**Thunder** is an elegant, modular personal application platform. The project is designed with a modern architecture featuring **Frontend/Backend Separation**, **Contract-First**, and **TypeScript-First (Business Layer)**, wrapped in a **progressive Tauri v2 desktop shell** supporting cross-platform operation on both Web and native Desktop environments.
+**Thunder** is a next-generation, **private, modular, and lightweight multi-runtime application platform architecture** (Private & Modular Multi-Runtime Application Container). Built on modern software engineering paradigms including Frontend/Backend Separation, Contract-First design, and TypeScript-First business orchestration, Thunder aggregates **Next.js modern micro-frontend architecture**, **Hono lightweight edge API gateway**, and **Tauri progressive multi-platform native container** under a unified Monorepo codebase.
 
-Rather than being just a single tool, Thunder acts as a highly extensible "Personal Digital Life Hub". With a loosely coupled plugin-based module system, you can enable different features as needed.
+By leveraging a decentralized, loosely-coupled micro-app architecture, Thunder bridges the technological divide between monolithic web apps and fragmented individual tools, providing a highly-secure, performant, and aggregated ecosystem for private data management and multi-scenario service orchestrations.
 
-### 📦 Core Modules Included
-- 🎤 **Teleprompter**: Supports auto-scroll mode and real-time speech shadowing mode (integrated with Web Speech, FunASR, and offline Sherpa-ONNX engines).
-- 🔐 **Vault**: Zero-knowledge client-side encryption, guaranteeing physical-level security for personal secret data.
+---
+
+## 📐 Architectural Pillars
+
+- **🖥️ Cross-Platform Native Shell**  
+  Unifies a modern Next.js client with high-performance Tauri native Rust desktop runtime to orchestrate multi-platform deployment and low-overhead native API bridges, delivering interactions on par with native applications.
+  
+- **🔐 End-to-End Zero-Knowledge Trust**  
+  Enforces hardware-level client-side cryptography, ensuring all high-value sensitive credentials and storage fields are cryptographically isolated and encrypted before server transport, ensuring absolute physical data protection.
+  
+- **🧩 Plugin-Driven Micro-Ecosystem**  
+  Features a decentralized routing & DB registration interface where developers can seamlessly deploy standalone micro-applications (Teleprompter, Vault, Media Assistant, Forecast Board) with complete environment isolation.
+
+---
+
+## 📦 Core Modules Included
+
+- 🎤 **Smart Teleprompter**: Supports auto-scroll mode and real-time speech shadowing mode (integrated with Web Speech, FunASR, and offline Sherpa-ONNX engines).
+- 🔐 **Encrypted Vault**: Zero-knowledge client-side encryption, guaranteeing physical-level security for personal secret data.
 - 🎬 **Emby Manager**: Integrated with EMOS and TMDB APIs, facilitating easier assistance and management of media playback data.
 - 🌦️ **Weather Board**: Integrated with QWeather (HeFeng) API, rendering real-time weather forecasts and aesthetic widgets.
 
@@ -34,16 +58,6 @@ Rather than being just a single tool, Thunder acts as a highly extensible "Perso
 | **Database & ORM** | Prisma + PostgreSQL (Neon Database / Local DB) | `packages/database` | Monotonically instantiated Prisma Client for transactional database operations |
 | **API Contract** | OpenAPI Specs + TypeScript Contract Types | `packages/contracts` | Unified contracts for validation, API error codes, and standardized payloads |
 | **Platform Adaptor** | TypeScript Native Adaptor | `packages/platform` | Decoupled cross-environment adaptor for filesystem, URLs, and clipboard access |
-
----
-
-## 📐 Architecture & Boundaries
-
-The project adheres to strict design boundaries to ensure long-term code quality and maintainability:
-- **TypeScript-First**: The business and application layers (including API Client, repositories, routing handlers, and helpers) default to 100% TypeScript for robust type safety.
-- **Frontend/Backend Separation**: The Web app interacts with the backend solely via the compiled `@thunder/api-client`. Direct access to SQLite, Prisma schemas, or server filesystem from the frontend is strictly forbidden.
-- **Contract-First**: Any API mutation is defined beforehand inside `packages/contracts/openapi/` as standard specifications before being implemented in the API handler and Client.
-- **Module Isolation**: Business features are decoupled under `apps/web/src/modules/{id}/` and `apps/api/src/modules/{id}/`. Direct cross-module state-sharing or database key dependency is prohibited.
 
 ---
 
