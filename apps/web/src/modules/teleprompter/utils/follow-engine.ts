@@ -114,6 +114,7 @@ export type FollowEngineConfig = DtwConfig & {
   maxPredictionMs?: number
   targetSpeakerId?: string
   requireKnownSpeaker?: boolean
+  enablePrediction?: boolean
 }
 
 export type FollowSessionSummary = {
@@ -154,6 +155,7 @@ export function createFollowEngine(
   const index = buildScriptIndex(script, segments)
   const dtw = createOnlineDtw(index.tokens, config)
   const stateMachine = createFollowStateMachine()
+  const enablePrediction = config?.enablePrediction ?? true
   const baseParams: AdaptiveFollowParams = {
     candidateWindow: config?.candidateWindow ?? DEFAULT_CANDIDATE_WINDOW,
     localCandidateThreshold: config?.localCandidateThreshold ?? DEFAULT_LOCAL_CANDIDATE_THRESHOLD,
@@ -313,6 +315,7 @@ export function createFollowEngine(
       params,
       decision,
       reason: buildDecisionReason(bestCandidate, state.isOnScript, candidateTracks),
+      enablePrediction,
     })
     const nextUpdate = shouldHoldLowConfidenceAdvance(lastUpdate, candidateUpdate)
       ? createLowConfidenceHoldUpdate({
@@ -379,6 +382,7 @@ export function createFollowEngine(
         params,
         decision: "local-candidate",
         reason: "manual-calibration",
+        enablePrediction,
       }),
       status,
       confirmedReadOffset: index.offsets[tokenIndex] ?? scriptOffset,
@@ -422,7 +426,7 @@ export function createFollowEngine(
   }
 
   function getState(): FollowUpdate {
-    return refreshPrediction(lastUpdate, stats, params)
+    return refreshPrediction(lastUpdate, stats, params, enablePrediction)
   }
 
   function transitionStatus(event: Parameters<FollowStateMachine["transition"]>[0]): FollowStatus {
@@ -513,9 +517,10 @@ function toUpdate(
     params: AdaptiveFollowParams
     decision: FollowDecision
     reason: string
+    enablePrediction: boolean
   }
 ): FollowUpdate {
-  const { index, matchedText, isFinal, stateMachine, candidates, candidateTracks, stats, params, decision, reason } = context
+  const { index, matchedText, isFinal, stateMachine, candidates, candidateTracks, stats, params, decision, reason, enablePrediction } = context
   const pos = Math.max(0, Math.min(state.scriptPosition, index.tokens.length - 1))
   const status = stateMachine.transition({
     type: "alignment",
@@ -529,6 +534,7 @@ function toUpdate(
     stats,
     params,
     now: Date.now(),
+    enablePrediction,
   })
 
   return createUpdate({
@@ -1101,8 +1107,10 @@ function computePredictedReadOffset(input: {
   stats: FollowRuntimeStats
   params: AdaptiveFollowParams
   now: number
+  enablePrediction: boolean
 }): number | undefined {
-  const { confirmedReadOffset, status, stats, params, now } = input
+  const { confirmedReadOffset, status, stats, params, now, enablePrediction } = input
+  if (!enablePrediction) return undefined
   if (status !== "following" || stats.lastConfirmedAt <= 0 || stats.charsPerSecond <= 0) {
     return undefined
   }
@@ -1139,7 +1147,8 @@ function refreshUpdateSnapshots(
 function refreshPrediction(
   update: FollowUpdate,
   stats: FollowRuntimeStats,
-  params: AdaptiveFollowParams
+  params: AdaptiveFollowParams,
+  enablePrediction: boolean
 ): FollowUpdate {
   const predictedReadOffset = computePredictedReadOffset({
     confirmedReadOffset: update.confirmedReadOffset,
@@ -1147,6 +1156,7 @@ function refreshPrediction(
     stats,
     params,
     now: Date.now(),
+    enablePrediction,
   })
 
   return createUpdate({

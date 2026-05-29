@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactElement } from "react"
-import { Monitor, Radio, Settings2 } from "lucide-react"
+import { Monitor, Radio, Settings2, Zap } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import type { SherpaModel } from "@/lib/platform"
 import type { SpeechProvider } from "../transcribers"
 import { NumberStepper } from "./number-stepper"
@@ -19,6 +20,7 @@ import { ProviderSelector } from "./provider-selector"
 type FollowSettingsDialogProps = {
   fontSize: number
   lineHeight: number
+  enablePrediction: boolean
   speechProvider: SpeechProvider
   showFunAsr: boolean
   showSherpa: boolean
@@ -33,6 +35,7 @@ type FollowSettingsDialogProps = {
   trigger: ReactElement
   onFontSizeChange: (value: number) => void
   onLineHeightChange: (value: number) => void
+  onEnablePredictionChange: (value: boolean) => void
   onStartFunAsr: () => void
   onSelectSherpa: () => void
   onSelectWebSpeech: () => void
@@ -45,6 +48,7 @@ type FollowSettingsDialogProps = {
 export function FollowSettingsDialog({
   fontSize,
   lineHeight,
+  enablePrediction,
   speechProvider,
   showFunAsr,
   showSherpa,
@@ -59,6 +63,7 @@ export function FollowSettingsDialog({
   trigger,
   onFontSizeChange,
   onLineHeightChange,
+  onEnablePredictionChange,
   onStartFunAsr,
   onSelectSherpa,
   onSelectWebSpeech,
@@ -109,6 +114,25 @@ export function FollowSettingsDialog({
                   max={2.4}
                   step={0.05}
                   formatValue={(value) => value.toFixed(2)}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                    <Zap className="h-3.5 w-3.5 text-muted-foreground" />
+                    语速预测
+                  </div>
+                  <div className="text-[11px] text-muted-foreground/70 leading-tight">
+                    根据语速预判推进位置
+                  </div>
+                </div>
+                <Switch
+                  size="sm"
+                  checked={enablePrediction}
+                  onCheckedChange={onEnablePredictionChange}
                 />
               </div>
             </div>

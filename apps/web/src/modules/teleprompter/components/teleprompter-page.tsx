@@ -55,6 +55,7 @@ export function TeleprompterPage() {
   const [isEditingScript, setIsEditingScript] = useState(false)
   const [fontSize, setFontSize] = useState(44)
   const [lineHeight, setLineHeight] = useState(1.65)
+  const [enablePrediction, setEnablePrediction] = useState(true)
   const [speechProvider, setSpeechProvider] = useState<SpeechProvider>("web-speech")
   const [followStatus, setFollowStatus] = useState<FollowStatus>("idle")
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -81,7 +82,9 @@ export function TeleprompterPage() {
     highlightLine: true,
   })
   const [autoScrollActiveIndex, setAutoScrollActiveIndex] = useState(0)
+  const [autoScrollStatus, setAutoScrollStatus] = useState<"idle" | "countdown" | "scrolling" | "paused">("idle")
   const [readOffsetSnapKey, setReadOffsetSnapKey] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(0)
 
   const sherpaModelsRef = useRef(sherpaModels)
   useEffect(() => {
@@ -97,13 +100,30 @@ export function TeleprompterPage() {
   const scrollTargetRef = useRef<number | null>(null)
   const userScrollingRef = useRef(false)
   const userScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pausedScrollTopRef = useRef<number | null>(null)
+  const prevAutoScrollIndexRef = useRef<number | null>(null)
+  useEffect(() => {
+    const viewport = prompterViewportRef.current
+    if (!viewport) return
+
+    setViewportHeight(viewport.clientHeight)
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setViewportHeight(entry.target.clientHeight)
+      }
+    })
+
+    resizeObserver.observe(viewport)
+    return () => resizeObserver.disconnect()
+  }, [])
 
   const speech = useSpeechRecognition({
     provider: speechProvider,
     funAsrEndpoint,
   })
   const segments = useMemo(() => segmentScript(script), [script])
-  const followEngine = useMemo(() => script ? createFollowEngine(script, segments) : null, [script, segments])
+  const followEngine = useMemo(() => script ? createFollowEngine(script, segments, { enablePrediction }) : null, [script, segments, enablePrediction])
 
   const displayTranscript = `${finalTranscript.slice(-160)}${interimTranscript}`.trim()
   const canFollow = segments.length > 0
@@ -246,27 +266,36 @@ export function TeleprompterPage() {
     if (!viewport) return
 
     const updateActiveIndex = () => {
-      const viewportMiddle = viewport.scrollTop + viewport.clientHeight / 2
+      const viewportAnchor = viewport.scrollTop + viewport.clientHeight / 3
       let closestIndex = 0
       let closestDistance = Number.POSITIVE_INFINITY
 
       segmentRefs.current.forEach((segment, index) => {
         if (!segment) return
         const segmentMiddle = segment.offsetTop + segment.offsetHeight / 2
-        const distance = Math.abs(segmentMiddle - viewportMiddle)
+        const distance = Math.abs(segmentMiddle - viewportAnchor)
         if (distance < closestDistance) {
           closestDistance = distance
           closestIndex = index
         }
       })
 
+      if (autoScrollStatus !== "scrolling") {
+        prevAutoScrollIndexRef.current = null
+        setAutoScrollActiveIndex(closestIndex)
+        // If the user manually scrolls while paused/idle, reset pausedScrollTopRef so we start from here
+        pausedScrollTopRef.current = null
+        return
+      }
+
+      prevAutoScrollIndexRef.current = closestIndex
       setAutoScrollActiveIndex(closestIndex)
     }
 
     updateActiveIndex()
     viewport.addEventListener("scroll", updateActiveIndex, { passive: true })
     return () => viewport.removeEventListener("scroll", updateActiveIndex)
-  }, [mode, segments.length])
+  }, [mode, segments.length, autoScrollStatus])
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -339,8 +368,13 @@ export function TeleprompterPage() {
     if (!targetEl) return
 
     const targetTop = targetEl.offsetTop - viewport.clientHeight / 3
-    animateScrollTo(Math.max(0, targetTop))
-  }, [animateScrollTo])
+    if (mode === "auto-scroll") {
+      cancelScrollAnimation()
+      viewport.scrollTop = Math.max(0, targetTop)
+    } else {
+      animateScrollTo(Math.max(0, targetTop))
+    }
+  }, [animateScrollTo, mode, cancelScrollAnimation])
 
   const clearUserScrollLock = useCallback(() => {
     userScrollingRef.current = false
@@ -557,6 +591,20 @@ export function TeleprompterPage() {
     scrollToReadPosition(0, 0)
   }
 
+  const handleAutoScrollStop = () => {
+    setCurrentIndex(0)
+    setReadOffset(0)
+    setReadOffsetSnapKey((k) => k + 1)
+    setAutoScrollActiveIndex(0)
+  }
+
+  const handleAutoScrollReset = () => {
+    setCurrentIndex(0)
+    setReadOffset(0)
+    setReadOffsetSnapKey((k) => k + 1)
+    setAutoScrollActiveIndex(0)
+  }
+
   const calibrateToCharacter = (selectedIndex: number, selectedOffset: number) => {
     const update = followEngine?.jump(selectedOffset)
     const nextStatus: FollowStatus = isMicActive
@@ -566,6 +614,7 @@ export function TeleprompterPage() {
         : "idle"
     setMessage(null)
     setCurrentIndex(selectedIndex)
+    setAutoScrollActiveIndex(selectedIndex)
     setReadOffset(selectedOffset)
     setReadOffsetSnapKey((k) => k + 1)
     setConfidence(update?.confidence ?? 1)
@@ -573,6 +622,7 @@ export function TeleprompterPage() {
     setFollowStatus(nextStatus)
     speech.clearError()
     clearUserScrollLock()
+    pausedScrollTopRef.current = null
     scrollToReadPosition(selectedOffset, selectedIndex)
   }
 
@@ -668,7 +718,10 @@ export function TeleprompterPage() {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setMode("follow-read")}
+            onClick={() => {
+              setMode("follow-read")
+              setAutoScrollActiveIndex(0)
+            }}
             className={cn(
               "flex items-center gap-2 rounded-lg border px-5 py-2 text-sm font-medium transition-all",
               mode === "follow-read"
@@ -681,7 +734,12 @@ export function TeleprompterPage() {
           </button>
           <button
             type="button"
-            onClick={() => setMode("auto-scroll")}
+            onClick={() => {
+              setMode("auto-scroll")
+              setCurrentIndex(0)
+              setReadOffset(0)
+              setReadOffsetSnapKey((k) => k + 1)
+            }}
             className={cn(
               "flex items-center gap-2 rounded-lg border px-5 py-2 text-sm font-medium transition-all",
               mode === "auto-scroll"
@@ -708,6 +766,7 @@ export function TeleprompterPage() {
             visibleMessage={visibleMessage}
             fontSize={fontSize}
             lineHeight={lineHeight}
+            enablePrediction={enablePrediction}
             showFunAsr={showFunAsr}
             showSherpa={showSherpa}
             funasrReady={funasrReady}
@@ -720,6 +779,7 @@ export function TeleprompterPage() {
             downloadProgress={downloadProgress}
             onFontSizeChange={setFontSize}
             onLineHeightChange={setLineHeight}
+            onEnablePredictionChange={setEnablePrediction}
             onStartFollowing={() => void startFollowing()}
             onPauseFollowing={pauseFollowing}
             onResumeFollowing={() => void resumeFollowing()}
@@ -742,6 +802,11 @@ export function TeleprompterPage() {
             onFontSizeChange={setFontSize}
             onLineHeightChange={setLineHeight}
             onViewOptionsChange={setAutoScrollViewOptions}
+            onStatusChange={setAutoScrollStatus}
+            onStop={handleAutoScrollStop}
+            onReset={handleAutoScrollReset}
+            onStart={cancelScrollAnimation}
+            pausedScrollTopRef={pausedScrollTopRef}
           />
         )}
 
@@ -754,6 +819,7 @@ export function TeleprompterPage() {
           isEditingScript={isEditingScript}
           fontSize={fontSize}
           lineHeight={lineHeight}
+          viewportHeight={viewportHeight}
           visibleStatus={visibleStatus}
           isMicActive={isMicActive}
           visibleCurrentIndex={visibleCurrentIndex}

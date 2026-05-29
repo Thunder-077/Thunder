@@ -23,6 +23,11 @@ type AutoScrollPanelProps = {
   onFontSizeChange: (value: number) => void
   onLineHeightChange: (value: number) => void
   onViewOptionsChange: (options: AutoScrollViewOptions) => void
+  onStatusChange?: (status: AutoScrollStatus) => void
+  onStop?: () => void
+  onReset?: () => void
+  onStart?: () => void
+  pausedScrollTopRef: RefObject<number | null>
 }
 
 export function AutoScrollPanel({
@@ -33,6 +38,11 @@ export function AutoScrollPanel({
   onFontSizeChange,
   onLineHeightChange,
   onViewOptionsChange,
+  onStatusChange,
+  onStop,
+  onReset,
+  onStart,
+  pausedScrollTopRef,
 }: AutoScrollPanelProps) {
   const [status, setStatus] = useState<AutoScrollStatus>("idle")
   const [speed, setSpeed] = useState(1.25)
@@ -50,6 +60,10 @@ export function AutoScrollPanel({
   const lastFrameTimeRef = useRef<number | null>(null)
   const elapsedBaseRef = useRef(0)
   const startedAtRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    onStatusChange?.(status)
+  }, [status, onStatusChange])
 
   useEffect(() => {
     onViewOptionsChange({ mirrorDisplay, highlightLine })
@@ -168,17 +182,23 @@ export function AutoScrollPanel({
 
   const handleStart = () => {
     if (!canScroll) return
+    onStart?.()
     const viewport = prompterViewportRef.current
     if (viewport) {
-      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
-      if (direction === "down" && viewport.scrollTop <= 1) {
-        viewport.scrollTop = maxScrollTop
-      }
-      if (direction === "up" && viewport.scrollTop >= maxScrollTop - 1) {
-        viewport.scrollTop = 0
+      if (status === "paused" && pausedScrollTopRef.current !== null) {
+        viewport.scrollTop = pausedScrollTopRef.current
+      } else {
+        const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+        if (direction === "down" && viewport.scrollTop <= 1) {
+          viewport.scrollTop = maxScrollTop
+        }
+        if (direction === "up" && viewport.scrollTop >= maxScrollTop - 1) {
+          viewport.scrollTop = 0
+        }
       }
       updateProgressFromViewport()
     }
+    pausedScrollTopRef.current = null
     elapsedBaseRef.current = elapsedSeconds
     lastFrameTimeRef.current = null
     startedAtRef.current = null
@@ -195,17 +215,24 @@ export function AutoScrollPanel({
     if (startedAtRef.current !== null) {
       elapsedBaseRef.current = elapsedSeconds
     }
+    const viewport = prompterViewportRef.current
+    if (viewport) {
+      pausedScrollTopRef.current = viewport.scrollTop
+    }
     setStatus("paused")
   }
   const handleStop = () => {
+    pausedScrollTopRef.current = null
     setStatus("idle")
     setCountdownRemaining(0)
+    onStop?.()
   }
   const handleReset = () => {
     const viewport = prompterViewportRef.current
     if (viewport) {
       viewport.scrollTop = direction === "up" ? 0 : Math.max(0, viewport.scrollHeight - viewport.clientHeight)
     }
+    pausedScrollTopRef.current = null
     elapsedBaseRef.current = 0
     startedAtRef.current = null
     lastFrameTimeRef.current = null
@@ -213,6 +240,7 @@ export function AutoScrollPanel({
     setStatus("idle")
     setCountdownRemaining(0)
     updateProgressFromViewport()
+    onReset?.()
   }
 
   const formattedElapsed = `${String(Math.floor(elapsedSeconds / 60)).padStart(2, "0")}:${String(elapsedSeconds % 60).padStart(2, "0")}`

@@ -22,6 +22,7 @@ type PrompterStageProps = {
   isEditingScript: boolean
   fontSize: number
   lineHeight: number
+  viewportHeight: number
   visibleStatus: FollowStatus
   isMicActive: boolean
   visibleCurrentIndex: number
@@ -49,6 +50,7 @@ export function PrompterStage({
   isEditingScript,
   fontSize,
   lineHeight,
+  viewportHeight,
   visibleStatus,
   isMicActive,
   visibleCurrentIndex,
@@ -163,6 +165,8 @@ export function PrompterStage({
             style={{
               fontSize,
               lineHeight,
+              paddingTop: viewportHeight ? `${viewportHeight / 3}px` : "33vh",
+              paddingBottom: viewportHeight ? `${viewportHeight * 0.7}px` : "70vh",
             }}
           >
             {segments.map((segment, index) => {
@@ -196,7 +200,9 @@ export function PrompterStage({
                     {Array.from(segment.raw).map((char, charIndex) => {
                       const absoluteOffset = textStartOffset + charIndex
                       const charEndOffset = absoluteOffset + 1
-                      const isRead = charEndOffset < visibleReadOffset
+                      const isRead = mode === "follow-read"
+                        ? charEndOffset < visibleReadOffset
+                        : index < autoScrollActiveIndex
                       const isCurrentChar = charEndOffset === visibleReadOffset && index === visibleCurrentIndex
 
                       return (

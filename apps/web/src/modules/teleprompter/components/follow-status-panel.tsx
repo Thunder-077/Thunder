@@ -24,6 +24,7 @@ type FollowStatusPanelProps = {
   visibleMessage: string | null
   fontSize: number
   lineHeight: number
+  enablePrediction: boolean
   showFunAsr: boolean
   showSherpa: boolean
   funasrReady: boolean
@@ -36,6 +37,7 @@ type FollowStatusPanelProps = {
   downloadProgress: Record<string, { percentage: number; downloadedText: string; totalText: string; status?: string }>
   onFontSizeChange: (value: number) => void
   onLineHeightChange: (value: number) => void
+  onEnablePredictionChange: (value: boolean) => void
   onStartFollowing: () => void
   onPauseFollowing: () => void
   onResumeFollowing: () => void
@@ -62,6 +64,7 @@ export function FollowStatusPanel({
   visibleMessage,
   fontSize,
   lineHeight,
+  enablePrediction,
   showFunAsr,
   showSherpa,
   funasrReady,
@@ -74,6 +77,7 @@ export function FollowStatusPanel({
   downloadProgress,
   onFontSizeChange,
   onLineHeightChange,
+  onEnablePredictionChange,
   onStartFollowing,
   onPauseFollowing,
   onResumeFollowing,
@@ -149,6 +153,7 @@ export function FollowStatusPanel({
           <FollowSettingsDialog
             fontSize={fontSize}
             lineHeight={lineHeight}
+            enablePrediction={enablePrediction}
             speechProvider={speechProvider}
             showFunAsr={showFunAsr}
             showSherpa={showSherpa}
@@ -162,6 +167,7 @@ export function FollowStatusPanel({
             downloadProgress={downloadProgress}
             onFontSizeChange={onFontSizeChange}
             onLineHeightChange={onLineHeightChange}
+            onEnablePredictionChange={onEnablePredictionChange}
             onStartFunAsr={onStartFunAsr}
             onSelectSherpa={onSelectSherpa}
             onSelectWebSpeech={onSelectWebSpeech}
