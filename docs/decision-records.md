@@ -239,3 +239,20 @@
 - 桌面端新增 sherpa-onnx 模型列表、下载、激活和直连识别命令。
 - 模型文件下载到用户本地应用数据目录，而不是资源目录，避免安装包只读限制。
 - 前端提词器在现有 provider 选择区增加 sherpa-onnx 和模型选择入口，不大改主页面结构。
+
+## ADR-014：桌面端采用本地 SQLite 数据库与轻量化自动迁移
+
+**背景**：桌面端原本与 Web 端共用同一个 PostgreSQL/Neon 云端数据库，要求用户在本地手动配置数据库连接环境变量，无法做到桌面客户端的“开箱即用”。
+
+**决策**：桌面端切换为本地独立 SQLite 数据库文件，保存在操作系统的应用数据目录（AppData）中；在开发态与编译态采用“自动 Schema 同步”生成独立的 SQLite 客户端以规避 `engineType = "client"` (Wasm) 的编译冲突；并在运行时利用 Node.js 24 原生的 `node:sqlite` （`DatabaseSync` 类）进行零编译依赖的结构自动比对与表结构升级。
+
+**理由**：
+- **开箱即用**：用户无需配置任何数据库环境变量，双击即可直接运行，完全符合桌面端客户端的体验直觉。
+- **免 C++ 编译与打包大坑**：放弃 `@prisma/adapter-better-sqlite3`（原生 C++ 扩展，在跨平台打包和交叉编译时是极其脆弱的“隐形炸弹”），改用 Prisma 官方自带的 Native Rust 查询引擎，配合 Node.js 原生的 `node:sqlite` 实现 100% 稳定的跨平台绿色分发。
+- **无隔离开发体验**：根据用户反馈，开发环境与打包后的生产环境完全共用同一个 `%APPDATA%/com.thunder.desktop/app.db`，保持开发态与生产态数据物理统一。
+
+**影响**：
+- 新增 `sync-sqlite-schema.mjs` 脚本，在 `pnpm db:generate` 时自动并行编译 PostgreSQL 和 SQLite 双端客户端。
+- 在 `packages/database/src/client.ts` 引入运行时连接类型动态分发。
+- 表结构变更必须保证 100% 跨库兼容（禁止原生 Enum、UUID 原生生成函数、特有 DDL 等）。
+- 桌面 API 进程启动时自动扫描 `migrations.json` 并根据 `PRAGMA user_version` 执行增量事务迁移，且自动预置了开发者账户 `zhimengren`。

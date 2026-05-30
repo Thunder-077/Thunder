@@ -1,6 +1,22 @@
 import { spawn, spawnSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import net from "node:net"
+import os from "node:os"
+import path from "node:path"
+import fs from "node:fs"
+
+function getTauriAppDataDir() {
+  const home = os.homedir();
+  if (process.platform === "win32") {
+    return path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), "com.thunder.desktop");
+  } else if (process.platform === "darwin") {
+    return path.join(home, "Library", "Application Support", "com.thunder.desktop");
+  } else {
+    // Linux and others
+    const dataHome = process.env.XDG_DATA_HOME || path.join(home, ".local", "share");
+    return path.join(dataHome, "com.thunder.desktop");
+  }
+}
 
 const ROOT_DIR = fileURLToPath(new URL("../../..", import.meta.url))
 const PNPM_BIN = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
@@ -107,6 +123,17 @@ if (apiRunning) {
   console.log("[desktop] Reusing existing api dev server on http://localhost:3001")
 } else {
   console.log("[desktop] Starting api dev server on http://localhost:3001")
+  // Resolve and use the exact same system AppData directory as Tauri production app
+  try {
+    const appDataDir = getTauriAppDataDir()
+    fs.mkdirSync(appDataDir, { recursive: true })
+    const dbPath = path.join(appDataDir, "app.db")
+    process.env.DATABASE_URL = `file:${dbPath}`
+    console.log(`[desktop] Development database pointing to shared Tauri path: ${dbPath}`)
+  } catch (error) {
+    console.error("[desktop] Failed to create shared AppData database directory, falling back to temp file:", error)
+    process.env.DATABASE_URL = "file:../../data/app-dev.db"
+  }
   children.push(startWorkspaceScript("dev:api", "api dev server"))
 }
 

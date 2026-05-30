@@ -464,6 +464,15 @@ fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     let (manifest, resource_dir) = read_runtime_manifest(app)?;
     let mut desktop_env = load_desktop_env(app)?;
+
+    // Dynamically resolve and inject local SQLite DATABASE_URL
+    if let Ok(app_data_dir) = app.path().app_data_dir() {
+        let _ = std::fs::create_dir_all(&app_data_dir);
+        let db_path = app_data_dir.join("app.db");
+        let database_url = format!("file:{}", db_path.to_string_lossy());
+        desktop_env.insert("DATABASE_URL".into(), database_url);
+    }
+
     let localhost_api_url = format!("http://127.0.0.1:{}", manifest.api_port);
     let localhost_web_host = format!("127.0.0.1:{}", manifest.web_port);
 

@@ -92,9 +92,10 @@ services/*        → 非 TypeScript 独立服务（预留，仅通过 apps/api 
 
 ## Database
 
-- 当前使用 PostgreSQL（Neon 托管），连接串通过环境变量 `DATABASE_URL` 配置
-- 数据库访问只能在 `apps/api` 的 Repository 层，通过 Prisma
-- Schema 修改必须同步更新迁移文件和文档
+- 支持双数据库架构：Web 端使用云端 PostgreSQL (Neon 托管)，桌面端使用本地 SQLite 数据库文件 (AppData 中存储)
+- 数据库访问只能在 `apps/api` 的 Repository 层，通过 `packages/database` 导出的全局 `prisma` Proxy 单例
+- Schema 变更必须保持双端兼容：禁用数据库特有特性 (如原生 Enum、自动 UUID 函数)，日期及 JSON 统一用 String/TEXT 以保证 SQLiteparities
+- Schema 修改后必须同步运行 `pnpm db:generate` 编译生成双端 Client，并自动输出 SQLite 升级脚本 `apps/api/src/init.sql`
 - 数据库实现细节不得泄漏到 `apps/web`
 
 ## Module System

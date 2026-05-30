@@ -28,3 +28,10 @@ services/funasr/*.log
 .claude/
 .codex/
 
+# Prisma SQLite Generated Artifacts
+packages/database/prisma/schema.sqlite.prisma
+packages/database/src/generated/
+packages/database/prisma/*.db
+packages/database/prisma/*.db-journal
+
+

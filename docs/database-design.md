@@ -209,5 +209,29 @@ Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKe
 4. 在 `apps/api/src/modules/` 中实现 Repository
 5. 在 `apps/api/src/modules/` 中实现 API 路由
 6. 在 `packages/api-client/src/modules/` 中实现 API Client
-7. 运行 `prisma db push` 同步 schema
+7. 运行 `pnpm db:generate` 重新生成双端客户端和 SQL 模板
 8. 更新文档
+
+## 双数据库架构表结构变更规范
+
+为了同时支持 Web 端（云端 PostgreSQL/Neon）与桌面端（本地 SQLite）的平滑演进，所有表结构变更必须遵守以下规范。
+
+### 1. 跨库类型兼容高压线
+
+*   **禁用原生 Enum（枚举）**：SQLite 不支持原生 Enum。状态类字段必须在 Schema 中定义为 `String`，并在业务层（TypeScript）定义类型或联合类型约束。
+*   **禁用数据库原生特有函数**：例如禁止在 Schema 中使用 `dbgenerated()` 或 PostgreSQL 独有的 UUID 自动生成函数。主键 ID 推荐在应用层生成（如使用 `crypto.randomUUID()`）或使用通用的 `@id` 属性。
+*   **日期与 JSON 格式**：时间字段统一使用 `String`（保存为 ISO 8601 时间戳字符串），JSON 字段统一使用 `String`（在应用层做 `JSON.parse` 解析），确保 SQLite 与 PostgreSQL 的行为完全一致。
+
+### 2. 变更工作流 (Prisma Parity Flow)
+
+每次对 `schema.prisma` 进行修改后，必须执行以下同步生成流程：
+1.  **修改 Schema**：在 `packages/database/prisma/schema.prisma` 中进行表结构调整。
+2.  **生成 Migration 文件**：运行 `pnpm db:migrate` 生成标准的迁移 SQL 文件夹（Prisma 会在 `packages/database/prisma/migrations/` 下创建带有时间戳的前缀文件夹及 `migration.sql` 脚本）。
+3.  **编译双端客户端与迁移 JSON**：运行 `pnpm db:generate`。这会自动触发 `sync-sqlite-schema.mjs`（将 `engineType` 调整为 `library` 并输出 SQLite 客户端），最后自动执行 `compile-migrations.mjs`，将所有历史 SQL 脚本按时间线压入 `apps/api/src/migrations.json` 静态文件。
+4.  **编译校验**：在项目根目录下运行 `pnpm typecheck`，确保双端类型和业务调用完全一致。
+
+### 3. 生产环境部署与运行
+
+*   **Web 端**：在发布新版 API 容器/Worker 之前，必须在 CI/CD 中跑一次 `npx prisma migrate deploy` 升级云端 PostgreSQL 数据库。
+*   **桌面端**：桌面 API 子进程启动时，通过 Node.js 24 原生 `node:sqlite` (`DatabaseSync` 类) 读取 `migrations.json`，查询本地 SQLite 的 `PRAGMA user_version`，按版本顺序在原子 SQL 事务中执行尚未应用的迁移 SQL，完美保障本地数据库无损升级并自动预置 `zhimengren` 用户。
+

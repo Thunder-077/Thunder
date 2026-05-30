@@ -1,18 +1,33 @@
 import { PrismaNeon } from "@prisma/adapter-neon"
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient as PGPrismaClient } from "@prisma/client"
+import { PrismaClient as SQLitePrismaClient } from "./generated/sqlite-client/index.js"
 
 const globalForPrisma = globalThis as unknown as {
   prismaConnectionString: string | undefined
-  prisma: PrismaClient | undefined
+  prisma: any | undefined
 }
 
-function createPrismaClient(connectionString?: string): PrismaClient {
+function isSQLite(url?: string): boolean {
+  return !!url && (url.startsWith("file:") || url.startsWith("sqlite:"))
+}
+
+function createPrismaClient(connectionString?: string): any {
   if (!connectionString) {
-    throw new Error("DATABASE_URL is not configured for Prisma Neon adapter")
+    throw new Error("DATABASE_URL is not configured")
+  }
+
+  if (isSQLite(connectionString)) {
+    return new SQLitePrismaClient({
+      datasources: {
+        db: {
+          url: connectionString,
+        },
+      },
+    })
   }
 
   const adapter = new PrismaNeon({ connectionString })
-  return new PrismaClient({ adapter })
+  return new PGPrismaClient({ adapter })
 }
 
 function resolveConnectionString(): string | undefined {
@@ -26,7 +41,7 @@ function shouldReuseGlobalPrismaClient(): boolean {
   return !("WebSocketPair" in globalThis)
 }
 
-export function getPrismaClient(): PrismaClient {
+export function getPrismaClient(): any {
   const connectionString = resolveConnectionString()
   if (
     shouldReuseGlobalPrismaClient() &&
@@ -44,9 +59,11 @@ export function getPrismaClient(): PrismaClient {
   return client
 }
 
-export function createScopedPrismaClient(connectionString: string): PrismaClient {
+export function createScopedPrismaClient(connectionString: string): any {
   return createPrismaClient(connectionString)
 }
+
+import { PrismaClient } from "@prisma/client"
 
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop, receiver) {
@@ -57,3 +74,5 @@ export const prisma = new Proxy({} as PrismaClient, {
 })
 
 export default prisma
+
+
