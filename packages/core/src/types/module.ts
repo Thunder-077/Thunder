@@ -7,6 +7,8 @@ export type ModuleCategory =
   | "dashboard"
   | "other"
 
+export type PlatformType = "web" | "desktop"
+
 export interface ModuleManifest {
   id: string
   name: string
@@ -18,4 +20,6 @@ export interface ModuleManifest {
   enabled: boolean
   component?: string
   settingsSchema?: Record<string, unknown>
+  platforms?: PlatformType[]
 }
+

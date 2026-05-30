@@ -52,8 +52,29 @@ await rm(runtimeWebDir, { recursive: true, force: true })
 await rm(runtimeServicesDir, { recursive: true, force: true })
 await mkdir(runtimeDir, { recursive: true })
 
+// 解析构建命令行参数中的排除模块列表 (如 --exclude=teleprompter,emby)
+let excludeModules = process.env.EXCLUDE_MODULES || ""
+for (let i = 0; i < process.argv.length; i++) {
+  const arg = process.argv[i]
+  if (arg.startsWith("--exclude=")) {
+    excludeModules = arg.split("=")[1]
+  } else if (arg === "--exclude" && i + 1 < process.argv.length) {
+    excludeModules = process.argv[i + 1]
+  }
+}
+
+if (excludeModules) {
+  console.log(`[desktop-build] 正在排除指定模块: ${excludeModules}`)
+}
+
 await run("node", [resolve(scriptDir, "prepare-node-runtime.mjs")])
-await run("pnpm", ["--filter", "@thunder/web", "build"])
+await run("pnpm", ["--filter", "@thunder/web", "build"], {
+  env: {
+    ...process.env,
+    NEXT_PUBLIC_PLATFORM: "desktop",
+    NEXT_PUBLIC_EXCLUDE_MODULES: excludeModules,
+  },
+})
 await run("pnpm", ["--filter", "@thunder/api", "build:desktop-bundle"])
 
 const standaloneDir = resolve(workspaceRoot, "apps", "web", ".next", "standalone")
