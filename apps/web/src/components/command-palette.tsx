@@ -29,7 +29,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { useTheme } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
-import { mockModules } from "@/lib/modules"
+import { getCurrentPlatformModules } from "@/lib/modules"
 import { useDesktopPlugins } from "@/hooks/use-desktop-plugins"
 
 interface CommandPaletteContextValue {
@@ -79,7 +79,7 @@ function useCommands(): Command[] {
       keywords: ["modules", "模块", "中心"],
       action: () => router.push("/modules"),
     },
-    ...mockModules.map((module) => ({
+    ...getCurrentPlatformModules().map((module) => ({
       id: `module:${module.id}`,
       label: `打开${module.name}`,
       icon: moduleIconMap[module.icon] ?? Puzzle,

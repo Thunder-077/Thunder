@@ -8,9 +8,12 @@
     "./browser": "./src/browser.ts"
   },
   "scripts": {
+    "test:browser": "tsx src/browser.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

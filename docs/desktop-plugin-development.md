@@ -87,8 +87,8 @@ my-plugin/
 
 - `webview`: 允许插件页面在 sandbox iframe 中渲染。
 - `local-api-proxy`: 允许 Thunder 代理访问插件本地后端。
-- `plugin-storage`: 预留给插件持久化能力。
-- `network-proxy`: 预留给受控网络代理能力。
+- `plugin-storage`: 允许插件通过 Browser SDK 使用宿主提供的插件私有键值存储。
+- `network-proxy`: 允许插件通过 Browser SDK 使用后端受控 HTTPS 网络代理。
 
 插件安装后默认启用。当前阶段不提供单独的 trust / untrust 按钮，也不做每个动作级别的动态授权弹窗；用户安装插件即表示允许该插件使用 Manifest 中声明的平台能力。
 
@@ -133,9 +133,12 @@ import { thunder } from "@thunder/plugin-sdk/browser"
 const manifest = await thunder.plugin.getManifest()
 const status = await thunder.runtime.get("status")
 const result = await thunder.runtime.post("tasks/run", { input: "hello" })
+const remoteStatus = await thunder.network.get("https://api.example.com/status")
+await thunder.storage.set("view-mode", "compact")
+const viewMode = await thunder.storage.get<string>("view-mode")
 ```
 
-浏览器 SDK 通过 `postMessage` 与宿主页通信。插件页面不要硬编码 `/api/v1/desktop/plugins/{pluginId}/api/*`，也不要直接访问 Tauri、Prisma、内置模块源码或主应用内部状态。
+浏览器 SDK 通过 `postMessage` 与宿主页通信。插件页面不要硬编码 `/api/v1/desktop/plugins/{pluginId}/api/*`，也不要直接访问 Tauri、Prisma、内置模块源码或主应用内部状态。`thunder.network` 需要 Manifest 声明 `network-proxy` 权限，只允许受控 HTTPS 请求；`thunder.storage` 需要 Manifest 声明 `plugin-storage` 权限，存储会按插件 id 命名空间隔离。
 
 ## 前端页面
 
@@ -152,7 +155,7 @@ const result = await thunder.runtime.post("tasks/run", { input: "hello" })
 - 静态资源使用插件目录内的相对路径。
 - 需要读取 Manifest 或调用插件后端时，请使用 `@thunder/plugin-sdk/browser`。
 - 不依赖 Next.js 页面运行时、App Router、Server Components 或主应用 React Context。
-- 不依赖浏览器同源能力访问 Thunder 内部 API；插件 iframe 运行在 sandbox opaque origin 下。
+- 不依赖浏览器同源能力访问 Thunder 内部 API；插件 iframe 运行在与宿主页不同的隔离 loopback origin 下。
 
 示例：
 
@@ -160,6 +163,22 @@ const result = await thunder.runtime.post("tasks/run", { input: "hello" })
 import { thunder } from "@thunder/plugin-sdk/browser"
 
 const data = await thunder.runtime.get("status")
+```
+
+如果需要访问外部 HTTPS API，使用网络代理：
+
+```ts
+const result = await thunder.network.get("https://api.example.com/status")
+```
+
+网络代理会拒绝非 HTTPS、本机地址、链路本地地址、常见内网地址，以及解析到这些地址的域名，并过滤敏感请求头。插件不要在 URL 中放用户名、密码或 token。
+
+如果只需要保存 UI 偏好、缓存标记等插件私有键值，使用插件存储：
+
+```ts
+await thunder.storage.set("settings", { compact: true })
+const settings = await thunder.storage.get<{ compact: boolean }>("settings")
+const keys = await thunder.storage.keys()
 ```
 
 ## 后端运行时

@@ -36,7 +36,7 @@ AppData/com.thunder.desktop/
   "icon": "Package",
   "category": "tools",
   "author": { "name": "Thunder" },
-  "permissions": ["webview"],
+  "permissions": ["webview", "local-api-proxy"],
   "web": { "entry": "web/index.html" },
   "api": {
     "healthPath": "/health",
@@ -128,6 +128,9 @@ import { thunder } from "@thunder/plugin-sdk/browser"
 
 const manifest = await thunder.plugin.getManifest()
 const status = await thunder.runtime.get("status")
+const remote = await thunder.network.get("https://api.example.com/status")
+await thunder.storage.set("view-mode", "compact")
+const viewMode = await thunder.storage.get<string>("view-mode")
 ```
 
 Browser SDK 不直接暴露平台 URL。它通过 sandbox iframe 内的 `postMessage` Host Bridge 发起请求，宿主页负责绑定插件身份、校验消息来源和权限，再调用平台内部 API。
@@ -139,6 +142,8 @@ Thunder Desktop 当前不做细粒度动态授权，也不提供单独的 trust 
 - 已安装插件会显示在插件市场和侧边栏中。
 - 插件页面可以通过 sandbox iframe 渲染。
 - 声明了 `local-api-proxy` 的插件可以通过 Browser SDK 请求宿主，由宿主通过受控 loopback 代理访问该插件自己的本地后端。
+- 声明了 `network-proxy` 的插件可以通过 Browser SDK 请求宿主，由后端执行受控 HTTPS 网络代理。
+- 声明了 `plugin-storage` 的插件可以通过 Browser SDK 访问宿主提供的插件私有键值存储。
 - 声明了 SQLite 迁移目录的插件可以执行自己的迁移文件。
 
 停用插件通过卸载完成。后续如果需要更强隔离，应优先扩展签名、来源校验、沙箱、路径隔离和权限声明审计，而不是让平台理解插件业务数据。
@@ -177,6 +182,7 @@ POST   /api/v1/desktop/plugins/:id/migrations/run
 DELETE /api/v1/desktop/plugins/:id
 GET    /api/v1/desktop/plugins/:id/web/*
 *      /api/v1/desktop/plugins/:id/api/*
+POST   /api/v1/desktop/plugins/:id/network
 GET    /api/v1/desktop/plugins/:id/runtime
 POST   /api/v1/desktop/plugins/:id/runtime/start
 POST   /api/v1/desktop/plugins/:id/runtime/stop
@@ -190,19 +196,25 @@ POST   /api/v1/desktop/plugins/:id/runtime/stop
 
 `runtime/start` 和 `runtime/stop` 是平台内部和诊断接口。正常用户入口不展示启动 / 停止按钮：插件页面会按需自动启动运行时，卸载或升级/降级安装会自动停止旧运行时。
 
+同一个插件的运行时启动会按插件 id 去重：如果多个宿主请求同时触发启动，平台只会创建一个 Node runtime 进程，并让并发请求共享同一个启动结果。
+
+停止运行时时，平台会先请求进程正常退出；如果在超时时间内没有退出，会继续发送强制终止信号，避免运行时状态显示已停止但进程仍残留。
+
 ## Host Bridge
 
-插件 iframe 与 Thunder Web 宿主页之间使用 `postMessage` 通信。当前 bridge 版本为 `1`，插件侧通过 `@thunder/plugin-sdk/browser` 使用，不应手写消息协议。插件 iframe 不启用 `allow-same-origin`，因此插件页面运行在 opaque origin 下，不能直接作为同源页面访问 Thunder 内部 API。
+插件 iframe 与 Thunder Web 宿主页之间使用 `postMessage` 通信。当前 bridge 版本为 `1`，插件侧通过 `@thunder/plugin-sdk/browser` 使用，不应手写消息协议。桌面端会尽量把插件入口加载到与宿主页不同的 loopback origin，例如宿主是 `localhost` 时插件 iframe 使用 `127.0.0.1`。只有确认 iframe origin 与宿主 origin 不同时，宿主才会给插件 iframe 添加 `allow-same-origin` 以支持 `getUserMedia()` 等浏览器能力。插件因此不能作为同源页面访问 Thunder 内部 API。
 
 宿主页处理 bridge 请求时必须同时满足：
 
-- `event.origin` 为 sandbox opaque origin 的 `"null"`。
+- `event.origin` 必须等于当前插件 iframe 的隔离 origin。
 - `event.source` 等于当前插件 iframe 的 `contentWindow`。
 - 请求 `source` 为 `thunder-plugin`，`version` 为 `1`。
 - 请求绑定当前页面加载的插件 id，不信任插件自行传入的身份字段。
 - 调用 runtime 代理前，当前插件 Manifest 必须包含 `local-api-proxy` 权限。
 - runtime 请求路径不能为空，不能以 `/` 或 `\` 开头，路径段解码后不能是 `.`、`..` 或包含斜杠。
 - runtime 代理请求不会携带 Thunder 页面 cookie，并会过滤 `authorization`、`cookie`、`host` 请求头。
+- 调用 network 代理前，当前插件 Manifest 必须包含 `network-proxy` 权限。网络代理只允许 `https:` URL，拒绝 URL 内认证信息、本机地址、链路本地地址和常见内网地址；域名请求会先解析 DNS，解析到受限地址也会被拒绝；代理会过滤 `authorization`、`cookie`、`host`、`proxy-authorization`、`referer`、`user-agent` 请求头。
+- 调用 storage 前，当前插件 Manifest 必须包含 `plugin-storage` 权限。存储按插件 id 命名空间隔离，插件不能读取其他插件或主应用键值。
 
 当前 Host API：
 
@@ -210,6 +222,12 @@ POST   /api/v1/desktop/plugins/:id/runtime/stop
 |--------|------|------|
 | `plugin.getManifest` | 已安装插件 | 返回当前插件 Manifest |
 | `runtime.request` | `local-api-proxy` | 代理请求到当前插件自己的 Node runtime |
+| `network.request` | `network-proxy` | 由后端执行受控 HTTPS 网络请求 |
+| `storage.get` | `plugin-storage` | 读取当前插件命名空间下的 JSON 值 |
+| `storage.set` | `plugin-storage` | 写入当前插件命名空间下的 JSON 值 |
+| `storage.remove` | `plugin-storage` | 删除当前插件命名空间下的单个 key |
+| `storage.keys` | `plugin-storage` | 列出当前插件命名空间下的 key |
+| `storage.clear` | `plugin-storage` | 清空当前插件命名空间 |
 
 平台内部 HTTP API 仍保留给宿主、桌面壳和诊断使用；插件 iframe 不应直接依赖这些 URL。
 
@@ -264,8 +282,10 @@ pnpm build:plugin:teleprompter
 - 生产安装必须通过 Ed25519 签名校验。
 - 包安装前必须校验 sha256。
 - 插件 iframe 使用 sandbox 限制。
-- 插件 iframe 不启用 `allow-same-origin`；与宿主页通信必须走 Host Bridge，宿主页校验 opaque origin、iframe source、消息版本、当前插件身份和权限。
+- 插件 iframe 通过隔离 loopback origin 与宿主页分离；与宿主页通信必须走 Host Bridge，宿主页校验 iframe origin、iframe source、消息版本、当前插件身份和权限。
 - 插件 API 代理只支持 Manifest 声明的 loopback `api.baseUrl`，且需要 `local-api-proxy` 权限。
+- 插件网络代理只允许通过 Host Bridge 进入后端受控代理，且需要 `network-proxy` 权限；默认拒绝非 HTTPS、本机、链路本地和常见内网目标，并拒绝解析到这些地址的域名。
+- 插件存储只通过 Host Bridge 暴露，且需要 `plugin-storage` 权限；存储 key 由宿主按插件 id 加前缀隔离。
 - 插件后端运行时限制为插件自有 Node 入口文件。Thunder 分配 loopback 端口，注入 `THUNDER_PLUGIN_ID`、`THUNDER_PLUGIN_VERSION`、`THUNDER_PLUGIN_STATE_DIR`，并等待配置的健康检查通过后才代理流量。
 - Desktop 原生语音能力只通过本机 speech bridge 暴露，默认地址为 `http://127.0.0.1:43102`，插件 runtime 通过 `THUNDER_DESKTOP_NATIVE_API_URL` 调用。
 - 插件迁移由平台基础设施按插件声明执行，具体业务数据迁移逻辑由插件自己的 SQL 负责。

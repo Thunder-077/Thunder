@@ -39,6 +39,7 @@ await build({
     "@/components/ui/select": resolve(pluginRoot, "src", "shims", "select.tsx"),
     "@/lib/notification-store": resolve(pluginRoot, "src", "shims", "notification-store.ts"),
     "@/lib/platform": resolve(pluginRoot, "src", "shims", "platform.ts"),
+    "@tauri-apps/api/event": resolve(pluginRoot, "src", "shims", "tauri-event.ts"),
     "@thunder/plugin-sdk/browser": resolve(workspaceRoot, "packages", "plugin-sdk", "src", "browser.ts"),
   },
   define: {

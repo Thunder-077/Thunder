@@ -2,14 +2,14 @@
 
 import { useMemo } from "react"
 import { ModuleRegistry } from "@thunder/core"
-import { mockModules } from "@/lib/modules"
+import { getCurrentPlatformModules } from "@/lib/modules"
 
 let registryInstance: ModuleRegistry | null = null
 
 function getRegistry(): ModuleRegistry {
   if (!registryInstance) {
     registryInstance = new ModuleRegistry()
-    mockModules.forEach((m) => registryInstance!.register(m))
+    getCurrentPlatformModules().forEach((m) => registryInstance!.register(m))
   }
   return registryInstance
 }

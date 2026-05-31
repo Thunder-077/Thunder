@@ -3251,15 +3251,15 @@ var require_react_dom_client_production = __commonJS({
       return value;
     }
     var AbortControllerLocal = "undefined" !== typeof AbortController ? AbortController : function() {
-      var listeners = [], signal = this.signal = {
+      var listeners2 = [], signal = this.signal = {
         aborted: false,
         addEventListener: function(type, listener) {
-          listeners.push(listener);
+          listeners2.push(listener);
         }
       };
       this.abort = function() {
         signal.aborted = true;
-        listeners.forEach(function(listener) {
+        listeners2.forEach(function(listener) {
           return listener();
         });
       };
@@ -3311,33 +3311,33 @@ var require_react_dom_client_production = __commonJS({
     function pingEngtangledActionScope() {
       if (0 === --currentEntangledPendingCount && null !== currentEntangledListeners) {
         null !== currentEntangledActionThenable && (currentEntangledActionThenable.status = "fulfilled");
-        var listeners = currentEntangledListeners;
+        var listeners2 = currentEntangledListeners;
         currentEntangledListeners = null;
         currentEntangledLane = 0;
         currentEntangledActionThenable = null;
-        for (var i = 0; i < listeners.length; i++) (0, listeners[i])();
+        for (var i = 0; i < listeners2.length; i++) (0, listeners2[i])();
       }
     }
     function chainThenableValue(thenable, result) {
-      var listeners = [], thenableWithOverride = {
+      var listeners2 = [], thenableWithOverride = {
         status: "pending",
         value: null,
         reason: null,
         then: function(resolve) {
-          listeners.push(resolve);
+          listeners2.push(resolve);
         }
       };
       thenable.then(
         function() {
           thenableWithOverride.status = "fulfilled";
           thenableWithOverride.value = result;
-          for (var i = 0; i < listeners.length; i++) (0, listeners[i])(result);
+          for (var i = 0; i < listeners2.length; i++) (0, listeners2[i])(result);
         },
         function(error) {
           thenableWithOverride.status = "rejected";
           thenableWithOverride.reason = error;
-          for (error = 0; error < listeners.length; error++)
-            (0, listeners[error])(void 0);
+          for (error = 0; error < listeners2.length; error++)
+            (0, listeners2[error])(void 0);
         }
       );
       return thenableWithOverride;
@@ -10348,15 +10348,15 @@ var require_react_dom_client_production = __commonJS({
       };
     }
     function accumulateTwoPhaseListeners(targetFiber, reactName) {
-      for (var captureName = reactName + "Capture", listeners = []; null !== targetFiber; ) {
+      for (var captureName = reactName + "Capture", listeners2 = []; null !== targetFiber; ) {
         var _instance2 = targetFiber, stateNode = _instance2.stateNode;
         _instance2 = _instance2.tag;
-        5 !== _instance2 && 26 !== _instance2 && 27 !== _instance2 || null === stateNode || (_instance2 = getListener(targetFiber, captureName), null != _instance2 && listeners.unshift(
+        5 !== _instance2 && 26 !== _instance2 && 27 !== _instance2 || null === stateNode || (_instance2 = getListener(targetFiber, captureName), null != _instance2 && listeners2.unshift(
           createDispatchListener(targetFiber, _instance2, stateNode)
-        ), _instance2 = getListener(targetFiber, reactName), null != _instance2 && listeners.push(
+        ), _instance2 = getListener(targetFiber, reactName), null != _instance2 && listeners2.push(
           createDispatchListener(targetFiber, _instance2, stateNode)
         ));
-        if (3 === targetFiber.tag) return listeners;
+        if (3 === targetFiber.tag) return listeners2;
         targetFiber = targetFiber.return;
       }
       return [];
@@ -10369,18 +10369,18 @@ var require_react_dom_client_production = __commonJS({
       return inst ? inst : null;
     }
     function accumulateEnterLeaveListenersForEvent(dispatchQueue, event, target, common, inCapturePhase) {
-      for (var registrationName = event._reactName, listeners = []; null !== target && target !== common; ) {
+      for (var registrationName = event._reactName, listeners2 = []; null !== target && target !== common; ) {
         var _instance3 = target, alternate = _instance3.alternate, stateNode = _instance3.stateNode;
         _instance3 = _instance3.tag;
         if (null !== alternate && alternate === common) break;
-        5 !== _instance3 && 26 !== _instance3 && 27 !== _instance3 || null === stateNode || (alternate = stateNode, inCapturePhase ? (stateNode = getListener(target, registrationName), null != stateNode && listeners.unshift(
+        5 !== _instance3 && 26 !== _instance3 && 27 !== _instance3 || null === stateNode || (alternate = stateNode, inCapturePhase ? (stateNode = getListener(target, registrationName), null != stateNode && listeners2.unshift(
           createDispatchListener(target, stateNode, alternate)
-        )) : inCapturePhase || (stateNode = getListener(target, registrationName), null != stateNode && listeners.push(
+        )) : inCapturePhase || (stateNode = getListener(target, registrationName), null != stateNode && listeners2.push(
           createDispatchListener(target, stateNode, alternate)
         )));
         target = target.return;
       }
-      0 !== listeners.length && dispatchQueue.push({ event, listeners });
+      0 !== listeners2.length && dispatchQueue.push({ event, listeners: listeners2 });
     }
     var NORMALIZE_NEWLINES_REGEX = /\r\n?/g;
     var NORMALIZE_NULL_AND_REPLACEMENT_REGEX = /\u0000|\uFFFD/g;
@@ -12717,6 +12717,44 @@ var require_client = __commonJS({
   }
 });
 
+// ../../plugins/desktop/teleprompter/src/shims/tauri-event.ts
+var tauri_event_exports = {};
+__export(tauri_event_exports, {
+  emitPluginEvent: () => emitPluginEvent,
+  listen: () => listen
+});
+async function listen(event, handler) {
+  const handlers = listeners.get(event) ?? /* @__PURE__ */ new Set();
+  handlers.add(handler);
+  listeners.set(event, handlers);
+  return () => {
+    handlers.delete(handler);
+    if (handlers.size === 0) {
+      listeners.delete(event);
+    }
+  };
+}
+function emitPluginEvent(event, payload) {
+  const handlers = listeners.get(event);
+  if (!handlers || handlers.size === 0) return;
+  const message = {
+    event,
+    id: nextEventId++,
+    payload
+  };
+  for (const handler of handlers) {
+    handler(message);
+  }
+}
+var listeners, nextEventId;
+var init_tauri_event = __esm({
+  "../../plugins/desktop/teleprompter/src/shims/tauri-event.ts"() {
+    "use client";
+    listeners = /* @__PURE__ */ new Map();
+    nextEventId = 1;
+  }
+});
+
 // ../../node_modules/.pnpm/react@19.2.4/node_modules/react/cjs/react-jsx-runtime.production.js
 var require_react_jsx_runtime_production = __commonJS({
   "../../node_modules/.pnpm/react@19.2.4/node_modules/react/cjs/react-jsx-runtime.production.js"(exports) {
@@ -12902,163 +12940,6 @@ var require_with_selector = __commonJS({
     } else {
       module.exports = null;
     }
-  }
-});
-
-// ../../node_modules/.pnpm/@tauri-apps+api@2.11.0/node_modules/@tauri-apps/api/external/tslib/tslib.es6.js
-function __classPrivateFieldGet(receiver, state, kind, f) {
-  if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-  return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-}
-function __classPrivateFieldSet(receiver, state, value, kind, f) {
-  if (kind === "m") throw new TypeError("Private method is not writable");
-  if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-  return kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
-}
-var init_tslib_es6 = __esm({
-  "../../node_modules/.pnpm/@tauri-apps+api@2.11.0/node_modules/@tauri-apps/api/external/tslib/tslib.es6.js"() {
-  }
-});
-
-// ../../node_modules/.pnpm/@tauri-apps+api@2.11.0/node_modules/@tauri-apps/api/core.js
-function transformCallback(callback, once2 = false) {
-  return window.__TAURI_INTERNALS__.transformCallback(callback, once2);
-}
-async function invoke(cmd, args = {}, options) {
-  return window.__TAURI_INTERNALS__.invoke(cmd, args, options);
-}
-var _Channel_onmessage, _Channel_nextMessageIndex, _Channel_pendingMessages, _Channel_messageEndIndex, _Resource_rid, SERIALIZE_TO_IPC_FN, Channel;
-var init_core = __esm({
-  "../../node_modules/.pnpm/@tauri-apps+api@2.11.0/node_modules/@tauri-apps/api/core.js"() {
-    init_tslib_es6();
-    SERIALIZE_TO_IPC_FN = "__TAURI_TO_IPC_KEY__";
-    Channel = class {
-      constructor(onmessage) {
-        _Channel_onmessage.set(this, void 0);
-        _Channel_nextMessageIndex.set(this, 0);
-        _Channel_pendingMessages.set(this, []);
-        _Channel_messageEndIndex.set(this, void 0);
-        __classPrivateFieldSet(this, _Channel_onmessage, onmessage || (() => {
-        }), "f");
-        this.id = transformCallback((rawMessage) => {
-          const index = rawMessage.index;
-          if ("end" in rawMessage) {
-            if (index == __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")) {
-              this.cleanupCallback();
-            } else {
-              __classPrivateFieldSet(this, _Channel_messageEndIndex, index, "f");
-            }
-            return;
-          }
-          const message = rawMessage.message;
-          if (index == __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")) {
-            __classPrivateFieldGet(this, _Channel_onmessage, "f").call(this, message);
-            __classPrivateFieldSet(this, _Channel_nextMessageIndex, __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") + 1, "f");
-            while (__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") in __classPrivateFieldGet(this, _Channel_pendingMessages, "f")) {
-              const message2 = __classPrivateFieldGet(this, _Channel_pendingMessages, "f")[__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")];
-              __classPrivateFieldGet(this, _Channel_onmessage, "f").call(this, message2);
-              delete __classPrivateFieldGet(this, _Channel_pendingMessages, "f")[__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")];
-              __classPrivateFieldSet(this, _Channel_nextMessageIndex, __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") + 1, "f");
-            }
-            if (__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") === __classPrivateFieldGet(this, _Channel_messageEndIndex, "f")) {
-              this.cleanupCallback();
-            }
-          } else {
-            __classPrivateFieldGet(this, _Channel_pendingMessages, "f")[index] = message;
-          }
-        });
-      }
-      cleanupCallback() {
-        window.__TAURI_INTERNALS__.unregisterCallback(this.id);
-      }
-      set onmessage(handler) {
-        __classPrivateFieldSet(this, _Channel_onmessage, handler, "f");
-      }
-      get onmessage() {
-        return __classPrivateFieldGet(this, _Channel_onmessage, "f");
-      }
-      [(_Channel_onmessage = /* @__PURE__ */ new WeakMap(), _Channel_nextMessageIndex = /* @__PURE__ */ new WeakMap(), _Channel_pendingMessages = /* @__PURE__ */ new WeakMap(), _Channel_messageEndIndex = /* @__PURE__ */ new WeakMap(), SERIALIZE_TO_IPC_FN)]() {
-        return `__CHANNEL__:${this.id}`;
-      }
-      toJSON() {
-        return this[SERIALIZE_TO_IPC_FN]();
-      }
-    };
-    _Resource_rid = /* @__PURE__ */ new WeakMap();
-  }
-});
-
-// ../../node_modules/.pnpm/@tauri-apps+api@2.11.0/node_modules/@tauri-apps/api/event.js
-var event_exports = {};
-__export(event_exports, {
-  TauriEvent: () => TauriEvent,
-  emit: () => emit,
-  emitTo: () => emitTo,
-  listen: () => listen,
-  once: () => once
-});
-async function _unlisten(event, eventId) {
-  window.__TAURI_EVENT_PLUGIN_INTERNALS__.unregisterListener(event, eventId);
-  await invoke("plugin:event|unlisten", {
-    event,
-    eventId
-  });
-}
-async function listen(event, handler, options) {
-  var _a;
-  const target = typeof (options === null || options === void 0 ? void 0 : options.target) === "string" ? { kind: "AnyLabel", label: options.target } : (_a = options === null || options === void 0 ? void 0 : options.target) !== null && _a !== void 0 ? _a : { kind: "Any" };
-  return invoke("plugin:event|listen", {
-    event,
-    target,
-    handler: transformCallback(handler)
-  }).then((eventId) => {
-    return async () => _unlisten(event, eventId);
-  });
-}
-async function once(event, handler, options) {
-  return listen(event, (eventData) => {
-    void _unlisten(event, eventData.id);
-    handler(eventData);
-  }, options);
-}
-async function emit(event, payload) {
-  await invoke("plugin:event|emit", {
-    event,
-    payload
-  });
-}
-async function emitTo(target, event, payload) {
-  const eventTarget = typeof target === "string" ? { kind: "AnyLabel", label: target } : target;
-  await invoke("plugin:event|emit_to", {
-    target: eventTarget,
-    event,
-    payload
-  });
-}
-var TauriEvent;
-var init_event = __esm({
-  "../../node_modules/.pnpm/@tauri-apps+api@2.11.0/node_modules/@tauri-apps/api/event.js"() {
-    init_core();
-    (function(TauriEvent2) {
-      TauriEvent2["WINDOW_RESIZED"] = "tauri://resize";
-      TauriEvent2["WINDOW_MOVED"] = "tauri://move";
-      TauriEvent2["WINDOW_CLOSE_REQUESTED"] = "tauri://close-requested";
-      TauriEvent2["WINDOW_DESTROYED"] = "tauri://destroyed";
-      TauriEvent2["WINDOW_FOCUS"] = "tauri://focus";
-      TauriEvent2["WINDOW_BLUR"] = "tauri://blur";
-      TauriEvent2["WINDOW_SCALE_FACTOR_CHANGED"] = "tauri://scale-change";
-      TauriEvent2["WINDOW_THEME_CHANGED"] = "tauri://theme-changed";
-      TauriEvent2["WINDOW_CREATED"] = "tauri://window-created";
-      TauriEvent2["WINDOW_SUSPENDED"] = "tauri://suspended";
-      TauriEvent2["WINDOW_RESUMED"] = "tauri://resumed";
-      TauriEvent2["WEBVIEW_CREATED"] = "tauri://webview-created";
-      TauriEvent2["DRAG_ENTER"] = "tauri://drag-enter";
-      TauriEvent2["DRAG_OVER"] = "tauri://drag-over";
-      TauriEvent2["DRAG_DROP"] = "tauri://drag-drop";
-      TauriEvent2["DRAG_LEAVE"] = "tauri://drag-leave";
-    })(TauriEvent || (TauriEvent = {}));
   }
 });
 
@@ -16544,12 +16425,35 @@ function PageHeader({
 
 // ../../packages/plugin-sdk/src/browser.ts
 var nextRequestId = 1;
-function normalizeRuntimePath(path) {
+function normalizeThunderPluginRuntimePath(path) {
   const normalized = path.trim();
-  if (!normalized) {
+  if (!normalized || normalized.startsWith("/") || normalized.startsWith("\\")) {
     throw new Error("Thunder plugin runtime request path cannot be empty");
   }
-  return normalized.startsWith("/") ? normalized.slice(1) : normalized;
+  const pathOnly = normalized.split(/[?#]/, 1)[0];
+  const segments = pathOnly.split("/");
+  for (const segment of segments) {
+    if (!segment || segment.includes("\\")) {
+      throw new Error("Thunder plugin runtime request path is invalid");
+    }
+    let decodedSegment = segment;
+    try {
+      decodedSegment = decodeURIComponent(segment);
+    } catch {
+      throw new Error("Thunder plugin runtime request path is invalid");
+    }
+    if (decodedSegment === "." || decodedSegment === ".." || decodedSegment.includes("/") || decodedSegment.includes("\\")) {
+      throw new Error("Thunder plugin runtime request path is invalid");
+    }
+  }
+  return normalized;
+}
+function normalizeThunderPluginStorageKey(key) {
+  const normalized = key.trim();
+  if (!normalized || normalized.length > 128 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw new Error("Thunder plugin storage key cannot be empty");
+  }
+  return normalized;
 }
 function postHostMessage(method, params) {
   if (typeof window === "undefined" || !window.parent || window.parent === window) {
@@ -16582,7 +16486,7 @@ function postHostMessage(method, params) {
       resolve(response.data);
     }
     window.addEventListener("message", handleMessage);
-    window.parent.postMessage(request, window.location.origin);
+    window.parent.postMessage(request, "*");
   });
 }
 function createThunderPluginClient() {
@@ -16592,7 +16496,7 @@ function createThunderPluginClient() {
     },
     runtime: {
       request: (path, options = {}) => postHostMessage("runtime.request", {
-        path: normalizeRuntimePath(path),
+        path: normalizeThunderPluginRuntimePath(path),
         method: options.method ?? "GET",
         headers: options.headers ?? {},
         body: options.body,
@@ -16600,7 +16504,7 @@ function createThunderPluginClient() {
       }),
       get: async (path, options = {}) => {
         const response = await postHostMessage("runtime.request", {
-          path: normalizeRuntimePath(path),
+          path: normalizeThunderPluginRuntimePath(path),
           method: "GET",
           headers: options.headers ?? {},
           cache: options.cache
@@ -16609,7 +16513,7 @@ function createThunderPluginClient() {
       },
       post: async (path, body, options = {}) => {
         const response = await postHostMessage("runtime.request", {
-          path: normalizeRuntimePath(path),
+          path: normalizeThunderPluginRuntimePath(path),
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -16620,12 +16524,55 @@ function createThunderPluginClient() {
         });
         return response.data;
       }
+    },
+    network: {
+      request: (url, options = {}) => postHostMessage("network.request", {
+        url,
+        method: options.method ?? "GET",
+        headers: options.headers ?? {},
+        body: options.body
+      }),
+      get: async (url, options = {}) => {
+        const response = await postHostMessage("network.request", {
+          url,
+          method: "GET",
+          headers: options.headers ?? {}
+        });
+        return response.data;
+      },
+      post: async (url, body, options = {}) => {
+        const response = await postHostMessage("network.request", {
+          url,
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...options.headers ?? {}
+          },
+          body
+        });
+        return response.data;
+      }
+    },
+    storage: {
+      get: (key) => postHostMessage("storage.get", {
+        key: normalizeThunderPluginStorageKey(key)
+      }),
+      set: (key, value) => postHostMessage("storage.set", {
+        key: normalizeThunderPluginStorageKey(key),
+        value
+      }),
+      remove: (key) => postHostMessage("storage.remove", {
+        key: normalizeThunderPluginStorageKey(key)
+      }),
+      keys: () => postHostMessage("storage.keys"),
+      clear: () => postHostMessage("storage.clear")
     }
   };
 }
 var thunder = createThunderPluginClient();
 
 // ../../plugins/desktop/teleprompter/src/shims/platform.ts
+init_tauri_event();
 function isTauriDesktop() {
   return true;
 }
@@ -16662,7 +16609,12 @@ async function listSherpaModels() {
   return nativeGet("/sherpa/models");
 }
 async function downloadSherpaModel(modelId) {
-  return nativePost("/sherpa/models/download", { modelId });
+  const models = await nativePost("/sherpa/models/download", { modelId });
+  const target = models.find((model) => model.id === modelId);
+  if (target?.downloading) {
+    pollSherpaModelDownload(modelId);
+  }
+  return models;
 }
 async function activateSherpaModel(modelId) {
   return nativePost("/sherpa/models/activate", { modelId });
@@ -16675,6 +16627,47 @@ async function stopSherpaService() {
 }
 async function feedSherpaAudio(samples, inputFinished = false) {
   return nativePost("/sherpa/feed", { samples, inputFinished });
+}
+var pollingDownloads = /* @__PURE__ */ new Set();
+function pollSherpaModelDownload(modelId) {
+  if (pollingDownloads.has(modelId) || typeof window === "undefined") return;
+  pollingDownloads.add(modelId);
+  const startedAt = Date.now();
+  const poll = async () => {
+    try {
+      const models = await listSherpaModels();
+      const target = models.find((model) => model.id === modelId);
+      if (target?.installed && !target.downloading) {
+        pollingDownloads.delete(modelId);
+        emitPluginEvent("sherpa-model-installed", modelId);
+        return;
+      }
+      if (target && !target.downloading && !target.installed) {
+        pollingDownloads.delete(modelId);
+        emitPluginEvent("sherpa-model-download-failed", {
+          modelId,
+          error: "\u6A21\u578B\u4E0B\u8F7D\u672A\u5B8C\u6210\uFF0C\u8BF7\u91CD\u65B0\u5C1D\u8BD5\u3002"
+        });
+        return;
+      }
+      if (Date.now() - startedAt > 30 * 60 * 1e3) {
+        pollingDownloads.delete(modelId);
+        emitPluginEvent("sherpa-model-download-failed", {
+          modelId,
+          error: "\u6A21\u578B\u4E0B\u8F7D\u8D85\u65F6\uFF0C\u8BF7\u7A0D\u540E\u5237\u65B0\u6A21\u578B\u5217\u8868\u3002"
+        });
+        return;
+      }
+      window.setTimeout(poll, 1500);
+    } catch (error) {
+      pollingDownloads.delete(modelId);
+      emitPluginEvent("sherpa-model-download-failed", {
+        modelId,
+        error: error instanceof Error ? error.message : "\u6A21\u578B\u4E0B\u8F7D\u72B6\u6001\u68C0\u67E5\u5931\u8D25"
+      });
+    }
+  };
+  window.setTimeout(poll, 1500);
 }
 
 // ../../plugins/desktop/teleprompter/src/shims/notification-store.ts
@@ -50482,7 +50475,7 @@ function TeleprompterPage() {
     let unlistenInstalled = null;
     let unlistenFailed = null;
     const setupListeners = async () => {
-      const { listen: listen2 } = await Promise.resolve().then(() => (init_event(), event_exports));
+      const { listen: listen2 } = await Promise.resolve().then(() => (init_tauri_event(), tauri_event_exports));
       unlistenProgress = await listen2(
         "sherpa-download-progress",
         (event) => {

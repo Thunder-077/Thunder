@@ -11,6 +11,7 @@ import {
   listInstalledDesktopPlugins,
   readDesktopPluginAsset,
   resolveDesktopPluginApiProxyTarget,
+  requestDesktopPluginNetworkProxy,
   runDesktopPluginMigrations,
   startDesktopPluginRuntime,
   stopDesktopPluginRuntime,
@@ -18,6 +19,20 @@ import {
 } from "./desktop-plugin-manager"
 
 export const desktopPlugins = new Hono()
+
+const BLOCKED_PLUGIN_API_PROXY_HEADERS = new Set(["authorization", "cookie", "host", "proxy-authorization"])
+
+export function sanitizePluginApiProxyHeaders(headers: Headers): Headers {
+  const sanitized = new Headers()
+  for (const [name, value] of headers.entries()) {
+    const normalizedName = name.trim().toLowerCase()
+    if (!normalizedName || BLOCKED_PLUGIN_API_PROXY_HEADERS.has(normalizedName)) {
+      continue
+    }
+    sanitized.set(normalizedName, value)
+  }
+  return sanitized
+}
 
 function toErrorResponse(error: unknown) {
   if (error instanceof DesktopPluginError) {
@@ -160,6 +175,15 @@ desktopPlugins.post("/:id/migrations/run", async (c) => {
   }
 })
 
+desktopPlugins.post("/:id/network", async (c) => {
+  try {
+    const result = await requestDesktopPluginNetworkProxy(c.req.param("id"), await c.req.json())
+    return c.json({ ok: true, data: result })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
 desktopPlugins.get("/:id/runtime", async (c) => {
   try {
     const status = getDesktopPluginRuntimeStatus(c.req.param("id"))
@@ -237,8 +261,7 @@ async function handlePluginApiProxy(c: Context) {
     )
 
     const method = c.req.method.toUpperCase()
-    const headers = new Headers(c.req.raw.headers)
-    headers.delete("host")
+    const headers = sanitizePluginApiProxyHeaders(new Headers(c.req.raw.headers))
     headers.set("x-thunder-plugin-id", id)
 
     const body = method === "GET" || method === "HEAD" ? undefined : c.req.raw.body

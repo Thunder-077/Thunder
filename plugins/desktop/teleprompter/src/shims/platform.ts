@@ -1,4 +1,5 @@
 import { thunder } from "@thunder/plugin-sdk/browser"
+import { emitPluginEvent } from "./tauri-event"
 
 export type DesktopPlatform = "macos" | "windows" | "linux"
 
@@ -68,7 +69,12 @@ export async function listSherpaModels(): Promise<SherpaModel[]> {
 }
 
 export async function downloadSherpaModel(modelId: string): Promise<SherpaModel[]> {
-  return nativePost<SherpaModel[]>("/sherpa/models/download", { modelId })
+  const models = await nativePost<SherpaModel[]>("/sherpa/models/download", { modelId })
+  const target = models.find((model) => model.id === modelId)
+  if (target?.downloading) {
+    pollSherpaModelDownload(modelId)
+  }
+  return models
 }
 
 export async function activateSherpaModel(modelId: string): Promise<SherpaModel[]> {
@@ -88,4 +94,53 @@ export async function feedSherpaAudio(
   inputFinished = false
 ): Promise<SherpaRecognitionUpdate | null> {
   return nativePost<SherpaRecognitionUpdate | null>("/sherpa/feed", { samples, inputFinished })
+}
+
+const pollingDownloads = new Set<string>()
+
+function pollSherpaModelDownload(modelId: string): void {
+  if (pollingDownloads.has(modelId) || typeof window === "undefined") return
+  pollingDownloads.add(modelId)
+
+  const startedAt = Date.now()
+  const poll = async () => {
+    try {
+      const models = await listSherpaModels()
+      const target = models.find((model) => model.id === modelId)
+
+      if (target?.installed && !target.downloading) {
+        pollingDownloads.delete(modelId)
+        emitPluginEvent("sherpa-model-installed", modelId)
+        return
+      }
+
+      if (target && !target.downloading && !target.installed) {
+        pollingDownloads.delete(modelId)
+        emitPluginEvent("sherpa-model-download-failed", {
+          modelId,
+          error: "模型下载未完成，请重新尝试。",
+        })
+        return
+      }
+
+      if (Date.now() - startedAt > 30 * 60 * 1000) {
+        pollingDownloads.delete(modelId)
+        emitPluginEvent("sherpa-model-download-failed", {
+          modelId,
+          error: "模型下载超时，请稍后刷新模型列表。",
+        })
+        return
+      }
+
+      window.setTimeout(poll, 1500)
+    } catch (error) {
+      pollingDownloads.delete(modelId)
+      emitPluginEvent("sherpa-model-download-failed", {
+        modelId,
+        error: error instanceof Error ? error.message : "模型下载状态检查失败",
+      })
+    }
+  }
+
+  window.setTimeout(poll, 1500)
 }

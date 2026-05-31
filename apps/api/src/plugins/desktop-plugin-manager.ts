@@ -5,7 +5,8 @@ import { createHash, createPublicKey, verify } from "node:crypto"
 import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import { tmpdir } from "node:os"
 import { fileURLToPath } from "node:url"
-import { createServer } from "node:net"
+import { lookup } from "node:dns/promises"
+import { createServer, isIP } from "node:net"
 // @ts-ignore node:sqlite types are provided by the Node runtime used by desktop.
 import { DatabaseSync } from "node:sqlite"
 import { x as extractTar } from "tar"
@@ -14,6 +15,8 @@ import type {
   DesktopPluginInstallRecord,
   DesktopPluginManifest,
   DesktopPluginMarketplaceIndex,
+  DesktopPluginNetworkProxyRequest,
+  DesktopPluginNetworkProxyResponse,
   DesktopPluginRuntimeStatus,
   InstalledDesktopPlugin,
 } from "./desktop-plugin-types"
@@ -26,6 +29,8 @@ const ALLOWED_PLUGIN_PERMISSIONS = new Set<DesktopPluginManifest["permissions"][
   "network-proxy",
   "local-api-proxy",
 ])
+const ALLOWED_NETWORK_PROXY_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"])
+const BLOCKED_NETWORK_PROXY_HOSTS = new Set(["localhost", "0.0.0.0", "127.0.0.1", "::1"])
 const STATIC_CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -95,6 +100,7 @@ interface RuntimeProcessRecord {
 
 const runtimeProcesses = new Map<string, RuntimeProcessRecord>()
 const runtimeStatus = new Map<string, DesktopPluginRuntimeStatus>()
+const runtimeStartPromises = new Map<string, Promise<string>>()
 
 export function isDesktopPluginRuntimeEnabled(): boolean {
   return (
@@ -644,6 +650,136 @@ export async function resolveDesktopPluginApiProxyTarget(
   return { url: target.toString() }
 }
 
+function normalizeHostname(hostname: string): string {
+  return hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "")
+}
+
+function isBlockedIpv4Address(address: string): boolean {
+  const parts = address.split(".").map((part) => Number(part))
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false
+  }
+
+  const [first, second] = parts
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    first === 169 && second === 254 ||
+    first === 172 && second >= 16 && second <= 31 ||
+    first === 192 && second === 168
+  )
+}
+
+function isBlockedIpv6Address(address: string): boolean {
+  const normalized = normalizeHostname(address)
+  return (
+    normalized === "::1" ||
+    normalized === "::" ||
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd") ||
+    normalized.startsWith("fe80:") ||
+    normalized.startsWith("::ffff:127.") ||
+    normalized.startsWith("::ffff:10.") ||
+    normalized.startsWith("::ffff:192.168.") ||
+    /^::ffff:172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)
+  )
+}
+
+function isBlockedNetworkProxyAddress(address: string): boolean {
+  const normalized = normalizeHostname(address)
+  if (isIP(normalized) === 4) {
+    return isBlockedIpv4Address(normalized)
+  }
+  if (isIP(normalized) === 6) {
+    return isBlockedIpv6Address(normalized)
+  }
+  return false
+}
+
+async function assertNetworkProxyUrl(rawUrl: string): Promise<URL> {
+  const url = new URL(rawUrl)
+  if (url.protocol !== "https:") {
+    throw new DesktopPluginError("插件网络代理仅允许访问 https URL", 403)
+  }
+  if (url.username || url.password) {
+    throw new DesktopPluginError("插件网络代理 URL 不能包含认证信息", 403)
+  }
+
+  const hostname = normalizeHostname(url.hostname)
+  if (
+    BLOCKED_NETWORK_PROXY_HOSTS.has(hostname) ||
+    isBlockedNetworkProxyAddress(hostname) ||
+    hostname.endsWith(".local") ||
+    hostname.endsWith(".localhost")
+  ) {
+    throw new DesktopPluginError("插件网络代理不能访问本机或内网地址", 403)
+  }
+
+  if (isIP(hostname) === 0) {
+    const addresses = await lookup(hostname, { all: true, verbatim: true })
+    if (addresses.some((address) => isBlockedNetworkProxyAddress(address.address))) {
+      throw new DesktopPluginError("插件网络代理不能访问解析到本机或内网地址的域名", 403)
+    }
+  }
+
+  return url
+}
+
+function sanitizeNetworkProxyHeaders(headers: Record<string, string> | undefined): Headers {
+  const sanitized = new Headers()
+  for (const [name, value] of Object.entries(headers ?? {})) {
+    const normalizedName = name.trim().toLowerCase()
+    if (
+      !normalizedName ||
+      [
+        "authorization",
+        "cookie",
+        "host",
+        "proxy-authorization",
+        "referer",
+        "user-agent",
+      ].includes(normalizedName)
+    ) {
+      continue
+    }
+    sanitized.set(normalizedName, value)
+  }
+  return sanitized
+}
+
+export async function requestDesktopPluginNetworkProxy(
+  id: string,
+  request: DesktopPluginNetworkProxyRequest
+): Promise<DesktopPluginNetworkProxyResponse> {
+  const plugin = await getInstalledDesktopPlugin(id)
+  if (!plugin.manifest.permissions.includes("network-proxy")) {
+    throw new DesktopPluginError("插件未声明网络代理权限", 403)
+  }
+
+  const url = await assertNetworkProxyUrl(request.url)
+  const method = (request.method ?? "GET").toUpperCase()
+  if (!ALLOWED_NETWORK_PROXY_METHODS.has(method)) {
+    throw new DesktopPluginError("插件网络代理请求方法无效", 400)
+  }
+
+  const hasBody = method !== "GET" && request.body !== undefined
+  const response = await fetch(url, {
+    method,
+    headers: sanitizeNetworkProxyHeaders(request.headers),
+    body: hasBody ? JSON.stringify(request.body) : undefined,
+    redirect: "manual",
+  })
+  const contentType = response.headers.get("content-type") ?? ""
+  const data = contentType.includes("application/json") ? await response.json() : await response.text()
+  return {
+    status: response.status,
+    ok: response.ok,
+    headers: Object.fromEntries(response.headers.entries()),
+    data,
+  }
+}
+
 async function allocatePort(): Promise<number> {
   return new Promise((resolvePort, rejectPort) => {
     const server = createServer()
@@ -710,6 +846,26 @@ async function ensureDesktopPluginRuntime(plugin: InstalledDesktopPlugin): Promi
   const existing = runtimeProcesses.get(plugin.manifest.id)
   if (existing && !existing.child.killed) {
     return existing.baseUrl
+  }
+
+  const starting = runtimeStartPromises.get(plugin.manifest.id)
+  if (starting) {
+    return starting
+  }
+
+  const startPromise = startDesktopPluginRuntimeProcess(plugin)
+  runtimeStartPromises.set(plugin.manifest.id, startPromise)
+  try {
+    return await startPromise
+  } finally {
+    runtimeStartPromises.delete(plugin.manifest.id)
+  }
+}
+
+async function startDesktopPluginRuntimeProcess(plugin: InstalledDesktopPlugin): Promise<string> {
+  const api = plugin.manifest.api
+  if (!api?.runtime) {
+    throw new DesktopPluginError("插件 API 配置不完整", 500)
   }
 
   const { pluginsDir } = getPluginDirs()
@@ -805,10 +961,17 @@ export async function stopDesktopPluginRuntime(id: string): Promise<DesktopPlugi
       record.child.once("exit", () => resolveExit())
     })
     record.child.kill()
-    await Promise.race([
-      exited,
-      new Promise<void>((resolveTimeout) => setTimeout(resolveTimeout, RUNTIME_STOP_TIMEOUT_MS)),
+    const gracefulExit = await Promise.race([
+      exited.then(() => true),
+      new Promise<boolean>((resolveTimeout) => setTimeout(() => resolveTimeout(false), RUNTIME_STOP_TIMEOUT_MS)),
     ])
+    if (!gracefulExit && !record.child.killed) {
+      record.child.kill("SIGKILL")
+      await Promise.race([
+        exited,
+        new Promise<void>((resolveTimeout) => setTimeout(resolveTimeout, 1000)),
+      ])
+    }
     runtimeProcesses.delete(id)
   }
   return setRuntimeStatus(id, {

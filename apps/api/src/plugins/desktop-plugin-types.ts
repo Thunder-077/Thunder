@@ -90,6 +90,20 @@ export interface DesktopPluginRuntimeStatus {
   lastError?: string
 }
 
+export interface DesktopPluginNetworkProxyRequest {
+  url: string
+  method?: string
+  headers?: Record<string, string>
+  body?: unknown
+}
+
+export interface DesktopPluginNetworkProxyResponse<T = unknown> {
+  status: number
+  ok: boolean
+  headers: Record<string, string>
+  data: T
+}
+
 export interface DesktopPluginMigrationRecord {
   pluginId: string
   version: string

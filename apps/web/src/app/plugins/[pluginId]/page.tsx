@@ -7,71 +7,33 @@ import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import {
+  PLUGIN_BRIDGE_REQUEST_SOURCE,
+  PLUGIN_BRIDGE_VERSION,
+  clearPluginStorage,
+  createIsolatedPluginFrameUrl,
+  ensurePluginPermission,
+  getPluginStorageValue,
+  isAllowedPluginBridgeOrigin,
+  isPluginFrameOriginIsolated,
+  listPluginStorageKeys,
+  normalizeRuntimeRequestMethod,
+  normalizeRuntimeRequestPath,
+  normalizeStorageKey,
+  removePluginStorageValue,
+  sanitizeNetworkRequestParams,
+  sanitizeRuntimeRequestHeaders,
+  setPluginStorageValue,
+  type NetworkRequestParams,
+  type PluginBridgeRequest,
+  type RuntimeRequestParams,
+  type StorageRequestParams,
+} from "@/lib/desktop-plugin-bridge"
+import {
   getDesktopPlugin,
   shouldLoadDesktopPlugins,
   startDesktopPluginRuntime,
   type InstalledDesktopPlugin,
 } from "@/lib/desktop-plugins"
-
-const PLUGIN_BRIDGE_REQUEST_SOURCE = "thunder-plugin"
-const PLUGIN_BRIDGE_VERSION = 1
-const ALLOWED_RUNTIME_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"])
-
-type PluginBridgeRequest = {
-  source?: string
-  version?: number
-  id?: string
-  method?: string
-  params?: unknown
-}
-
-type RuntimeRequestParams = {
-  path?: string
-  method?: string
-  headers?: Record<string, string>
-  body?: unknown
-  cache?: RequestCache
-}
-
-function normalizeRuntimeRequestPath(path: string | undefined): string {
-  const rawPath = path?.trim()
-  if (!rawPath || rawPath.startsWith("/") || rawPath.startsWith("\\")) {
-    throw new Error("插件 runtime 请求路径无效")
-  }
-
-  const pathOnly = rawPath.split(/[?#]/, 1)[0]
-  const segments = pathOnly.split("/")
-  for (const segment of segments) {
-    if (!segment || segment.includes("\\")) {
-      throw new Error("插件 runtime 请求路径无效")
-    }
-
-    let decodedSegment = segment
-    try {
-      decodedSegment = decodeURIComponent(segment)
-    } catch {
-      throw new Error("插件 runtime 请求路径无效")
-    }
-
-    if (decodedSegment === "." || decodedSegment === ".." || decodedSegment.includes("/") || decodedSegment.includes("\\")) {
-      throw new Error("插件 runtime 请求路径无效")
-    }
-  }
-
-  return rawPath
-}
-
-function sanitizeRuntimeRequestHeaders(headers: Record<string, string> | undefined): Headers {
-  const sanitized = new Headers()
-  for (const [name, value] of Object.entries(headers ?? {})) {
-    const normalizedName = name.trim().toLowerCase()
-    if (!normalizedName || ["authorization", "cookie", "host"].includes(normalizedName)) {
-      continue
-    }
-    sanitized.set(normalizedName, value)
-  }
-  return sanitized
-}
 
 export default function DesktopPluginPage() {
   const params = useParams<{ pluginId: string }>()
@@ -79,21 +41,25 @@ export default function DesktopPluginPage() {
   const desktopEnabled = shouldLoadDesktopPlugins()
   const [plugin, setPlugin] = useState<InstalledDesktopPlugin | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [hostOrigin] = useState<string | null>(() => (typeof window === "undefined" ? null : window.location.origin))
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
-  const postBridgeResponse = useCallback((id: string, ok: boolean, data?: unknown, bridgeError?: string) => {
-    iframeRef.current?.contentWindow?.postMessage(
-      {
-        source: "thunder-host",
-        version: PLUGIN_BRIDGE_VERSION,
-        id,
-        ok,
-        data,
-        error: bridgeError,
-      },
-      "*"
-    )
-  }, [])
+  const postBridgeResponse = useCallback(
+    (targetOrigin: string, id: string, ok: boolean, data?: unknown, bridgeError?: string) => {
+      iframeRef.current?.contentWindow?.postMessage(
+        {
+          source: "thunder-host",
+          version: PLUGIN_BRIDGE_VERSION,
+          id,
+          ok,
+          data,
+          error: bridgeError,
+        },
+        targetOrigin
+      )
+    },
+    []
+  )
 
   useEffect(() => {
     if (!desktopEnabled) {
@@ -118,14 +84,16 @@ export default function DesktopPluginPage() {
   }, [desktopEnabled, pluginId])
 
   useEffect(() => {
-    if (!plugin) return
+    if (!plugin || !hostOrigin) return
     const currentPlugin = plugin
+    const frameUrl = createIsolatedPluginFrameUrl(currentPlugin.webEntryUrl, hostOrigin)
+    const frameOrigin = new URL(frameUrl).origin
 
     async function handleBridgeMessage(event: MessageEvent) {
       const request = event.data as PluginBridgeRequest | null
 
       if (
-        event.origin !== "null" ||
+        !isAllowedPluginBridgeOrigin(event.origin, frameUrl) ||
         event.source !== iframeRef.current?.contentWindow ||
         !request ||
         request.source !== PLUGIN_BRIDGE_REQUEST_SOURCE ||
@@ -138,21 +106,16 @@ export default function DesktopPluginPage() {
 
       try {
         if (request.method === "plugin.getManifest") {
-          postBridgeResponse(request.id, true, currentPlugin.manifest)
+          postBridgeResponse(frameOrigin, request.id, true, currentPlugin.manifest)
           return
         }
 
         if (request.method === "runtime.request") {
-          if (!currentPlugin.manifest.permissions.includes("local-api-proxy")) {
-            throw new Error("插件未声明 local-api-proxy 权限")
-          }
+          ensurePluginPermission(currentPlugin.manifest.permissions, "local-api-proxy")
 
           const params = request.params as RuntimeRequestParams | null
           const rawPath = normalizeRuntimeRequestPath(params?.path)
-          const method = (params?.method ?? "GET").toUpperCase()
-          if (!ALLOWED_RUNTIME_METHODS.has(method)) {
-            throw new Error("插件 runtime 请求方法无效")
-          }
+          const method = normalizeRuntimeRequestMethod(params?.method)
 
           const hasBody = method !== "GET" && params && "body" in params
           const response = await fetch(
@@ -168,7 +131,7 @@ export default function DesktopPluginPage() {
 
           const contentType = response.headers.get("content-type") ?? ""
           const data = contentType.includes("application/json") ? await response.json() : await response.text()
-          postBridgeResponse(request.id, true, {
+          postBridgeResponse(frameOrigin, request.id, true, {
             status: response.status,
             ok: response.ok,
             headers: Object.fromEntries(response.headers.entries()),
@@ -177,15 +140,88 @@ export default function DesktopPluginPage() {
           return
         }
 
+        if (request.method === "network.request") {
+          ensurePluginPermission(currentPlugin.manifest.permissions, "network-proxy")
+          const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(currentPlugin.manifest.id)}/network`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(sanitizeNetworkRequestParams(request.params as NetworkRequestParams | null)),
+            cache: "no-store",
+            credentials: "same-origin",
+          })
+          const payload = (await response.json()) as {
+            ok?: boolean
+            data?: unknown
+            message?: string
+          }
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload.message || "插件网络代理请求失败")
+          }
+          postBridgeResponse(frameOrigin, request.id, true, payload.data)
+          return
+        }
+
+        if (request.method === "storage.get") {
+          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
+          const params = request.params as StorageRequestParams | null
+          const key = normalizeStorageKey(params?.key)
+          postBridgeResponse(
+            frameOrigin,
+            request.id,
+            true,
+            getPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key)
+          )
+          return
+        }
+
+        if (request.method === "storage.set") {
+          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
+          const params = request.params as StorageRequestParams | null
+          const key = normalizeStorageKey(params?.key)
+          setPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key, params?.value)
+          postBridgeResponse(frameOrigin, request.id, true)
+          return
+        }
+
+        if (request.method === "storage.remove") {
+          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
+          const params = request.params as StorageRequestParams | null
+          const key = normalizeStorageKey(params?.key)
+          removePluginStorageValue(window.localStorage, currentPlugin.manifest.id, key)
+          postBridgeResponse(frameOrigin, request.id, true)
+          return
+        }
+
+        if (request.method === "storage.keys") {
+          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
+          postBridgeResponse(frameOrigin, request.id, true, listPluginStorageKeys(window.localStorage, currentPlugin.manifest.id))
+          return
+        }
+
+        if (request.method === "storage.clear") {
+          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
+          clearPluginStorage(window.localStorage, currentPlugin.manifest.id)
+          postBridgeResponse(frameOrigin, request.id, true)
+          return
+        }
+
         throw new Error(`未知插件 Host API: ${request.method}`)
       } catch (err) {
-        postBridgeResponse(request.id, false, undefined, err instanceof Error ? err.message : "插件 Host API 调用失败")
+        postBridgeResponse(
+          frameOrigin,
+          request.id,
+          false,
+          undefined,
+          err instanceof Error ? err.message : "插件 Host API 调用失败"
+        )
       }
     }
 
     window.addEventListener("message", handleBridgeMessage)
     return () => window.removeEventListener("message", handleBridgeMessage)
-  }, [plugin, postBridgeResponse])
+  }, [hostOrigin, plugin, postBridgeResponse])
 
   if (!desktopEnabled) {
     return (
@@ -215,7 +251,7 @@ export default function DesktopPluginPage() {
     )
   }
 
-  if (!plugin) {
+  if (!plugin || !hostOrigin) {
     return (
       <div>
         <PageHeader title="插件" />
@@ -223,6 +259,11 @@ export default function DesktopPluginPage() {
       </div>
     )
   }
+
+  const frameUrl = createIsolatedPluginFrameUrl(plugin.webEntryUrl, hostOrigin)
+  const frameSandbox = isPluginFrameOriginIsolated(frameUrl, hostOrigin)
+    ? "allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+    : "allow-forms allow-modals allow-popups allow-scripts"
 
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col">
@@ -238,9 +279,9 @@ export default function DesktopPluginPage() {
       <iframe
         ref={iframeRef}
         title={plugin.manifest.name}
-        src={plugin.webEntryUrl}
+        src={frameUrl}
         allow="microphone"
-        sandbox="allow-forms allow-modals allow-popups allow-scripts"
+        sandbox={frameSandbox}
         referrerPolicy="no-referrer"
         className="min-h-0 flex-1 rounded-md border border-border/70 bg-background"
       />

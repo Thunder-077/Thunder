@@ -12,6 +12,7 @@ import {
   installPackagedDesktopPlugin,
   readDesktopPluginAsset,
   resolveDesktopPluginApiProxyTarget,
+  requestDesktopPluginNetworkProxy,
   runDesktopPluginMigrations,
   startDesktopPluginRuntime,
   stopDesktopPluginRuntime,
@@ -94,20 +95,42 @@ async function main() {
     "plugins with web.entry must declare webview"
   )
 
+  const missingLocalApiProxyDir = join(testRoot, "hello-missing-local-api-proxy")
+  await cp(examplePlugin, missingLocalApiProxyDir, { recursive: true })
+  const missingLocalApiProxyManifestPath = join(missingLocalApiProxyDir, "plugin.json")
+  const missingLocalApiProxyManifest = JSON.parse(await readFile(missingLocalApiProxyManifestPath, "utf8"))
+  missingLocalApiProxyManifest.permissions = missingLocalApiProxyManifest.permissions.filter(
+    (permission: string) => permission !== "local-api-proxy"
+  )
+  await writeFile(missingLocalApiProxyManifestPath, JSON.stringify(missingLocalApiProxyManifest, null, 2))
+  await expectRejects(
+    () => installLocalDesktopPlugin({ sourcePath: missingLocalApiProxyDir }),
+    "plugins with api must declare local-api-proxy"
+  )
+
   const installed = await installLocalDesktopPlugin({ sourcePath: examplePlugin })
   assert.equal(installed.record.source, "local-directory")
 
   const asset = await readDesktopPluginAsset("hello-plugin", ["web", "index.html"])
   assert.equal(asset.contentType, "text/html; charset=utf-8")
+  await expectRejects(
+    () => requestDesktopPluginNetworkProxy("hello-plugin", { url: "https://example.com" }),
+    "network proxy must require network-proxy permission"
+  )
 
   const firstMigration = await runDesktopPluginMigrations("hello-plugin")
   const secondMigration = await runDesktopPluginMigrations("hello-plugin")
   assert.equal(firstMigration.applied.length, 1)
   assert.equal(secondMigration.skipped.length, 1)
 
-  const runtime = await startDesktopPluginRuntime("hello-plugin")
+  const [runtime, concurrentRuntime] = await Promise.all([
+    startDesktopPluginRuntime("hello-plugin"),
+    startDesktopPluginRuntime("hello-plugin"),
+  ])
   assert.equal(runtime.running, true)
+  assert.equal(concurrentRuntime.running, true)
   assert.equal(typeof runtime.port, "number")
+  assert.equal(concurrentRuntime.port, runtime.port)
   const target = await resolveDesktopPluginApiProxyTarget("hello-plugin", ["status"], "")
   const proxied = await fetch(target.url).then((response) => response.json() as Promise<{ ok: boolean; pluginId: string }>)
   assert.equal(proxied.ok, true)
@@ -128,6 +151,35 @@ async function main() {
   const auditLog = await readFile(join(testRoot, "plugin-audit.jsonl"), "utf8")
   assert.match(auditLog, /plugin\.upgraded/)
 
+  await uninstallDesktopPlugin("hello-plugin")
+
+  const networkDir = join(testRoot, "hello-network")
+  await cp(examplePlugin, networkDir, { recursive: true })
+  const networkManifestPath = join(networkDir, "plugin.json")
+  const networkManifest = JSON.parse(await readFile(networkManifestPath, "utf8"))
+  networkManifest.permissions = [...networkManifest.permissions, "network-proxy"]
+  await writeFile(networkManifestPath, JSON.stringify(networkManifest, null, 2))
+  await installLocalDesktopPlugin({ sourcePath: networkDir })
+  await expectRejects(
+    () => requestDesktopPluginNetworkProxy("hello-plugin", { url: "http://example.com" }),
+    "network proxy must deny non-https URLs"
+  )
+  await expectRejects(
+    () => requestDesktopPluginNetworkProxy("hello-plugin", { url: "https://localhost/status" }),
+    "network proxy must deny localhost URLs"
+  )
+  await expectRejects(
+    () => requestDesktopPluginNetworkProxy("hello-plugin", { url: "https://169.254.169.254/latest/meta-data" }),
+    "network proxy must deny link-local metadata URLs"
+  )
+  await expectRejects(
+    () => requestDesktopPluginNetworkProxy("hello-plugin", { url: "https://10.0.0.1/status" }),
+    "network proxy must deny private IPv4 URLs"
+  )
+  await expectRejects(
+    () => requestDesktopPluginNetworkProxy("hello-plugin", { url: "https://[::1]/status" }),
+    "network proxy must deny loopback IPv6 URLs"
+  )
   await uninstallDesktopPlugin("hello-plugin")
 
   const { publicKey, privateKey } = generateKeyPairSync("ed25519")
