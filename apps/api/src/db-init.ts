@@ -2,7 +2,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
-import migrations from './migrations.json';
+import migrations from './sqlite-migrations.json';
 
 // Resolve directory path safely across ESM and CommonJS environments
 const currentDir = typeof __dirname !== 'undefined' ? __dirname : path.resolve();

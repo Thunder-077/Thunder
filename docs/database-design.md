@@ -2,27 +2,27 @@
 
 ## 概述
 
-Thunder 当前使用 Prisma ORM 访问关系型数据库。项目已切换到 PostgreSQL 连接方式，推荐使用 Neon 这类托管 PostgreSQL；SQLite 仍可作为历史本地开发方案参考。
+Thunder 当前使用 Prisma ORM 访问关系型数据库，并采用双数据库运行策略：Web / Cloudflare API 使用 PostgreSQL（推荐 Neon 托管），桌面端内置 API 使用本地 SQLite 文件。
 
-## 当前方案：PostgreSQL（Neon）+ Prisma
+## 当前方案：PostgreSQL + SQLite + Prisma
 
-### 为什么当前推荐 PostgreSQL（Neon）
+### 为什么 Web 端推荐 PostgreSQL（Neon）
 
 1. **更适合部署**：数据库通过网络连接访问，适合公网和云环境
 2. **与 Prisma 兼容稳定**：无需改变现有 Repository / API 分层
 3. **便于后续 Cloudflare / Serverless 部署**：不依赖本地磁盘数据库文件
-4. **仍保留迁移弹性**：后续仍可迁移到其他 PostgreSQL / MySQL 服务
+4. **与桌面端解耦**：Web 端数据在云端，桌面端数据在本地，互不依赖
 
 ### 数据库连接方式
 
-- **当前推荐**：通过 `DATABASE_URL` 连接托管 PostgreSQL（如 Neon）
-- **本地历史数据**：`data/app.db`（项目根目录下）仍可作为旧 SQLite 数据来源
-- **生产部署**：统一通过 `DATABASE_URL` 环境变量配置
+- **Web / Cloudflare API**：通过 `DATABASE_URL` 连接托管 PostgreSQL（如 Neon）
+- **桌面生产态**：Tauri 壳启动本地 API sidecar 时自动注入 `DATABASE_URL=file:<AppData>/app.db`
+- **桌面开发态**：`pnpm dev:desktop` 启动 API 时会指向同一套 AppData SQLite 文件；如果检测到 3001 已有 API 进程，则会复用现有进程及其数据库配置
 
 ### 数据库访问架构
 
 ```
-前端组件 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
+前端组件 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL 或 SQLite
 ```
 
 - 前端不得直接访问 PostgreSQL / Prisma / 数据库连接
@@ -150,28 +150,12 @@ Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKe
 - 删除条目使用物理删除
 - clearVault 使用物理删除（DELETE ALL）
 
-## 数据库切换路径
-
-### SQLite → PostgreSQL / MySQL
-
-```
-历史：SQLite (file:./data/app.db)
-  ↓ 修改 prisma/schema.prisma provider + DATABASE_URL
-当前：PostgreSQL（Neon 等）
-```
-
-切换步骤：
-1. 修改 `packages/database/prisma/schema.prisma` 中的 `provider`
-2. 修改 `DATABASE_URL` 环境变量
-3. 运行 `prisma db push` 或 `prisma migrate dev` 同步 schema
-4. 页面和业务代码无需修改
-
-### 兼容性注意事项
+## 兼容性注意事项
 
 - 新增表时避免使用特定数据库特有语法
 - 时间字段使用 TEXT（ISO 8601）
 - JSON 字段使用 TEXT 存储，应用层解析
-- Prisma 的抽象层已经屏蔽了大部分数据库差异
+- PostgreSQL 与 SQLite 共用业务模型，但必须分别维护 SQL migration 文件
 
 ## Prisma 配置
 
@@ -186,8 +170,8 @@ Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKe
 ### 环境变量
 
 - `DATABASE_URL`：数据库连接字符串
-- PostgreSQL 示例：`postgresql://user:password@host:5432/thunder?sslmode=require`
-- SQLite 历史示例：`file:./data/app.db`
+- Web / Cloudflare 示例：`postgresql://user:password@host:5432/thunder?sslmode=require`
+- 桌面端由 Tauri 壳自动注入：`file:<AppData>/app.db`
 
 ## 数据访问规则
 
@@ -204,13 +188,15 @@ Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKe
 ## 新增模块数据库指南
 
 1. 在 `packages/database/prisma/schema.prisma` 中新增表
-2. 考虑未来 PostgreSQL / MySQL 兼容
+2. 避免数据库特有字段类型和函数，保持 PostgreSQL / SQLite 兼容
 3. 在 `modules/` 中定义 Repository 接口
 4. 在 `apps/api/src/modules/` 中实现 Repository
 5. 在 `apps/api/src/modules/` 中实现 API 路由
 6. 在 `packages/api-client/src/modules/` 中实现 API Client
-7. 运行 `pnpm db:generate` 重新生成双端客户端和 SQL 模板
-8. 更新文档
+7. 运行 `pnpm db:migrate` 生成 PostgreSQL 迁移
+8. 运行 `pnpm db:migrate:sqlite <name>` 生成 SQLite 迁移
+9. 运行 `pnpm db:generate` 重新生成双端客户端和 `apps/api/src/sqlite-migrations.json`
+10. 更新文档
 
 ## 双数据库架构表结构变更规范
 
@@ -226,12 +212,12 @@ Emby 模块的核心配置（publicBaseUrl、emosBaseUrl、emosToken、tmdbApiKe
 
 每次对 `schema.prisma` 进行修改后，必须执行以下同步生成流程：
 1.  **修改 Schema**：在 `packages/database/prisma/schema.prisma` 中进行表结构调整。
-2.  **生成 Migration 文件**：运行 `pnpm db:migrate` 生成标准的迁移 SQL 文件夹（Prisma 会在 `packages/database/prisma/migrations/` 下创建带有时间戳的前缀文件夹及 `migration.sql` 脚本）。
-3.  **编译双端客户端与迁移 JSON**：运行 `pnpm db:generate`。这会自动触发 `sync-sqlite-schema.mjs`（将 `engineType` 调整为 `library` 并输出 SQLite 客户端），最后自动执行 `compile-migrations.mjs`，将所有历史 SQL 脚本按时间线压入 `apps/api/src/migrations.json` 静态文件。
-4.  **编译校验**：在项目根目录下运行 `pnpm typecheck`，确保双端类型和业务调用完全一致。
+2.  **生成 PostgreSQL Migration**：运行 `pnpm db:migrate`，在 `packages/database/prisma/migrations/` 下生成云端 PostgreSQL 专属迁移。
+3.  **生成 SQLite Migration**：运行 `pnpm db:migrate:sqlite <name>`，脚本会基于 `schema.sqlite.prisma` 和 `packages/database/prisma/sqlite-migrations/` 的当前状态生成桌面端 SQLite 专属迁移。
+4.  **编译双端客户端与迁移 JSON**：运行 `pnpm db:generate`。这会自动触发 `sync-sqlite-schema.mjs`（将 `engineType` 调整为 `library` 并输出 SQLite 客户端），最后自动执行 `compile-migrations.mjs`，校验所有 SQLite 迁移能在临时 SQLite 数据库完整执行，并按时间线压入 `apps/api/src/sqlite-migrations.json` 静态文件。
+5.  **编译校验**：在项目根目录下运行 `pnpm typecheck`，确保双端类型和业务调用完全一致。
 
 ### 3. 生产环境部署与运行
 
 *   **Web 端**：在发布新版 API 容器/Worker 之前，必须在 CI/CD 中跑一次 `npx prisma migrate deploy` 升级云端 PostgreSQL 数据库。
-*   **桌面端**：桌面 API 子进程启动时，通过 Node.js 24 原生 `node:sqlite` (`DatabaseSync` 类) 读取 `migrations.json`，查询本地 SQLite 的 `PRAGMA user_version`，按版本顺序在原子 SQL 事务中执行尚未应用的迁移 SQL，完美保障本地数据库无损升级并自动预置 `zhimengren` 用户。
-
+*   **桌面端**：桌面 API 子进程启动时，通过 Node.js 24 原生 `node:sqlite` (`DatabaseSync` 类) 读取 `sqlite-migrations.json`，查询本地 SQLite 的 `PRAGMA user_version`，按版本顺序在原子 SQL 事务中执行尚未应用的 SQLite 专属迁移 SQL，保障本地数据库无损升级并自动预置默认桌面用户。

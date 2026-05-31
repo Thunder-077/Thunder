@@ -11,6 +11,7 @@
   "scripts": {
     "db:generate": "prisma generate --schema=prisma/schema.prisma && node scripts/sync-sqlite-schema.mjs && prisma generate --schema=prisma/schema.sqlite.prisma && node scripts/compile-migrations.mjs",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:sqlite": "node scripts/sync-sqlite-schema.mjs && node scripts/create-sqlite-migration.mjs",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit"

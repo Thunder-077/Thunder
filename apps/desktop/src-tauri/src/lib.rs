@@ -15,8 +15,8 @@ use std::{
 };
 
 use bzip2::read::BzDecoder;
-use sherpa_onnx::{OnlineRecognizer, OnlineRecognizerConfig, OnlineStream};
 use serde::{Deserialize, Serialize};
+use sherpa_onnx::{OnlineRecognizer, OnlineRecognizerConfig, OnlineStream};
 use tar::Archive;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -107,7 +107,10 @@ impl WindowsJob {
     fn new() -> io::Result<Self> {
         use std::ptr;
         extern "system" {
-            fn CreateJobObjectW(lpJobAttributes: *mut std::ffi::c_void, lpName: *const u16) -> *mut std::ffi::c_void;
+            fn CreateJobObjectW(
+                lpJobAttributes: *mut std::ffi::c_void,
+                lpName: *const u16,
+            ) -> *mut std::ffi::c_void;
             fn SetInformationJobObject(
                 hJob: *mut std::ffi::c_void,
                 JobObjectInformationClass: u32,
@@ -208,11 +211,16 @@ impl WindowsJob {
     fn assign(&self, child: &Child) -> io::Result<()> {
         use std::os::windows::io::AsRawHandle;
         extern "system" {
-            fn AssignProcessToJobObject(hJob: *mut std::ffi::c_void, hProcess: *mut std::ffi::c_void) -> i32;
+            fn AssignProcessToJobObject(
+                hJob: *mut std::ffi::c_void,
+                hProcess: *mut std::ffi::c_void,
+            ) -> i32;
         }
 
         let process_handle = child.as_raw_handle();
-        let res = unsafe { AssignProcessToJobObject(self.handle, process_handle as *mut std::ffi::c_void) };
+        let res = unsafe {
+            AssignProcessToJobObject(self.handle, process_handle as *mut std::ffi::c_void)
+        };
         if res == 0 {
             return Err(io::Error::last_os_error());
         }
@@ -604,13 +612,14 @@ fn resolve_sherpa_catalog_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
     }
 
     let resource_dir = app.path().resource_dir().unwrap_or_default();
-    let service_root = resource_dir.join("runtime").join("services").join("sherpa-onnx");
+    let service_root = resource_dir
+        .join("runtime")
+        .join("services")
+        .join("sherpa-onnx");
     service_root.join("model-catalog.json")
 }
 
-fn resolve_sherpa_config<R: Runtime>(
-    app: &AppHandle<R>,
-) -> (PathBuf, PathBuf, PathBuf) {
+fn resolve_sherpa_config<R: Runtime>(app: &AppHandle<R>) -> (PathBuf, PathBuf, PathBuf) {
     let catalog = resolve_sherpa_catalog_path(app);
     let app_data_root = app.path().app_data_dir().unwrap_or_else(|_| {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -633,8 +642,8 @@ fn ensure_sherpa_storage(model_dir: &Path, state_dir: &Path) -> Result<(), Strin
 }
 
 fn load_sherpa_catalog(catalog: &Path) -> Result<Vec<SherpaModelCatalogEntry>, String> {
-    let content = fs::read_to_string(catalog)
-        .map_err(|e| format!("读取 sherpa 模型目录失败: {e}"))?;
+    let content =
+        fs::read_to_string(catalog).map_err(|e| format!("读取 sherpa 模型目录失败: {e}"))?;
     serde_json::from_str(&content).map_err(|e| format!("解析 sherpa 模型目录失败: {e}"))
 }
 
@@ -649,11 +658,8 @@ fn load_active_sherpa_model_id(state_dir: &Path) -> Option<String> {
 fn save_active_sherpa_model_id(state_dir: &Path, model_id: &str) -> Result<(), String> {
     let content = serde_json::to_string_pretty(&serde_json::json!({ "id": model_id }))
         .map_err(|e| format!("序列化 sherpa 当前模型状态失败: {e}"))?;
-    fs::write(
-        state_dir.join("active-model.json"),
-        format!("{content}\n"),
-    )
-    .map_err(|e| format!("写入 sherpa 当前模型状态失败: {e}"))
+    fs::write(state_dir.join("active-model.json"), format!("{content}\n"))
+        .map_err(|e| format!("写入 sherpa 当前模型状态失败: {e}"))
 }
 
 fn is_sherpa_model_installed(model_dir: &Path, model: &SherpaModelCatalogEntry) -> bool {
@@ -719,61 +725,69 @@ fn download_sherpa_model_archive<R: Runtime>(
     let response = ureq::get(&model.download_url)
         .call()
         .map_err(|e| format!("下载 sherpa 模型失败: {e}"))?;
-    
+
     let total_bytes = response
         .header("Content-Length")
         .and_then(|v| v.parse::<u64>().ok())
         .unwrap_or(0);
-    
+
     let mut reader = response.into_reader();
-    let mut file = File::create(&archive_path)
-        .map_err(|e| format!("创建 sherpa 模型临时文件失败: {e}"))?;
-    
+    let mut file =
+        File::create(&archive_path).map_err(|e| format!("创建 sherpa 模型临时文件失败: {e}"))?;
+
     let mut buffer = [0; 65536];
     let mut downloaded_bytes = 0u64;
     let mut last_percentage = 0u32;
-    
-    let _ = app.emit("sherpa-download-progress", serde_json::json!({
-        "modelId": model.id,
-        "percentage": 0,
-        "downloaded": 0,
-        "total": total_bytes,
-        "status": "downloading",
-    }));
+
+    let _ = app.emit(
+        "sherpa-download-progress",
+        serde_json::json!({
+            "modelId": model.id,
+            "percentage": 0,
+            "downloaded": 0,
+            "total": total_bytes,
+            "status": "downloading",
+        }),
+    );
 
     loop {
-        let bytes_read = reader.read(&mut buffer)
+        let bytes_read = reader
+            .read(&mut buffer)
             .map_err(|e| format!("读取 sherpa 模型数据失败: {e}"))?;
-        
+
         if bytes_read == 0 {
             break;
         }
-        
+
         file.write_all(&buffer[..bytes_read])
             .map_err(|e| format!("写入 sherpa 模型临时文件失败: {e}"))?;
-        
+
         downloaded_bytes += bytes_read as u64;
-        
+
         if total_bytes > 0 {
             let percentage = ((downloaded_bytes as f64 / total_bytes as f64) * 100.0) as u32;
             if percentage > last_percentage {
                 last_percentage = percentage;
-                let _ = app.emit("sherpa-download-progress", serde_json::json!({
-                    "modelId": model.id,
-                    "percentage": percentage,
-                    "downloaded": downloaded_bytes,
-                    "total": total_bytes,
-                    "status": "downloading",
-                }));
+                let _ = app.emit(
+                    "sherpa-download-progress",
+                    serde_json::json!({
+                        "modelId": model.id,
+                        "percentage": percentage,
+                        "downloaded": downloaded_bytes,
+                        "total": total_bytes,
+                        "status": "downloading",
+                    }),
+                );
             }
-            
+
             if downloaded_bytes >= total_bytes {
                 break;
             }
         }
     }
-    
-    file.sync_all().map_err(|e| format!("刷新数据到磁盘失败: {e}"))?;
+
+    file.sync_all()
+        .map_err(|e| format!("刷新数据到磁盘失败: {e}"))?;
     Ok(archive_path)
 }
 
@@ -798,15 +812,18 @@ fn install_sherpa_model<R: Runtime>(
     }
 
     let archive_path = download_sherpa_model_archive(app, model, state_dir)?;
-    
+
     // 发送正在解压状态事件
-    let _ = app.emit("sherpa-download-progress", serde_json::json!({
-        "modelId": model.id,
-        "percentage": 100,
-        "downloaded": 0,
-        "total": 0,
-        "status": "extracting",
-    }));
+    let _ = app.emit(
+        "sherpa-download-progress",
+        serde_json::json!({
+            "modelId": model.id,
+            "percentage": 100,
+            "downloaded": 0,
+            "total": 0,
+            "status": "extracting",
+        }),
+    );
 
     let result = extract_sherpa_archive(&archive_path, model_dir);
     let _ = fs::remove_file(&archive_path);
@@ -966,25 +983,19 @@ fn start_funasr_service(app: tauri::AppHandle) -> Result<String, String> {
         return Err("FunASR 启动脚本不存在，请检查是否已安装 FunASR 服务。".into());
     }
 
-    let cwd = launcher
-        .parent()
-        .unwrap_or(Path::new("."))
-        .to_path_buf();
+    let cwd = launcher.parent().unwrap_or(Path::new(".")).to_path_buf();
 
     let mut envs = HashMap::new();
     envs.insert("THUNDER_FUNASR_HOST".into(), host.clone());
     envs.insert("THUNDER_FUNASR_PORT".into(), port.to_string());
 
-    let child = spawn_python_process(&python, &launcher, &cwd, &envs)
-        .map_err(|e| {
-            if e.kind() == io::ErrorKind::NotFound {
-                format!(
-                    "未找到 Python 可执行文件 ({python})。请安装 Python 并配置 FunASR 环境后重试。"
-                )
-            } else {
-                format!("FunASR 进程启动失败: {e}")
-            }
-        })?;
+    let child = spawn_python_process(&python, &launcher, &cwd, &envs).map_err(|e| {
+        if e.kind() == io::ErrorKind::NotFound {
+            format!("未找到 Python 可执行文件 ({python})。请安装 Python 并配置 FunASR 环境后重试。")
+        } else {
+            format!("FunASR 进程启动失败: {e}")
+        }
+    })?;
 
     {
         let state = app.state::<DesktopState>();
@@ -1026,19 +1037,24 @@ fn download_sherpa_model(
 ) -> Result<Vec<SherpaModelSummary>, String> {
     let (catalog_path, model_dir, state_dir) = resolve_sherpa_config(&app);
     ensure_sherpa_storage(&model_dir, &state_dir)?;
-    
+
     let state = app.state::<DesktopState>();
     let mut downloading = state.downloading_models.lock().unwrap();
-    
+
     if downloading.contains(&model_id) {
-        return list_sherpa_models_from_catalog(&catalog_path, &model_dir, &state_dir, &downloading);
+        return list_sherpa_models_from_catalog(
+            &catalog_path,
+            &model_dir,
+            &state_dir,
+            &downloading,
+        );
     }
-    
+
     downloading.insert(model_id.clone());
-    
+
     let app_clone = app.clone();
     let model_id_clone = model_id.clone();
-    
+
     tauri::async_runtime::spawn(async move {
         let (catalog_path, model_dir, state_dir) = resolve_sherpa_config(&app_clone);
         let result = (|| -> Result<(), String> {
@@ -1046,7 +1062,8 @@ fn download_sherpa_model(
             let model = find_sherpa_model(&catalog, &model_id_clone)?;
             install_sherpa_model(&app_clone, model, &model_dir, &state_dir)?;
             save_active_sherpa_model_id(&state_dir, &model.id)?;
-            app_clone.state::<DesktopState>()
+            app_clone
+                .state::<DesktopState>()
                 .sherpa_session
                 .lock()
                 .unwrap()
@@ -1065,10 +1082,13 @@ fn download_sherpa_model(
                 let _ = app_clone.emit("sherpa-model-installed", model_id_clone);
             }
             Err(err) => {
-                let _ = app_clone.emit("sherpa-model-download-failed", serde_json::json!({
-                    "modelId": model_id_clone,
-                    "error": err,
-                }));
+                let _ = app_clone.emit(
+                    "sherpa-model-download-failed",
+                    serde_json::json!({
+                        "modelId": model_id_clone,
+                        "error": err,
+                    }),
+                );
             }
         }
     });
@@ -1132,7 +1152,9 @@ fn feed_sherpa_audio(
             .into_iter()
             .map(|sample| sample as f32 / 32768.0)
             .collect::<Vec<_>>();
-        session.stream.accept_waveform(session.sample_rate, &float_samples);
+        session
+            .stream
+            .accept_waveform(session.sample_rate, &float_samples);
     }
 
     if input_finished {
@@ -1155,7 +1177,8 @@ fn feed_sherpa_audio(
     };
 
     let text = result.text.trim().to_string();
-    let is_final = result.is_final || input_finished || session.recognizer.is_endpoint(&session.stream);
+    let is_final =
+        result.is_final || input_finished || session.recognizer.is_endpoint(&session.stream);
     let should_emit = !text.is_empty() && (text != session.last_text || is_final);
 
     let update = if should_emit {

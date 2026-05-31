@@ -32,7 +32,8 @@ pnpm build            # 生产构建
 
 # 数据库
 pnpm db:generate      # 生成 Prisma Client
-pnpm db:migrate       # 运行数据库迁移
+pnpm db:migrate       # 生成/运行 PostgreSQL 迁移
+pnpm db:migrate:sqlite <name>  # 生成 SQLite 专属迁移
 pnpm db:push          # 推送 schema 变更（开发用）
 pnpm db:studio        # 打开 Prisma Studio
 
@@ -95,7 +96,7 @@ services/*        → 非 TypeScript 独立服务（预留，仅通过 apps/api 
 - 支持双数据库架构：Web 端使用云端 PostgreSQL (Neon 托管)，桌面端使用本地 SQLite 数据库文件 (AppData 中存储)
 - 数据库访问只能在 `apps/api` 的 Repository 层，通过 `packages/database` 导出的全局 `prisma` Proxy 单例
 - Schema 变更必须保持双端兼容：禁用数据库特有特性 (如原生 Enum、自动 UUID 函数)，日期及 JSON 统一用 String/TEXT 以保证 SQLiteparities
-- Schema 修改后必须同步运行 `pnpm db:generate` 编译生成双端 Client，并自动输出 SQLite 升级脚本 `apps/api/src/init.sql`
+- Schema 修改后必须同步运行 `pnpm db:migrate` 生成 PostgreSQL 迁移、`pnpm db:migrate:sqlite <name>` 生成 SQLite 迁移，再运行 `pnpm db:generate` 编译双端 Client 并输出 `apps/api/src/sqlite-migrations.json`
 - 数据库实现细节不得泄漏到 `apps/web`
 
 ## Module System

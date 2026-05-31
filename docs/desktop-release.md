@@ -1,6 +1,6 @@
 # Desktop Release
 
-Thunder 桌面端当前采用 `本地 Web + 本地 API + 远程数据库` 的桌面运行时，
+Thunder 桌面端当前采用 `本地 Web + 本地 API + 本地 SQLite` 的桌面运行时，
 并使用 `GitHub Actions + GitHub Releases + Tauri updater` 发布安装包。
 
 ## 产物策略
@@ -14,6 +14,7 @@ Thunder 桌面端当前采用 `本地 Web + 本地 API + 远程数据库` 的桌
 这样做的目的很明确：
 
 - 不需要把 Web / API 单独部署到 Cloudflare
+- 不需要用户配置数据库，桌面端数据默认存储在系统应用数据目录
 - 保持现有 `apps/web -> @thunder/api-client -> apps/api` 业务链路不变
 - 桌面端只负责原生壳能力、本地 sidecar 生命周期与分发升级
 
@@ -50,16 +51,12 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD="..."
 ## 运行时配置
 
 桌面应用生产态不会直接继承你开发机里的 shell 环境变量。
-如果本地 sidecar 需要连接远程数据库或第三方服务，请在应用配置目录下放置运行时 `desktop.env`。
+如果本地 sidecar 需要第三方服务配置，请在应用配置目录下放置运行时 `desktop.env`。
 它和上面的 `apps/desktop/desktop.env` 不是同一个文件：前者给已安装应用运行时读取，后者给本地构建读取。
 
-当前至少应包含：
+数据库不在这里配置。生产态桌面壳会在启动时自动使用应用数据目录中的 SQLite 文件，例如 Windows 下的 `%APPDATA%/com.thunder.desktop/app.db`。运行时 `desktop.env` 中的数据库配置会被忽略。
 
-```env
-DATABASE_URL="postgresql://user:password@host:5432/thunder?sslmode=require"
-```
-
-如需完整功能，还可以继续配置：
+可配置的运行时变量示例：
 
 ```env
 EMBY_PUBLIC_BASE_URL="https://..."

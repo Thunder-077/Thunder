@@ -48,7 +48,7 @@ await build({
   bundle: true,
   platform: "node",
   format: "cjs",
-  target: "node20",
+  target: "node24",
   outfile,
   sourcemap: false,
   external: ["@prisma/client", "@prisma/adapter-neon", "sharp"],

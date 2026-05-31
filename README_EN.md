@@ -55,7 +55,7 @@ By leveraging a decentralized, loosely-coupled micro-app architecture, Thunder b
 | **Frontend UI** | Next.js 15 (App Router) + shadcn/ui + Tailwind CSS | `apps/web` | Modern responsive UI, client state management, and cryptography |
 | **Backend REST API** | Hono + Cloudflare Workers / Node.js runtime | `apps/api` | Fast-performing, ultra-lightweight RESTful routes & business orchestrations |
 | **Desktop Runtime** | Tauri v2 + Rust | `apps/desktop` | Native desktop wrapper, multi-window management, and system-level APIs |
-| **Database & ORM** | Prisma + PostgreSQL (Neon Database / Local DB) | `packages/database` | Monotonically instantiated Prisma Client for transactional database operations |
+| **Database & ORM** | Prisma + PostgreSQL (Web/Cloud) + SQLite (Desktop) | `packages/database` | Singleton Prisma Client and dual-runtime database support |
 | **API Contract** | OpenAPI Specs + TypeScript Contract Types | `packages/contracts` | Unified contracts for validation, API error codes, and standardized payloads |
 | **Platform Adaptor** | TypeScript Native Adaptor | `packages/platform` | Decoupled cross-environment adaptor for filesystem, URLs, and clipboard access |
 
@@ -65,15 +65,17 @@ By leveraging a decentralized, loosely-coupled micro-app architecture, Thunder b
 
 ### 1. Prerequisites
 Ensure you have the following installed in your local environment:
-- **Node.js** (v18+)
+- **Node.js** (v24+)
 - **pnpm** (Package manager, v8 or v9 recommended)
 - **Rust Toolchain** (Only required if you want to run or build the `Tauri` desktop app)
 
 ### 2. Environment Variables
 Configure `.env` files inside respective directories based on the provided `.example` templates:
-1. **Database**: Create `.env` inside `packages/database/` and configure your `DATABASE_URL`.
-2. **Backend**: Create `.env` inside `apps/api/` to supply your database connections and third-party API credentials.
+1. **Web / Cloud Database**: Create `.env` inside `packages/database/` and configure your PostgreSQL `DATABASE_URL`.
+2. **Backend**: Create `.env` inside `apps/api/` to supply your PostgreSQL connection and third-party API credentials.
 3. **Frontend**: Create `.env` inside `apps/web/` to define the target `API_URL` and security authorization secrets.
+
+The desktop database does not need manual configuration. The Tauri shell injects a local SQLite file path when it starts the bundled API sidecar.
 
 *For more descriptive variable definitions, review `packages/database/.env.example` and `apps/api/.env.example`.*
 

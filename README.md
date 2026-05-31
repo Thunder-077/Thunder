@@ -55,7 +55,7 @@
 | **前端微应用** | Next.js 15 (App Router) + shadcn/ui + Tailwind CSS | `apps/web` | 提供沉浸式的现代 UI 交互，状态管理及客户端数据加密 |
 | **微网关 API** | Hono (Hono REST API) + Cloudflare Workers / Node.js | `apps/api` | 轻量化、极速响应的 RESTful 路由与业务逻辑编排 |
 | **原生运行时** | Tauri v2 + Rust | `apps/desktop` | 原生桌面外壳，负责多窗口管理及系统原生 API 桥接 |
-| **数据持久化** | Prisma + PostgreSQL (Neon 托管 / 本地 PostgreSQL) | `packages/database` | 单例模式的 Prisma Client 数据持久化支持 |
+| **数据持久化** | Prisma + PostgreSQL (Web/Cloud) + SQLite (Desktop) | `packages/database` | 单例模式的 Prisma Client 与双端数据库支持 |
 | **API 契约** | OpenAPI 规范 + TypeScript 契约定义 | `packages/contracts` | 契约优先的路由参数、API 错误码及统一响应体定义 |
 | **平台适配器** | TypeScript 原生平台适配层 | `packages/platform` | 屏蔽环境差异，统一 Web 端与 Tauri 原生文件/外链访问 |
 
@@ -65,15 +65,17 @@
 
 ### 1. 前置准备
 在运行项目前，请确保您的本地开发环境已安装：
-- **Node.js** (v18+)
+- **Node.js** (v24+)
 - **pnpm** (推荐 v8 / v9 包管理器)
 - **Rust 编译链** (如果您计划运行或构建 `Tauri` 桌面端)
 
 ### 2. 环境变量配置
 请按照各目录下的 `.example` 文件在对应路径下配置环境变量：
-1. **数据库配置**：在 `packages/database/` 下新建 `.env` 并配置真实的 `DATABASE_URL`。
-2. **后端服务配置**：在 `apps/api/` 下新建 `.env` 并配置数据库连接及相关 API 密钥。
+1. **Web / Cloud 数据库配置**：在 `packages/database/` 下新建 `.env` 并配置 PostgreSQL `DATABASE_URL`。
+2. **后端服务配置**：在 `apps/api/` 下新建 `.env` 并配置 PostgreSQL 连接及相关 API 密钥。
 3. **前端主配置**：在 `apps/web/` 下新建 `.env` 并填入 `API_URL` 及其验证密钥。
+
+桌面端数据库不需要手动配置，Tauri 壳会在启动本地 API 时自动使用应用数据目录中的 SQLite 文件。
 
 *更详细的变量列表说明请查看：`packages/database/.env.example`，`apps/api/.env.example`。*
 

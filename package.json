@@ -18,11 +18,12 @@
     "version:check": "node ./scripts/check-desktop-version.mjs",
     "db:generate": "pnpm --filter @thunder/database db:generate",
     "db:migrate": "pnpm --filter @thunder/database db:migrate",
+    "db:migrate:sqlite": "pnpm --filter @thunder/database db:migrate:sqlite",
     "db:push": "pnpm --filter @thunder/database db:push",
     "db:studio": "pnpm --filter @thunder/database db:studio"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "packageManager": "pnpm@10.33.2",
   "devDependencies": {

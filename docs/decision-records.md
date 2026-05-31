@@ -255,4 +255,4 @@
 - 新增 `sync-sqlite-schema.mjs` 脚本，在 `pnpm db:generate` 时自动并行编译 PostgreSQL 和 SQLite 双端客户端。
 - 在 `packages/database/src/client.ts` 引入运行时连接类型动态分发。
 - 表结构变更必须保证 100% 跨库兼容（禁止原生 Enum、UUID 原生生成函数、特有 DDL 等）。
-- 桌面 API 进程启动时自动扫描 `migrations.json` 并根据 `PRAGMA user_version` 执行增量事务迁移，且自动预置了开发者账户 `zhimengren`。
+- 桌面 API 进程启动时自动扫描由 `packages/database/prisma/sqlite-migrations/` 编译出的 `sqlite-migrations.json`，并根据 `PRAGMA user_version` 执行 SQLite 专属增量事务迁移，且自动预置默认桌面用户。
