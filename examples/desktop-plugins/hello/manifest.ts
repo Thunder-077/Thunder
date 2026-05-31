@@ -1,0 +1,29 @@
+import { defineThunderPluginManifest } from "../../../packages/plugin-sdk/src"
+
+export default defineThunderPluginManifest({
+  manifestVersion: 1,
+  id: "hello-plugin",
+  name: "Hello Plugin",
+  version: "1.0.0",
+  description: "Desktop runtime plugin example with an isolated iframe entry.",
+  icon: "Package",
+  category: "tools",
+  order: 900,
+  author: {
+    name: "Thunder",
+  },
+  permissions: ["webview", "local-api-proxy"],
+  web: {
+    entry: "web/index.html",
+  },
+  api: {
+    healthPath: "/health",
+    runtime: {
+      kind: "node",
+      entry: "api/server.mjs",
+    },
+  },
+  migrations: {
+    sqlite: "migrations/sqlite",
+  },
+})

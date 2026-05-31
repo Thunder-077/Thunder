@@ -7,6 +7,9 @@
     "dev:cf": "wrangler dev --port 8787",
     "build": "node ../../scripts/generate-enabled-modules.mjs && tsc",
     "build:desktop-bundle": "node ./scripts/build-desktop-bundle.mjs",
+    "package:desktop-plugin": "node ./scripts/package-desktop-plugin.mjs",
+    "build:plugin-marketplace": "node ./scripts/build-plugin-marketplace.mjs",
+    "test:plugins": "tsx src/plugins/desktop-plugin-manager.test.ts",
     "start": "node dist/index.js",
     "deploy:cf": "pnpm --filter @thunder/database db:generate && wrangler deploy",
     "typecheck": "tsc --noEmit"
@@ -20,7 +23,8 @@
     "dotenv": "^17.4.2",
     "hono": "^4.7.9",
     "jose": "^6.2.3",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "tar": "^7.5.15"
   },
   "devDependencies": {
     "@types/node": "^20",

@@ -15,12 +15,14 @@ import {
   ChevronRight,
   Film,
   ScrollText,
+  Package,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
+import { useDesktopPlugins } from "@/hooks/use-desktop-plugins"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import type { ModuleCategory } from "@thunder/core"
+import type { ModuleCategory, ModuleManifest } from "@thunder/core"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   CheckSquare,
@@ -94,7 +96,24 @@ function SidebarNavItem({
 export function AppSidebar({ className, onNavigate }: SidebarProps) {
   const pathname = usePathname()
   const registry = useModuleRegistry()
-  const modules = registry.getEnabled()
+  const desktopPlugins = useDesktopPlugins()
+  const modules = useMemo<ModuleManifest[]>(
+    () => [
+      ...registry.getEnabled(),
+      ...desktopPlugins.plugins.map((plugin) => ({
+        id: `plugin:${plugin.manifest.id}`,
+        name: plugin.manifest.name,
+        description: plugin.manifest.description,
+        icon: plugin.manifest.icon,
+        route: plugin.route,
+        category: plugin.manifest.category,
+        order: plugin.manifest.order ?? 1000,
+        enabled: true,
+        platforms: ["desktop" as const],
+      })),
+    ],
+    [registry, desktopPlugins.plugins]
+  )
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     productivity: true,
     security: true,
@@ -108,6 +127,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
   const navItems = [
     { label: "首页", href: "/", icon: House },
     { label: "模块中心", href: "/modules", icon: LayoutGrid },
+    ...(desktopPlugins.enabled ? [{ label: "插件市场", href: "/plugins", icon: Package }] : []),
   ]
 
   const groupedModules = useMemo(() => {

@@ -4,6 +4,8 @@
 
 Thunder 的模块系统采用 **Manifest 驱动 + 构建期生成入口** 的设计。每个模块在 `scripts/generate-enabled-modules.mjs` 的清单中声明元信息、平台归属、前端页面入口、后端路由入口和定时任务入口；构建时会生成 Web/API 各自的启用模块文件，主应用只 import 生成文件。
 
+桌面端另有运行时插件系统，用于安装后动态出现的插件。构建期模块裁剪只管理内置源码模块；桌面运行时插件见 `docs/desktop-plugin-system.md`。
+
 ## Module Manifest
 
 每个模块必须提供一个 Manifest，声明其元信息：
@@ -126,6 +128,8 @@ packages/contracts/openapi/{module-id}.yaml      # OpenAPI 规范
 - 不写 `platforms`：Web 和 Desktop 都启用
 - `platforms: ["web"]`：仅 Web 启用，Desktop 构建不生成该模块入口
 - `platforms: ["desktop"]`：仅 Desktop 启用
+
+当前提词器模块属于推荐的混合模式：Web 端保留构建期内置模块，Desktop 端通过官方内置插件市场安装，因此模块清单中声明为 `platforms: ["web"]`。
 
 构建时还可以通过参数或环境变量排除模块：
 

@@ -4,7 +4,9 @@ import Link from "next/link"
 import { PageHeader } from "@/components/page-header"
 import { ModuleCard } from "@/components/module-card"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
+import { useDesktopPlugins } from "@/hooks/use-desktop-plugins"
 import { Badge } from "@/components/ui/badge"
+import type { ModuleManifest } from "@thunder/core"
 
 const categoryLabels: Record<string, string> = {
   productivity: "效率",
@@ -18,7 +20,21 @@ const categoryLabels: Record<string, string> = {
 
 export default function ModulesPage() {
   const registry = useModuleRegistry()
-  const modules = registry.getEnabled()
+  const desktopPlugins = useDesktopPlugins()
+  const modules: ModuleManifest[] = [
+    ...registry.getEnabled(),
+    ...desktopPlugins.plugins.map((plugin) => ({
+      id: `plugin:${plugin.manifest.id}`,
+      name: plugin.manifest.name,
+      description: plugin.manifest.description,
+      icon: plugin.manifest.icon,
+      route: plugin.route,
+      category: plugin.manifest.category,
+      order: plugin.manifest.order ?? 1000,
+      enabled: true,
+      platforms: ["desktop" as const],
+    })),
+  ]
   const categories = [...new Set(modules.map((m) => m.category))]
 
   return (

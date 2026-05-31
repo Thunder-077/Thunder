@@ -1,0 +1,20 @@
+@source "../../../../apps/web/src/modules/teleprompter/**/*.{ts,tsx}";
+@source "../../../../apps/web/src/components/**/*.{ts,tsx}";
+@source "../../../../apps/web/src/lib/**/*.{ts,tsx}";
+@source "./**/*.{ts,tsx}";
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+#root {
+  padding: 1.5rem;
+}

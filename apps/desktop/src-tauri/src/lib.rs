@@ -3,7 +3,7 @@ use std::{
     fs,
     fs::File,
     io::{self, BufReader, Read, Write},
-    net::{TcpStream, ToSocketAddrs},
+    net::{TcpListener, TcpStream, ToSocketAddrs},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
@@ -34,6 +34,7 @@ const DESKTOP_SHORTCUT: &str = "CommandOrControl+Shift+T";
 const DESKTOP_ENV_FILE_NAME: &str = "desktop.env";
 const DEFAULT_FUNASR_PORT: u16 = 10095;
 const DEFAULT_FUNASR_HOST: &str = "127.0.0.1";
+const DEFAULT_NATIVE_API_PORT: u16 = 43102;
 
 #[allow(dead_code)]
 #[derive(Deserialize, Clone)]
@@ -87,6 +88,19 @@ struct SherpaRecognitionUpdate {
 #[derive(Deserialize)]
 struct SherpaActiveModelState {
     id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeModelRequest {
+    model_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeSherpaFeedRequest {
+    samples: Vec<i16>,
+    input_finished: Option<bool>,
 }
 
 struct SherpaSession {
@@ -489,6 +503,10 @@ fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .or_insert_with(|| "127.0.0.1".into());
     desktop_env.insert("API_PORT".into(), manifest.api_port.to_string());
     desktop_env.insert("API_URL".into(), localhost_api_url.clone());
+    desktop_env.insert(
+        "THUNDER_DESKTOP_NATIVE_API_URL".into(),
+        format!("http://127.0.0.1:{}", DEFAULT_NATIVE_API_PORT),
+    );
 
     let web_env = {
         let mut env = desktop_env.clone();
@@ -1202,6 +1220,129 @@ fn feed_sherpa_audio(
     Ok(update)
 }
 
+fn start_native_speech_bridge(app: &tauri::AppHandle) {
+    let app_handle = app.clone();
+    thread::spawn(move || {
+        let listener = match TcpListener::bind(("127.0.0.1", DEFAULT_NATIVE_API_PORT)) {
+            Ok(listener) => listener,
+            Err(error) => {
+                eprintln!("Thunder native speech bridge failed to bind: {error}");
+                return;
+            }
+        };
+
+        for stream in listener.incoming() {
+            let app_for_request = app_handle.clone();
+            match stream {
+                Ok(stream) => {
+                    thread::spawn(move || {
+                        handle_native_speech_request(app_for_request, stream);
+                    });
+                }
+                Err(error) => eprintln!("Thunder native speech bridge connection failed: {error}"),
+            }
+        }
+    });
+}
+
+fn handle_native_speech_request(app: tauri::AppHandle, mut stream: TcpStream) {
+    let mut buffer = vec![0_u8; 1024 * 1024];
+    let bytes_read = match stream.read(&mut buffer) {
+        Ok(bytes_read) => bytes_read,
+        Err(error) => {
+            let _ = write_native_json(&mut stream, 400, serde_json::json!({ "ok": false, "message": error.to_string() }));
+            return;
+        }
+    };
+
+    let request = String::from_utf8_lossy(&buffer[..bytes_read]).to_string();
+    let Some((header, body)) = request.split_once("\r\n\r\n") else {
+        let _ = write_native_json(&mut stream, 400, serde_json::json!({ "ok": false, "message": "Invalid HTTP request" }));
+        return;
+    };
+    let mut lines = header.lines();
+    let request_line = lines.next().unwrap_or_default();
+    let parts = request_line.split_whitespace().collect::<Vec<_>>();
+    if parts.len() < 2 {
+        let _ = write_native_json(&mut stream, 400, serde_json::json!({ "ok": false, "message": "Invalid HTTP request line" }));
+        return;
+    }
+
+    let method = parts[0];
+    let path = parts[1].split('?').next().unwrap_or(parts[1]);
+    let result = dispatch_native_speech_request(app, method, path, body);
+    let (status, payload) = match result {
+        Ok(data) => (200, serde_json::json!({ "ok": true, "data": data })),
+        Err((status, message)) => (status, serde_json::json!({ "ok": false, "message": message })),
+    };
+    let _ = write_native_json(&mut stream, status, payload);
+}
+
+fn dispatch_native_speech_request(
+    app: tauri::AppHandle,
+    method: &str,
+    path: &str,
+    body: &str,
+) -> Result<serde_json::Value, (u16, String)> {
+    match (method, path) {
+        ("GET", "/health") => Ok(serde_json::json!({ "status": "ok" })),
+        ("GET", "/platform") => Ok(serde_json::json!(get_desktop_platform())),
+        ("GET", "/funasr/status") => Ok(serde_json::json!(check_funasr_running(app))),
+        ("POST", "/funasr/start") => start_funasr_service(app)
+            .map(|value| serde_json::json!(value))
+            .map_err(|message| (500, message)),
+        ("GET", "/sherpa/status") => Ok(serde_json::json!(check_sherpa_running(app))),
+        ("GET", "/sherpa/models") => list_sherpa_models(app)
+            .map(|value| serde_json::json!(value))
+            .map_err(|message| (500, message)),
+        ("POST", "/sherpa/models/download") => {
+            let request = parse_native_json::<NativeModelRequest>(body)?;
+            download_sherpa_model(app, request.model_id)
+                .map(|value| serde_json::json!(value))
+                .map_err(|message| (500, message))
+        }
+        ("POST", "/sherpa/models/activate") => {
+            let request = parse_native_json::<NativeModelRequest>(body)?;
+            activate_sherpa_model(app, request.model_id)
+                .map(|value| serde_json::json!(value))
+                .map_err(|message| (500, message))
+        }
+        ("POST", "/sherpa/start") => start_sherpa_service(app)
+            .map(|value| serde_json::json!(value))
+            .map_err(|message| (500, message)),
+        ("POST", "/sherpa/stop") => {
+            stop_sherpa_service(app);
+            Ok(serde_json::Value::Null)
+        }
+        ("POST", "/sherpa/feed") => {
+            let request = parse_native_json::<NativeSherpaFeedRequest>(body)?;
+            feed_sherpa_audio(app, request.samples, request.input_finished.unwrap_or(false))
+                .map(|value| serde_json::json!(value))
+                .map_err(|message| (500, message))
+        }
+        _ => Err((404, "Unknown native speech bridge route".into())),
+    }
+}
+
+fn parse_native_json<T: for<'de> Deserialize<'de>>(body: &str) -> Result<T, (u16, String)> {
+    serde_json::from_str(body.trim()).map_err(|error| (400, format!("Invalid JSON body: {error}")))
+}
+
+fn write_native_json(
+    stream: &mut TcpStream,
+    status: u16,
+    payload: serde_json::Value,
+) -> io::Result<()> {
+    let body = payload.to_string();
+    let status_text = if status == 200 { "OK" } else { "Error" };
+    write!(
+        stream,
+        "HTTP/1.1 {status} {status_text}\r\ncontent-type: application/json; charset=utf-8\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+        body.as_bytes().len(),
+        body
+    )
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
@@ -1233,6 +1374,7 @@ pub fn run() {
             feed_sherpa_audio,
         ])
         .setup(|app| {
+            start_native_speech_bridge(&app.handle());
             start_local_runtime(&app.handle())?;
             build_tray(&app.handle())?;
 

@@ -1,0 +1,25 @@
+{
+  "manifestVersion": 1,
+  "id": "teleprompter",
+  "name": "提词器",
+  "version": "1.0.0",
+  "description": "大字提词、语音跟读与自动定位。",
+  "icon": "ScrollText",
+  "category": "productivity",
+  "order": 1,
+  "author": {
+    "name": "Thunder"
+  },
+  "permissions": ["webview", "local-api-proxy"],
+  "web": {
+    "entry": "web/index.html",
+    "contentSecurityPolicy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:*; worker-src 'self' blob:"
+  },
+  "api": {
+    "healthPath": "/health",
+    "runtime": {
+      "kind": "node",
+      "entry": "api/server.mjs"
+    }
+  }
+}

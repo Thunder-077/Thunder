@@ -111,6 +111,15 @@ process.on("SIGTERM", () => {
 // without forcing the user to free ports 3000 / 3001 first.
 const webRunning = await isPortOpen(3000)
 const apiRunning = await isPortOpen(3001)
+process.env.THUNDER_DESKTOP_NATIVE_API_URL = process.env.THUNDER_DESKTOP_NATIVE_API_URL || "http://127.0.0.1:43102"
+
+const pluginBuild = spawnSync(PNPM_BIN, ["--dir", ROOT_DIR, "build:plugin:teleprompter"], {
+  stdio: "inherit",
+  shell: process.platform === "win32",
+})
+if (pluginBuild.status !== 0) {
+  process.exit(pluginBuild.status ?? 1)
+}
 
 if (webRunning) {
   console.log("[desktop] Reusing existing web dev server on http://localhost:3000")

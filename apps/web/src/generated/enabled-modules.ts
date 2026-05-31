@@ -32,7 +32,10 @@ export const enabledModules = [
     "route": "/modules/teleprompter",
     "category": "productivity",
     "order": 3,
-    "enabled": true
+    "enabled": true,
+    "platforms": [
+      "web"
+    ]
   }
 ] as ModuleManifest[]
 

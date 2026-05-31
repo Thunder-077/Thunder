@@ -9,6 +9,7 @@ const workspaceRoot = resolve(desktopRoot, "..", "..")
 const runtimeDir = resolve(desktopRoot, "runtime")
 const runtimeWebDir = resolve(runtimeDir, "web")
 const runtimeServicesDir = resolve(runtimeDir, "services")
+const runtimePluginsDir = resolve(runtimeDir, "plugins")
 const runtimeManifestPath = resolve(runtimeDir, "manifest.json")
 const webPort = Number(process.env.THUNDER_DESKTOP_WEB_PORT ?? "43100")
 const apiPort = Number(process.env.THUNDER_DESKTOP_API_PORT ?? "43101")
@@ -50,6 +51,7 @@ function detectStandaloneAppDir(standaloneDir) {
 
 await rm(runtimeWebDir, { recursive: true, force: true })
 await rm(runtimeServicesDir, { recursive: true, force: true })
+await rm(runtimePluginsDir, { recursive: true, force: true })
 await mkdir(runtimeDir, { recursive: true })
 
 // 解析构建命令行参数中的排除模块列表 (如 --exclude=teleprompter,emby)
@@ -68,6 +70,12 @@ if (excludeModules) {
 }
 
 await run("node", [resolve(scriptDir, "prepare-node-runtime.mjs")])
+await run("pnpm", ["--filter", "@thunder/web", "build:plugin:teleprompter"], {
+  env: {
+    ...process.env,
+    NODE_ENV: "production",
+  },
+})
 await run("pnpm", ["--filter", "@thunder/web", "build"], {
   env: {
     ...process.env,
@@ -104,6 +112,9 @@ await cp(resolve(workspaceRoot, "services", "funasr"), resolve(runtimeServicesDi
   recursive: true,
 })
 await cp(resolve(workspaceRoot, "services", "sherpa-onnx"), resolve(runtimeServicesDir, "sherpa-onnx"), {
+  recursive: true,
+})
+await cp(resolve(workspaceRoot, "plugins", "desktop"), resolve(runtimePluginsDir, "desktop"), {
   recursive: true,
 })
 

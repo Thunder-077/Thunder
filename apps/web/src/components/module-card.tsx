@@ -6,12 +6,14 @@ import {
   Film,
   Puzzle,
   ScrollText,
+  Package,
 } from "lucide-react"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Lock,
   Film,
   ScrollText,
+  Package,
 }
 
 const moduleColorMap: Record<string, { bg: string; icon: string }> = {
@@ -36,7 +38,9 @@ interface ModuleCardProps {
 
 export function ModuleCard({ module: mod }: ModuleCardProps) {
   const Icon = iconMap[mod.icon] || Puzzle
-  const colors = moduleColorMap[mod.id] || { bg: "bg-muted", icon: "text-muted-foreground" }
+  const colors = mod.id.startsWith("plugin:")
+    ? { bg: "bg-emerald-50 dark:bg-emerald-950/30", icon: "text-emerald-500" }
+    : moduleColorMap[mod.id] || { bg: "bg-muted", icon: "text-muted-foreground" }
   const categoryStyle = categoryLabelMap[mod.category] || categoryLabelMap.other
 
   return (

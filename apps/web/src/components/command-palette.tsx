@@ -19,6 +19,7 @@ import {
   Sun,
   Moon,
   Search,
+  Package,
 } from "lucide-react"
 import {
   Dialog,
@@ -29,6 +30,7 @@ import { Input } from "@/components/ui/input"
 import { useTheme } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 import { mockModules } from "@/lib/modules"
+import { useDesktopPlugins } from "@/hooks/use-desktop-plugins"
 
 interface CommandPaletteContextValue {
   open: boolean
@@ -54,10 +56,12 @@ interface Command {
 function useCommands(): Command[] {
   const router = useRouter()
   const { setTheme, resolvedTheme } = useTheme()
+  const desktopPlugins = useDesktopPlugins()
   const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     Lock,
     Film: Clapperboard,
     ScrollText,
+    Package,
   }
 
   return [
@@ -81,6 +85,13 @@ function useCommands(): Command[] {
       icon: moduleIconMap[module.icon] ?? Puzzle,
       keywords: [module.id, module.name, module.description],
       action: () => router.push(module.route),
+    })),
+    ...desktopPlugins.plugins.map((plugin) => ({
+      id: `desktop-plugin:${plugin.manifest.id}`,
+      label: `打开${plugin.manifest.name}`,
+      icon: moduleIconMap[plugin.manifest.icon] ?? Package,
+      keywords: [plugin.manifest.id, plugin.manifest.name, plugin.manifest.description, "插件"],
+      action: () => router.push(plugin.route),
     })),
     {
       id: "settings",

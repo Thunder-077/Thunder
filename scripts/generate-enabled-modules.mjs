@@ -63,6 +63,7 @@ const modules = [
     category: "productivity",
     order: 3,
     enabled: true,
+    platforms: ["web"],
     webPageImport: "@/modules/teleprompter/page",
   },
 ]
