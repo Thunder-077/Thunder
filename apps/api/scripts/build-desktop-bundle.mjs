@@ -42,6 +42,13 @@ const databasePackageJson = JSON.parse(
 
 await rm(runtimeApiDir, { recursive: true, force: true })
 await mkdir(runtimeApiDir, { recursive: true })
+await run("node", [resolve(workspaceRoot, "scripts", "generate-enabled-modules.mjs")], {
+  env: {
+    ...process.env,
+    THUNDER_TARGET_PLATFORM: "desktop",
+    NEXT_PUBLIC_PLATFORM: "desktop",
+  },
+})
 
 await build({
   entryPoints: [resolve(apiRoot, "src", "index.ts")],

@@ -71,11 +71,22 @@ await run("node", [resolve(scriptDir, "prepare-node-runtime.mjs")])
 await run("pnpm", ["--filter", "@thunder/web", "build"], {
   env: {
     ...process.env,
+    THUNDER_TARGET_PLATFORM: "desktop",
+    THUNDER_EXCLUDE_MODULES: excludeModules,
     NEXT_PUBLIC_PLATFORM: "desktop",
     NEXT_PUBLIC_EXCLUDE_MODULES: excludeModules,
   },
 })
-await run("pnpm", ["--filter", "@thunder/api", "build:desktop-bundle"])
+await run("pnpm", ["--filter", "@thunder/api", "build:desktop-bundle"], {
+  env: {
+    ...process.env,
+    THUNDER_TARGET_PLATFORM: "desktop",
+    THUNDER_EXCLUDE_MODULES: excludeModules,
+    NEXT_PUBLIC_PLATFORM: "desktop",
+    NEXT_PUBLIC_EXCLUDE_MODULES: excludeModules,
+    EXCLUDE_MODULES: excludeModules,
+  },
+})
 
 const standaloneDir = resolve(workspaceRoot, "apps", "web", ".next", "standalone")
 const staticDir = resolve(workspaceRoot, "apps", "web", ".next", "static")

@@ -48,6 +48,12 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD="..."
 本地执行 `pnpm build:desktop` 时，`apps/desktop/scripts/build-release.mjs` 会读取这个文件，
 再把变量传给 Tauri 构建进程。CI 仍然使用 GitHub Actions variables / secrets。
 
+桌面包默认以 `desktop` 平台生成本地 Web/API runtime。模块如果在 `scripts/generate-enabled-modules.mjs` 中声明为 `platforms: ["web"]`，不会进入桌面 runtime；临时排除模块可使用：
+
+```bash
+pnpm build:desktop -- --exclude=emby
+```
+
 ## 运行时配置
 
 桌面应用生产态不会直接继承你开发机里的 shell 环境变量。

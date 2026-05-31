@@ -24,11 +24,13 @@ pnpm dev              # 启动所有 apps（turbo）
 pnpm dev:api          # 仅启动 API（port 3001）
 pnpm dev:web          # 仅启动前端（port 3000）
 pnpm dev:desktop      # 启动 Tauri 桌面壳（会自动拉起 web + api）
+pnpm build:web        # 构建 Web 端，可追加 -- --exclude=moduleA,moduleB
+pnpm build:desktop    # 构建桌面端，可追加 -- --exclude=moduleA,moduleB
 
 # 质量检查
 pnpm lint             # ESLint（所有 packages）
 pnpm typecheck        # TypeScript 类型检查
-pnpm build            # 生产构建
+pnpm build            # 生产构建（turbo）
 
 # 数据库
 pnpm db:generate      # 生成 Prisma Client
@@ -107,6 +109,10 @@ services/*        → 非 TypeScript 独立服务（预留，仅通过 apps/api 
 - 模块间不直接共享状态，数据通过独立 key 隔离
 - 前端模块代码：`apps/web/src/modules/{id}/`
 - 后端模块代码：`apps/api/src/modules/{id}/`
+- 模块平台归属和打包入口统一维护在 `scripts/generate-enabled-modules.mjs` 的模块清单中；`platforms: ["web"]` 表示仅 Web 端启用，不写 `platforms` 表示 Web / Desktop 都启用
+- Web / Desktop 构建时可通过 `--exclude=moduleA,moduleB` 或环境变量 `THUNDER_EXCLUDE_MODULES` / `EXCLUDE_MODULES` 排除模块；被排除模块不得被主应用静态 import
+- 前端模块路由由 `apps/web/src/app/modules/[moduleId]/page.tsx` 根据生成的 `apps/web/src/generated/enabled-modules.ts` 动态加载，不为每个模块在 `app/` 下新增静态 page
+- 后端模块路由由生成的 `apps/api/src/generated/enabled-routes.ts` 注册，`apps/api/src/app.ts` / `worker.ts` 不直接 import 业务模块
 - 主应用只负责外壳（AppShell）、布局、导航、全局设置，业务逻辑放在模块中
 - 各模块可在 `modules/{module}/AGENTS.md` 定义专属规则
 
@@ -131,7 +137,7 @@ services/*        → 非 TypeScript 独立服务（预留，仅通过 apps/api 
 ### Layout
 
 - 页面遵循 `AppShell + Sidebar + Topbar + Content` 布局
-- 简单模块页面：`src/app/modules/{id}/`；复杂模块可有独立路由（如 `src/app/vault/`）
+- 模块页面实现放在 `src/modules/{id}/page.tsx`，由统一动态路由挂载到 `src/app/modules/[moduleId]/`
 - 使用 `PageHeader` 作为页面标题，`EmptyState` 作为空状态
 - **Sidebar**: 固定展开（240px），不支持收起；底部只保留全局命令、主题切换、设置按钮
 - Sidebar 导航来自 `ModuleRegistry`，禁止硬编码业务模块

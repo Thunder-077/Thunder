@@ -35,6 +35,14 @@ pnpm version:check
 pnpm build:desktop
 ```
 
+如果某些业务模块不需要进入桌面包，可以追加排除参数：
+
+```bash
+pnpm build:desktop -- --exclude=emby
+```
+
+桌面构建默认以 `desktop` 平台生成模块入口；声明为 `platforms: ["web"]` 的模块不会进入桌面 Web/API 运行时。
+
 发布前还需要配置：
 
 - `THUNDER_DESKTOP_UPDATER_ENDPOINT`

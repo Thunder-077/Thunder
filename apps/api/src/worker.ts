@@ -1,5 +1,5 @@
 import app from "./app"
-import { refreshEnabledPlaylistCaches } from "./modules/emby/emby-routes"
+import { runEnabledScheduledTasks } from "./generated/enabled-routes"
 
 interface WorkerExecutionContext {
   waitUntil(promise: Promise<unknown>): void
@@ -28,7 +28,7 @@ export default {
     applyBindingsToProcessEnv(env)
 
     ctx.waitUntil(
-      refreshEnabledPlaylistCaches()
+      runEnabledScheduledTasks()
         .then(() => {
           console.info("[emby-refresh-scheduler] trigger completed")
         })

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node ../../scripts/generate-enabled-modules.mjs && tsx watch src/index.ts",
     "dev:cf": "wrangler dev --port 8787",
-    "build": "tsc",
+    "build": "node ../../scripts/generate-enabled-modules.mjs && tsc",
     "build:desktop-bundle": "node ./scripts/build-desktop-bundle.mjs",
     "start": "node dist/index.js",
     "deploy:cf": "pnpm --filter @thunder/database db:generate && wrangler deploy",

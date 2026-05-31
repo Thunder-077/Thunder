@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clapperboard, Copy, Eye, Info, LoaderCircle, RefreshCcw, Save, Send, X } from "lucide-react"
-import { EmbyClient, ThunderApiError } from "@thunder/api-client"
+import { ThunderApiError } from "@thunder/api-client/client"
+import { EmbyClient } from "@thunder/api-client/modules/emby"
 import type {
   EmbyConfig,
   EmbyManagedPlaylist,

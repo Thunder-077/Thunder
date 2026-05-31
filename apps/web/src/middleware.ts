@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { AUTH_COOKIE_NAME, verifySessionToken } from "@/lib/auth"
+import { publicServerPrefixes } from "@/generated/enabled-modules"
 
 const PUBLIC_PATHS = [
   "/login",
@@ -9,7 +10,7 @@ const PUBLIC_PATHS = [
 
 function isPublicAsset(pathname: string): boolean {
   return (
-    pathname.startsWith("/server/emby") ||
+    publicServerPrefixes.some((prefix) => pathname.startsWith(prefix)) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/logo") ||

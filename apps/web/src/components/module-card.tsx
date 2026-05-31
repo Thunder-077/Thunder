@@ -5,16 +5,19 @@ import {
   Lock,
   Film,
   Puzzle,
+  ScrollText,
 } from "lucide-react"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Lock,
   Film,
+  ScrollText,
 }
 
 const moduleColorMap: Record<string, { bg: string; icon: string }> = {
   vault: { bg: "bg-purple-50 dark:bg-purple-950/30", icon: "text-purple-500" },
   emby: { bg: "bg-orange-50 dark:bg-orange-950/30", icon: "text-orange-500" },
+  teleprompter: { bg: "bg-blue-50 dark:bg-blue-950/30", icon: "text-blue-500" },
 }
 
 const categoryLabelMap: Record<ModuleCategory, { label: string; color: string }> = {

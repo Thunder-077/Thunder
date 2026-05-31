@@ -2,7 +2,7 @@
 
 ## 概述
 
-Thunder 的模块系统采用 **Manifest 驱动** 的设计，每个模块通过声明式配置注册到主应用中。模块代码分布在前端（apps/web）和后端（apps/api），共享类型定义在 modules/ 中。
+Thunder 的模块系统采用 **Manifest 驱动 + 构建期生成入口** 的设计。每个模块在 `scripts/generate-enabled-modules.mjs` 的清单中声明元信息、平台归属、前端页面入口、后端路由入口和定时任务入口；构建时会生成 Web/API 各自的启用模块文件，主应用只 import 生成文件。
 
 ## Module Manifest
 
@@ -18,6 +18,7 @@ interface ModuleManifest {
   category: ModuleCategory // 分类
   order: number           // 排序权重
   enabled: boolean        // 是否启用
+  platforms?: ("web" | "desktop")[] // 目标平台；不写表示 Web / Desktop 都启用
   component?: string      // 组件路径（预留）
   settingsSchema?: Record<string, unknown> // 设置 schema（预留）
 }
@@ -40,26 +41,20 @@ type ModuleCategory =
 
 ### 当前实现
 
-模块通过 `ModuleRegistry` 类进行注册：
+模块不再由主应用手写静态注册。`scripts/generate-enabled-modules.mjs` 根据目标平台和排除参数生成：
 
-```typescript
-const registry = new ModuleRegistry()
-registry.register({
-  id: "vault",
-  name: "密码保险箱",
-  // ...
-})
-```
-
-注册后，模块会自动出现在侧边栏导航和模块中心页面中。
+- `apps/web/src/generated/enabled-modules.ts`：前端启用模块 Manifest、动态页面 loader、公开 server 路径前缀
+- `apps/api/src/generated/enabled-routes.ts`：后端启用模块路由注册函数和定时任务入口
 
 ### 注册流程
 
-1. 模块定义 Manifest
-2. 调用 `registry.register(manifest)` 注册
-3. 主应用从 Registry 读取模块列表
-4. 侧边栏和模块中心自动渲染已注册模块
-5. 路由系统根据 `route` 字段匹配页面
+1. 在 `scripts/generate-enabled-modules.mjs` 的模块清单中声明模块
+2. 构建脚本传入目标平台和排除列表
+3. 生成器筛选启用模块并写入 Web/API generated 文件
+4. `ModuleRegistry` 从 generated Manifest 读取模块列表
+5. 侧边栏、模块中心和命令面板只渲染启用模块
+6. `/modules/[moduleId]` 根据 generated loader 动态加载模块页面
+7. API 只注册 generated routes 中的后端模块路由
 
 ## 模块代码组织
 
@@ -76,6 +71,7 @@ modules/{module-id}/           # 共享类型和接口（前后端共用）
   └── package.json
 
 apps/web/src/modules/{module-id}/   # 前端模块
+  ├── page.tsx                  # 模块页面入口，由 /modules/[moduleId] 动态加载
   ├── components/               # UI 组件
   ├── hooks/                    # React hooks
   ├── state/                    # 状态管理（Provider）
@@ -123,17 +119,29 @@ packages/contracts/openapi/{module-id}.yaml      # OpenAPI 规范
 - Crypto 接口定义
 - 不包含具体实现
 
+## 平台归属与构建期排除
+
+模块清单中的 `platforms` 字段决定默认启用平台：
+
+- 不写 `platforms`：Web 和 Desktop 都启用
+- `platforms: ["web"]`：仅 Web 启用，Desktop 构建不生成该模块入口
+- `platforms: ["desktop"]`：仅 Desktop 启用
+
+构建时还可以通过参数或环境变量排除模块：
+
+```bash
+pnpm build:web -- --exclude=emby
+pnpm build:desktop -- --exclude=emby
+
+THUNDER_EXCLUDE_MODULES=emby pnpm build:web
+EXCLUDE_MODULES=emby pnpm build:desktop
+```
+
+被目标平台或排除列表禁用的模块不会出现在 generated Manifest、前端动态 loader、API 路由注册和定时任务入口中。为了保证未启用模块不进入无关平台包，主应用层禁止直接静态 import 业务模块文件。
+
+Web 开发/构建入口由 `scripts/run-web.mjs` 包装，负责先生成 enabled modules 再运行 Next.js。桌面生产构建会以 `desktop` 目标生成 Web 和 API 运行时。
+
 ## 当前模块结构
-
-### 简单模块
-
-简单模块页面放在 `apps/web/src/app/modules/{id}/page.tsx`：
-
-```
-apps/web/src/app/modules/
-└── emby/
-    └── page.tsx          # /modules/emby
-```
 
 ### 复杂模块：Vault 示例
 
@@ -198,15 +206,19 @@ packages/contracts/openapi/vault.yaml     # OpenAPI 规范
 
 ## 模块页面约定
 
-简单模块的页面文件放置在 `apps/web/src/app/modules/{id}/page.tsx`，复杂模块可以有独立路由：
+模块页面实现统一放在 `apps/web/src/modules/{id}/page.tsx`，路由统一由 `apps/web/src/app/modules/[moduleId]/page.tsx` 挂载：
 
 ```
 apps/web/src/app/
 ├── modules/
-│   └── emby/
-│       └── page.tsx          # /modules/emby
+│   └── [moduleId]/
+│       └── page.tsx          # /modules/{id}
+
+apps/web/src/modules/
+├── emby/
+│   └── page.tsx              # /modules/emby 的页面实现
 └── vault/
-    └── page.tsx              # /vault
+    └── page.tsx              # /modules/vault 的页面实现
 ```
 
 ## 新增模块指南
@@ -218,8 +230,8 @@ apps/web/src/app/
 5. 在 `apps/api/src/modules/` 中实现路由和 Repository
 6. 在 `packages/api-client/src/modules/` 中实现 API Client
 7. 在 `apps/web/src/modules/` 中实现前端模块
-8. 在 `apps/web/src/app/` 中添加页面路由
-9. 注册模块 Manifest
+8. 在 `scripts/generate-enabled-modules.mjs` 中注册模块 Manifest、平台归属、前端页面入口和后端路由入口
+9. 如模块仅属于某个平台，设置 `platforms`
 10. 更新文档
 
 ## 未来插件化方向

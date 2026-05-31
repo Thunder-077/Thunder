@@ -9,7 +9,7 @@ import {
   useState,
 } from "react"
 import type { VaultMetadata, VaultItemPlain, VaultBackup } from "@thunder/vault"
-import { VaultClient } from "@thunder/api-client"
+import { VaultClient } from "@thunder/api-client/modules/vault"
 import { VaultCryptoWeb, VaultCryptoError } from "../crypto"
 import type { IVaultCrypto } from "../crypto"
 import { useAutoLock } from "../hooks/use-auto-lock"

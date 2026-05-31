@@ -116,6 +116,8 @@ if (webRunning) {
   console.log("[desktop] Reusing existing web dev server on http://localhost:3000")
 } else {
   console.log("[desktop] Starting web dev server on http://localhost:3000")
+  process.env.THUNDER_TARGET_PLATFORM = "desktop"
+  process.env.NEXT_PUBLIC_PLATFORM = "desktop"
   children.push(startWorkspaceScript("dev:web", "web dev server"))
 }
 
@@ -129,10 +131,14 @@ if (apiRunning) {
     fs.mkdirSync(appDataDir, { recursive: true })
     const dbPath = path.join(appDataDir, "app.db")
     process.env.DATABASE_URL = `file:${dbPath}`
+    process.env.THUNDER_TARGET_PLATFORM = "desktop"
+    process.env.NEXT_PUBLIC_PLATFORM = "desktop"
     console.log(`[desktop] Development database pointing to shared Tauri path: ${dbPath}`)
   } catch (error) {
     console.error("[desktop] Failed to create shared AppData database directory, falling back to temp file:", error)
     process.env.DATABASE_URL = "file:../../data/app-dev.db"
+    process.env.THUNDER_TARGET_PLATFORM = "desktop"
+    process.env.NEXT_PUBLIC_PLATFORM = "desktop"
   }
   children.push(startWorkspaceScript("dev:api", "api dev server"))
 }

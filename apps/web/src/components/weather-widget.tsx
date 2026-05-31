@@ -10,8 +10,7 @@ import {
   Loader2,
   Sun,
 } from "lucide-react"
-import { createApiClients } from "@thunder/api-client"
-import type { WeatherNow } from "@thunder/api-client"
+import { WeatherClient, type WeatherNow } from "@thunder/api-client/modules/weather"
 
 const DEFAULT_LOCATION = "101010100"
 const GEO_CACHE_KEY = "thunder_geo_location"
@@ -122,8 +121,7 @@ export function WeatherSummary() {
     async function loadWeather() {
       try {
         const location = await resolveLocation()
-        const clients = createApiClients()
-        const data = await clients.weather.getNow(location)
+        const data = await new WeatherClient().getNow(location)
 
         if (ignore) return
 

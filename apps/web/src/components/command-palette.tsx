@@ -14,6 +14,7 @@ import {
   Puzzle,
   Lock,
   Clapperboard,
+  ScrollText,
   Settings,
   Sun,
   Moon,
@@ -27,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { useTheme } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
+import { mockModules } from "@/lib/modules"
 
 interface CommandPaletteContextValue {
   open: boolean
@@ -52,6 +54,11 @@ interface Command {
 function useCommands(): Command[] {
   const router = useRouter()
   const { setTheme, resolvedTheme } = useTheme()
+  const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+    Lock,
+    Film: Clapperboard,
+    ScrollText,
+  }
 
   return [
     {
@@ -68,20 +75,13 @@ function useCommands(): Command[] {
       keywords: ["modules", "模块", "中心"],
       action: () => router.push("/modules"),
     },
-    {
-      id: "vault",
-      label: "打开密码保险箱",
-      icon: Lock,
-      keywords: ["vault", "密码", "保险箱"],
-      action: () => router.push("/vault"),
-    },
-    {
-      id: "emby",
-      label: "打开 Emby 影视模块",
-      icon: Clapperboard,
-      keywords: ["emby", "emos", "影视"],
-      action: () => router.push("/modules/emby"),
-    },
+    ...mockModules.map((module) => ({
+      id: `module:${module.id}`,
+      label: `打开${module.name}`,
+      icon: moduleIconMap[module.icon] ?? Puzzle,
+      keywords: [module.id, module.name, module.description],
+      action: () => router.push(module.route),
+    })),
     {
       id: "settings",
       label: "打开设置",
