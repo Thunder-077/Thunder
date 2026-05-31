@@ -15,7 +15,6 @@ AppData/com.thunder.desktop/
       plugin.json
       .thunder-install.json
       web/
-  plugin-backups/
   plugin-staging/
   plugin-state/
   plugin-audit.jsonl
@@ -63,9 +62,11 @@ AppData/com.thunder.desktop/
 
 本地开发可以通过 `THUNDER_ALLOW_UNSIGNED_PLUGINS=1` 安装未签名插件。
 
+Manifest 权限只接受平台已知权限。声明 `web.entry` 的插件必须包含 `webview`；声明 `api` 的插件必须包含 `local-api-proxy`。
+
 插件市场索引也可以签名。如果配置了 `THUNDER_PLUGIN_MARKETPLACE_TRUSTED_KEYS`，市场 JSON 必须包含顶层 Ed25519 `signature` 字段，签名内容为移除 `signature` 字段后的索引 payload。如果没有配置该变量，Thunder 会回退使用 `THUNDER_PLUGIN_TRUSTED_KEYS`。
 
-Thunder 还支持随桌面运行时一起分发的官方内置插件。内置插件目录默认为运行时目录下的 `plugins/desktop/`，也可以通过 `THUNDER_BUNDLED_PLUGIN_DIRS` 指定多个目录。内置插件会出现在插件市场中，安装时只允许按插件 id 从受控内置目录复制，不开放任意未签名路径；安装后仍默认未信任，需要用户显式信任。
+Thunder 还支持随桌面运行时一起分发的官方内置插件。内置插件目录默认为运行时目录下的 `plugins/desktop/`，也可以通过 `THUNDER_BUNDLED_PLUGIN_DIRS` 指定多个目录。内置插件会出现在插件市场中，安装时只允许按插件 id 从受控内置目录复制，不开放任意未签名路径；安装后默认启用。
 
 ## 打包
 
@@ -120,15 +121,27 @@ export default defineThunderPluginManifest({
 })
 ```
 
-## 信任模型
+插件前端使用 `@thunder/plugin-sdk/browser` 与宿主页通信：
 
-安装插件不等于启用插件。Thunder Desktop 使用类似 Obsidian / VS Code 的粗粒度信任模型：
+```ts
+import { thunder } from "@thunder/plugin-sdk/browser"
 
-- installed + untrusted：插件会显示在插件市场中，但不能渲染 iframe、代理本地 API 或运行迁移。
-- trusted：插件可以使用 Manifest 中声明的权限。
-- 再次 untrusted：插件仍然保留安装状态，但会被禁用。
+const manifest = await thunder.plugin.getManifest()
+const status = await thunder.runtime.get("status")
+```
 
-当前阶段有意不做每个动作级别的动态权限弹窗。
+Browser SDK 不直接暴露平台 URL。它通过 sandbox iframe 内的 `postMessage` Host Bridge 发起请求，宿主页负责绑定插件身份、校验消息来源和权限，再调用平台内部 API。
+
+## 启用模型
+
+Thunder Desktop 当前不做细粒度动态授权，也不提供单独的 trust / untrust 按钮。用户安装插件即表示允许该插件使用 Manifest 中声明的平台能力：
+
+- 已安装插件会显示在插件市场和侧边栏中。
+- 插件页面可以通过 sandbox iframe 渲染。
+- 声明了 `local-api-proxy` 的插件可以通过 Browser SDK 请求宿主，由宿主通过受控 loopback 代理访问该插件自己的本地后端。
+- 声明了 SQLite 迁移目录的插件可以执行自己的迁移文件。
+
+停用插件通过卸载完成。后续如果需要更强隔离，应优先扩展签名、来源校验、沙箱、路径隔离和权限声明审计，而不是让平台理解插件业务数据。
 
 ## 迁移基础设施
 
@@ -141,17 +154,15 @@ export default defineThunderPluginManifest({
 
 迁移记录存储在 `plugin_migrations`。
 
-## 升级、回滚与审计
+## 升级、降级与审计
 
-安装插件包也是升级路径。替换已安装插件前，Thunder 会：
+安装同 id 插件包也是升级或降级路径。替换已安装插件前，Thunder 会：
 
 1. 停止插件运行时。
-2. 将当前已安装插件复制到 `plugin-backups/`。
-3. 从 staging 目录安装新包。
-4. 当 Manifest hash 不变或声明权限不变时，保留 trust 状态。
-5. 当权限发生变化时，重置 trust 状态。
+2. 从 staging 目录安装新包。
+3. 原子替换已安装插件目录。
 
-回滚会恢复最近一次备份，并写入新的审计事件。审计记录以 JSONL 追加写入桌面插件根目录下的 `plugin-audit.jsonl`。审计日志记录 install、upgrade、backup、trust、untrust、migration、package install、rollback 和 uninstall 事件。
+平台不维护自动备份，也不提供 rollback API。需要降级时，由用户下载或构建低版本插件后重新安装同 id 插件。审计记录以 JSONL 追加写入桌面插件根目录下的 `plugin-audit.jsonl`。审计日志记录 install、upgrade、migration、package install、bundled install 和 uninstall 事件。
 
 ## API
 
@@ -162,9 +173,6 @@ GET    /api/v1/desktop/plugins/:id
 POST   /api/v1/desktop/plugins/install/local
 POST   /api/v1/desktop/plugins/install/package
 POST   /api/v1/desktop/plugins/install/bundled
-POST   /api/v1/desktop/plugins/:id/trust
-POST   /api/v1/desktop/plugins/:id/untrust
-POST   /api/v1/desktop/plugins/:id/rollback
 POST   /api/v1/desktop/plugins/:id/migrations/run
 DELETE /api/v1/desktop/plugins/:id
 GET    /api/v1/desktop/plugins/:id/web/*
@@ -179,6 +187,31 @@ POST   /api/v1/desktop/plugins/:id/runtime/stop
 `install/bundled` 接收内置插件 id，只会从 `THUNDER_BUNDLED_PLUGIN_DIRS` 或默认内置插件目录中查找并安装该插件。
 
 插件 Web 入口由 `apps/web/src/app/plugins/[pluginId]/page.tsx` 以 sandbox iframe 渲染。
+
+`runtime/start` 和 `runtime/stop` 是平台内部和诊断接口。正常用户入口不展示启动 / 停止按钮：插件页面会按需自动启动运行时，卸载或升级/降级安装会自动停止旧运行时。
+
+## Host Bridge
+
+插件 iframe 与 Thunder Web 宿主页之间使用 `postMessage` 通信。当前 bridge 版本为 `1`，插件侧通过 `@thunder/plugin-sdk/browser` 使用，不应手写消息协议。插件 iframe 不启用 `allow-same-origin`，因此插件页面运行在 opaque origin 下，不能直接作为同源页面访问 Thunder 内部 API。
+
+宿主页处理 bridge 请求时必须同时满足：
+
+- `event.origin` 为 sandbox opaque origin 的 `"null"`。
+- `event.source` 等于当前插件 iframe 的 `contentWindow`。
+- 请求 `source` 为 `thunder-plugin`，`version` 为 `1`。
+- 请求绑定当前页面加载的插件 id，不信任插件自行传入的身份字段。
+- 调用 runtime 代理前，当前插件 Manifest 必须包含 `local-api-proxy` 权限。
+- runtime 请求路径不能为空，不能以 `/` 或 `\` 开头，路径段解码后不能是 `.`、`..` 或包含斜杠。
+- runtime 代理请求不会携带 Thunder 页面 cookie，并会过滤 `authorization`、`cookie`、`host` 请求头。
+
+当前 Host API：
+
+| Method | 权限 | 说明 |
+|--------|------|------|
+| `plugin.getManifest` | 已安装插件 | 返回当前插件 Manifest |
+| `runtime.request` | `local-api-proxy` | 代理请求到当前插件自己的 Node runtime |
+
+平台内部 HTTP API 仍保留给宿主、桌面壳和诊断使用；插件 iframe 不应直接依赖这些 URL。
 
 ## 本地示例
 
@@ -201,7 +234,7 @@ E:\Code\Thunder\examples\desktop-plugins\hello
 pnpm test:plugins
 ```
 
-该测试覆盖本地安装、信任门控、静态资源、SQLite 迁移、受控 Node 运行时、API 代理、升级、回滚、审计日志、签名包安装和签名插件市场索引。
+该测试覆盖本地安装、静态资源、SQLite 迁移、受控 Node 运行时、API 代理、升级/降级安装、审计日志、签名包安装和签名插件市场索引。
 
 ## 官方提词器插件
 
@@ -215,13 +248,14 @@ pnpm build:plugin:teleprompter
 
 提词器插件已经接入插件运行时：
 
-- 插件 iframe 只调用自己的插件 API：`/api/v1/desktop/plugins/teleprompter/api/native/*`
+- 插件 iframe 通过 `@thunder/plugin-sdk/browser` 请求 Host Bridge。
+- Host Bridge 按 `local-api-proxy` 权限代理到插件自己的 API：`/api/v1/desktop/plugins/teleprompter/api/native/*`
 - 插件 Node runtime 代理到 Tauri 暴露的本机 speech bridge：`THUNDER_DESKTOP_NATIVE_API_URL`
 - Tauri speech bridge 仅监听 `127.0.0.1:43102`
 - FunASR 由 speech bridge 启动本地 Python WebSocket 服务，插件继续使用 WebSocket 推流
 - sherpa-onnx 的模型列表、下载、激活、启动、停止和音频推流都通过 speech bridge 进入 Tauri Rust 原生识别器
 
-插件页面打开时会自动启动受信任插件的 Node runtime。用户仍需先安装并信任提词器插件。
+插件页面打开时会自动启动插件的 Node runtime。用户需先安装提词器插件。
 
 ## 安全规则
 
@@ -229,10 +263,10 @@ pnpm build:plugin:teleprompter
 - 静态资源路径不能逃逸插件目录。
 - 生产安装必须通过 Ed25519 签名校验。
 - 包安装前必须校验 sha256。
-- 已安装插件默认禁用，必须显式信任后才可启用。
 - 插件 iframe 使用 sandbox 限制。
+- 插件 iframe 不启用 `allow-same-origin`；与宿主页通信必须走 Host Bridge，宿主页校验 opaque origin、iframe source、消息版本、当前插件身份和权限。
 - 插件 API 代理只支持 Manifest 声明的 loopback `api.baseUrl`，且需要 `local-api-proxy` 权限。
 - 插件后端运行时限制为插件自有 Node 入口文件。Thunder 分配 loopback 端口，注入 `THUNDER_PLUGIN_ID`、`THUNDER_PLUGIN_VERSION`、`THUNDER_PLUGIN_STATE_DIR`，并等待配置的健康检查通过后才代理流量。
 - Desktop 原生语音能力只通过本机 speech bridge 暴露，默认地址为 `http://127.0.0.1:43102`，插件 runtime 通过 `THUNDER_DESKTOP_NATIVE_API_URL` 调用。
-- 插件迁移只会在插件被信任后执行。
+- 插件迁移由平台基础设施按插件声明执行，具体业务数据迁移逻辑由插件自己的 SQL 负责。
 - 插件不能 import Thunder 源码模块，也不能直接访问 Prisma。

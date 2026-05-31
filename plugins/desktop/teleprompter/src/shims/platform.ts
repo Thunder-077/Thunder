@@ -1,3 +1,5 @@
+import { thunder } from "@thunder/plugin-sdk/browser"
+
 export type DesktopPlatform = "macos" | "windows" | "linux"
 
 export type SherpaModel = {
@@ -23,26 +25,23 @@ export function isTauriDesktop(): boolean {
 }
 
 async function nativeGet<T>(path: string): Promise<T> {
-  const response = await fetch(`/api/v1/desktop/plugins/teleprompter/api/native${path}`, {
+  const response = await thunder.runtime.get<{ ok?: boolean; data?: T; message?: string }>(`native${path}`, {
     cache: "no-store",
   })
   return readNativeResponse<T>(response)
 }
 
 async function nativePost<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`/api/v1/desktop/plugins/teleprompter/api/native${path}`, {
-    method: "POST",
+  const response = await thunder.runtime.post<{ ok?: boolean; data?: T; message?: string }>(`native${path}`, body, {
     headers: {
       "content-type": "application/json",
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
   })
   return readNativeResponse<T>(response)
 }
 
-async function readNativeResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json().catch(() => null)) as { ok?: boolean; data?: T; message?: string } | null
-  if (!response.ok || !payload?.ok) {
+function readNativeResponse<T>(payload: { ok?: boolean; data?: T; message?: string } | null): T {
+  if (!payload?.ok) {
     throw new Error(payload?.message || "提词器原生能力调用失败")
   }
   return payload.data as T

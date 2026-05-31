@@ -11,12 +11,9 @@ import {
   listInstalledDesktopPlugins,
   readDesktopPluginAsset,
   resolveDesktopPluginApiProxyTarget,
-  rollbackDesktopPlugin,
   runDesktopPluginMigrations,
   startDesktopPluginRuntime,
   stopDesktopPluginRuntime,
-  trustDesktopPlugin,
-  untrustDesktopPlugin,
   uninstallDesktopPlugin,
 } from "./desktop-plugin-manager"
 
@@ -149,33 +146,6 @@ desktopPlugins.delete("/:id", async (c) => {
   try {
     await uninstallDesktopPlugin(c.req.param("id"))
     return c.json({ ok: true, data: { id: c.req.param("id") } })
-  } catch (error) {
-    return jsonError(error)
-  }
-})
-
-desktopPlugins.post("/:id/rollback", async (c) => {
-  try {
-    const plugin = await rollbackDesktopPlugin(c.req.param("id"))
-    return c.json({ ok: true, data: plugin })
-  } catch (error) {
-    return jsonError(error)
-  }
-})
-
-desktopPlugins.post("/:id/trust", async (c) => {
-  try {
-    const plugin = await trustDesktopPlugin(c.req.param("id"))
-    return c.json({ ok: true, data: plugin })
-  } catch (error) {
-    return jsonError(error)
-  }
-})
-
-desktopPlugins.post("/:id/untrust", async (c) => {
-  try {
-    const plugin = await untrustDesktopPlugin(c.req.param("id"))
-    return c.json({ ok: true, data: plugin })
   } catch (error) {
     return jsonError(error)
   }

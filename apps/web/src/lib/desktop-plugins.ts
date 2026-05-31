@@ -1,6 +1,8 @@
 import type { ModuleCategory } from "@thunder/core"
 import { isTauriDesktop } from "@/lib/platform"
 
+export const DESKTOP_PLUGINS_CHANGED_EVENT = "thunder:desktop-plugins-changed"
+
 export type DesktopPluginPermission =
   | "webview"
   | "plugin-storage"
@@ -43,12 +45,20 @@ export interface DesktopPluginManifest {
 
 export interface InstalledDesktopPlugin {
   manifest: DesktopPluginManifest
-  trust: {
-    trusted: boolean
-    trustedAt?: string
-    trustedBy?: string
-    manifestSha256?: string
-    permissionsSnapshot?: DesktopPluginPermission[]
+  record: {
+    id: string
+    version: string
+    installedAt: string
+    updatedAt: string
+    source: "local-directory" | "package-url" | "bundled"
+    sourceRef: string
+    packageSha256?: string
+    manifestSha256: string
+    signature?: {
+      keyId: string
+      algorithm: "ed25519"
+      signature: string
+    }
   }
   route: string
   webEntryUrl: string
@@ -113,6 +123,11 @@ export interface DesktopPluginMarketplaceIndex {
 
 export function shouldLoadDesktopPlugins(): boolean {
   return process.env.NEXT_PUBLIC_PLATFORM === "desktop" || isTauriDesktop()
+}
+
+function notifyDesktopPluginsChanged(): void {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(DESKTOP_PLUGINS_CHANGED_EVENT))
 }
 
 export async function listDesktopPlugins(): Promise<DesktopPluginListResponse> {
@@ -208,6 +223,7 @@ export async function installLocalDesktopPlugin(sourcePath: string): Promise<Ins
     throw new Error(payload.message || "插件安装失败")
   }
 
+  notifyDesktopPluginsChanged()
   return payload.data
 }
 
@@ -241,6 +257,7 @@ export async function installPackagedDesktopPlugin(
     throw new Error(payload.message || "插件安装失败")
   }
 
+  notifyDesktopPluginsChanged()
   return payload.data
 }
 
@@ -264,6 +281,7 @@ export async function installBundledDesktopPlugin(pluginId: string): Promise<Ins
     throw new Error(payload.message || "插件安装失败")
   }
 
+  notifyDesktopPluginsChanged()
   return payload.data
 }
 
@@ -277,18 +295,7 @@ export async function uninstallDesktopPlugin(pluginId: string): Promise<void> {
     const payload = (await response.json().catch(() => null)) as { message?: string } | null
     throw new Error(payload?.message || "插件卸载失败")
   }
-}
-
-export async function trustDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
-  return postPluginAction(pluginId, "trust")
-}
-
-export async function untrustDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
-  return postPluginAction(pluginId, "untrust")
-}
-
-export async function rollbackDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
-  return postPluginAction(pluginId, "rollback")
+  notifyDesktopPluginsChanged()
 }
 
 export async function runDesktopPluginMigrations(pluginId: string): Promise<DesktopPluginMigrationResult> {
@@ -316,25 +323,6 @@ export async function startDesktopPluginRuntime(pluginId: string): Promise<Deskt
 
 export async function stopDesktopPluginRuntime(pluginId: string): Promise<DesktopPluginRuntimeStatus> {
   return postRuntimeAction(pluginId, "stop")
-}
-
-async function postPluginAction(pluginId: string, action: "trust" | "untrust" | "rollback"): Promise<InstalledDesktopPlugin> {
-  const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/${action}`, {
-    method: "POST",
-    credentials: "same-origin",
-  })
-
-  const payload = (await response.json()) as {
-    ok: boolean
-    data?: InstalledDesktopPlugin
-    message?: string
-  }
-
-  if (!response.ok || !payload.ok || !payload.data) {
-    throw new Error(payload.message || "插件状态更新失败")
-  }
-
-  return payload.data
 }
 
 async function postRuntimeAction(pluginId: string, action: "start" | "stop"): Promise<DesktopPluginRuntimeStatus> {

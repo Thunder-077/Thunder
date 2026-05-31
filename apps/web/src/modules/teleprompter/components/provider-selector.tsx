@@ -2,7 +2,7 @@
 
 import { Check, Download, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Select, type SelectOption } from "@/components/ui/select"
+import { Select } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import type { SherpaModel } from "@/lib/platform"
 import type { SpeechProvider } from "../transcribers"
@@ -47,7 +47,7 @@ export function ProviderSelector({
   onActivateSelectedSherpaModel,
 }: ProviderSelectorProps) {
   const installedSherpaModels = sherpaModels.filter((model) => model.installed)
-  const sherpaOptions: SelectOption[] = sherpaModels.map((model) => ({
+  const sherpaOptions = sherpaModels.map((model) => ({
     value: model.id,
     label: `${model.name} (${model.size})`,
   }))
@@ -138,13 +138,15 @@ export function ProviderSelector({
           </div>
 
           <Select
-            value={selectedSherpaModelId}
-            onChange={onSelectSherpaModel}
+            value={selectedSherpaModelId ?? ""}
+            onValueChange={(next) => {
+              if (next) onSelectSherpaModel(next)
+            }}
             options={sherpaOptions}
-            size="compact"
-            placeholder={sherpaLoading ? "加载模型中…" : sherpaModels.length === 0 ? "暂无模型" : "选择模型"}
             disabled={sherpaLoading || sherpaModels.length === 0}
-            className="w-full"
+            placeholder={sherpaLoading ? "加载模型中…" : sherpaModels.length === 0 ? "暂无模型" : "选择模型"}
+            size="compact"
+            showDescription={false}
           />
 
           {!hasInstalledSherpaModel && (

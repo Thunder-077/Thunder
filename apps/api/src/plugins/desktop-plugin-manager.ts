@@ -15,12 +15,17 @@ import type {
   DesktopPluginManifest,
   DesktopPluginMarketplaceIndex,
   DesktopPluginRuntimeStatus,
-  DesktopPluginTrustRecord,
   InstalledDesktopPlugin,
 } from "./desktop-plugin-types"
 
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/
+const ALLOWED_PLUGIN_PERMISSIONS = new Set<DesktopPluginManifest["permissions"][number]>([
+  "webview",
+  "plugin-storage",
+  "network-proxy",
+  "local-api-proxy",
+])
 const STATIC_CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -136,7 +141,6 @@ function getPluginDirs() {
   return {
     root,
     pluginsDir: join(root, "plugins"),
-    backupsDir: join(root, "plugin-backups"),
     stagingDir: join(root, "plugin-staging"),
     stateDir: join(root, "plugin-state"),
     auditLogPath: join(root, "plugin-audit.jsonl"),
@@ -183,10 +187,6 @@ async function findBundledPluginSource(pluginId: string): Promise<string> {
   }
 
   throw new DesktopPluginError("内置插件不存在或未随应用打包", 404)
-}
-
-function trustRecordPath(pluginRoot: string): string {
-  return join(pluginRoot, ".thunder-trust.json")
 }
 
 function stableJson(value: unknown): string {
@@ -249,6 +249,14 @@ function validateManifest(input: unknown): DesktopPluginManifest {
 
   if (!Array.isArray(manifest.permissions)) {
     throw new DesktopPluginError("插件 permissions 必须是数组")
+  }
+  for (const permission of manifest.permissions) {
+    if (!ALLOWED_PLUGIN_PERMISSIONS.has(permission)) {
+      throw new DesktopPluginError(`未知插件权限: ${String(permission)}`)
+    }
+  }
+  if (!manifest.permissions.includes("webview")) {
+    throw new DesktopPluginError("声明 web.entry 的插件必须申请 webview 权限")
   }
 
   if (manifest.api) {
@@ -370,7 +378,6 @@ async function assertPathInside(root: string, target: string): Promise<void> {
 async function ensureDirs(): Promise<void> {
   const dirs = getPluginDirs()
   await mkdir(dirs.pluginsDir, { recursive: true })
-  await mkdir(dirs.backupsDir, { recursive: true })
   await mkdir(dirs.stagingDir, { recursive: true })
   await mkdir(dirs.stateDir, { recursive: true })
 }
@@ -384,37 +391,6 @@ async function appendAudit(event: string, details: Record<string, unknown>): Pro
     ...details,
   }
   await appendFile(auditLogPath, `${JSON.stringify(record)}\n`, "utf8")
-}
-
-function backupName(id: string, version: string): string {
-  return `${id}-${version}-${new Date().toISOString().replace(/[:.]/g, "-")}`
-}
-
-async function backupInstalledPlugin(pluginRoot: string, manifest: DesktopPluginManifest): Promise<string | null> {
-  const pluginStat = await stat(pluginRoot).catch(() => null)
-  if (!pluginStat?.isDirectory()) return null
-
-  const { backupsDir } = getPluginDirs()
-  const backupDir = join(backupsDir, backupName(manifest.id, manifest.version))
-  await cp(pluginRoot, backupDir, { recursive: true, dereference: true })
-  await appendAudit("plugin.backup.created", {
-    pluginId: manifest.id,
-    version: manifest.version,
-    backupDir,
-  })
-  return backupDir
-}
-
-function shouldPreserveTrust(
-  previousTrust: DesktopPluginTrustRecord,
-  manifestSha256: string,
-  permissions: string[]
-): boolean {
-  if (!previousTrust.trusted) return false
-  if (previousTrust.manifestSha256 === manifestSha256) return true
-  const previousPermissions = [...(previousTrust.permissionsSnapshot ?? [])].sort().join(",")
-  const nextPermissions = [...permissions].sort().join(",")
-  return previousPermissions === nextPermissions
 }
 
 async function downloadPackage(packageUrl: string, expectedSha256: string): Promise<string> {
@@ -448,27 +424,15 @@ async function downloadPackage(packageUrl: string, expectedSha256: string): Prom
 
 function toInstalledPlugin(
   manifest: DesktopPluginManifest,
-  record: DesktopPluginInstallRecord,
-  trust: DesktopPluginTrustRecord
+  record: DesktopPluginInstallRecord
 ): InstalledDesktopPlugin {
   return {
     manifest,
     record,
-    trust,
     route: `/plugins/${manifest.id}`,
     webEntryUrl: `/api/v1/desktop/plugins/${manifest.id}/web/${manifest.web.entry}`,
     installed: true,
   }
-}
-
-async function readPluginTrust(pluginRoot: string): Promise<DesktopPluginTrustRecord> {
-  return readJsonFile<DesktopPluginTrustRecord>(trustRecordPath(pluginRoot)).catch(() => ({
-    trusted: false,
-  }))
-}
-
-async function writePluginTrust(pluginRoot: string, trust: DesktopPluginTrustRecord): Promise<void> {
-  await writeFile(trustRecordPath(pluginRoot), `${JSON.stringify(trust, null, 2)}\n`, "utf8")
 }
 
 export async function listInstalledDesktopPlugins(): Promise<InstalledDesktopPlugin[]> {
@@ -484,8 +448,7 @@ export async function listInstalledDesktopPlugins(): Promise<InstalledDesktopPlu
     try {
       const manifest = await readManifest(pluginRoot)
       const record = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json"))
-      const trust = await readPluginTrust(pluginRoot)
-      plugins.push(toInstalledPlugin(manifest, record, trust))
+      plugins.push(toInstalledPlugin(manifest, record))
     } catch (error) {
       console.warn("[desktop-plugins] ignored invalid plugin", entry.name, error)
     }
@@ -531,7 +494,6 @@ async function installLocalDesktopPluginInternal(
   const targetDir = join(pluginsDir, manifest.id)
   const stageDir = join(stagingDir, `${manifest.id}-${Date.now()}`)
   const previousManifest = await readManifest(targetDir).catch(() => null)
-  const previousTrust = previousManifest ? await readPluginTrust(targetDir) : { trusted: false }
 
   await rm(stageDir, { recursive: true, force: true })
   await cp(sourcePath, stageDir, { recursive: true, dereference: true })
@@ -550,29 +512,19 @@ async function installLocalDesktopPluginInternal(
   await writeFile(join(stageDir, ".thunder-install.json"), `${JSON.stringify(installRecord, null, 2)}\n`, "utf8")
   if (previousManifest) {
     await stopDesktopPluginRuntime(manifest.id)
-    await backupInstalledPlugin(targetDir, previousManifest)
   }
   await rm(targetDir, { recursive: true, force: true })
   await cp(stageDir, targetDir, { recursive: true, dereference: true })
   await rm(stageDir, { recursive: true, force: true })
 
-  const trust = shouldPreserveTrust(previousTrust, manifestSha256, manifest.permissions)
-    ? {
-        ...previousTrust,
-        manifestSha256,
-        permissionsSnapshot: [...manifest.permissions],
-      }
-    : { trusted: false }
-  await writePluginTrust(targetDir, trust)
   await appendAudit(previousManifest ? "plugin.upgraded" : "plugin.installed", {
     pluginId: manifest.id,
     version: manifest.version,
     source: installRecord.source,
     sourceRef: installRecord.sourceRef,
-    trusted: trust.trusted,
   })
 
-  return toInstalledPlugin(manifest, installRecord, trust)
+  return toInstalledPlugin(manifest, installRecord)
 }
 
 export async function installLocalDesktopPlugin(options: InstallLocalPluginOptions): Promise<InstalledDesktopPlugin> {
@@ -634,50 +586,7 @@ export async function installPackagedDesktopPlugin(
     version: plugin.manifest.version,
     packageSha256: options.packageSha256,
   })
-  return toInstalledPlugin(plugin.manifest, record, plugin.trust)
-}
-
-export async function trustDesktopPlugin(id: string, trustedBy = "local-user"): Promise<InstalledDesktopPlugin> {
-  assertPluginId(id)
-  const plugin = await getInstalledDesktopPlugin(id)
-  const { pluginsDir } = getPluginDirs()
-  const pluginRoot = join(pluginsDir, id)
-  const manifestSha256 = sha256(await readFile(join(pluginRoot, "plugin.json")))
-  const trust: DesktopPluginTrustRecord = {
-    trusted: true,
-    trustedAt: new Date().toISOString(),
-    trustedBy,
-    manifestSha256,
-    permissionsSnapshot: [...plugin.manifest.permissions],
-  }
-  await writePluginTrust(pluginRoot, trust)
-  await appendAudit("plugin.trusted", {
-    pluginId: id,
-    version: plugin.manifest.version,
-    trustedBy,
-  })
-  return toInstalledPlugin(plugin.manifest, plugin.record, trust)
-}
-
-export async function untrustDesktopPlugin(id: string): Promise<InstalledDesktopPlugin> {
-  assertPluginId(id)
-  await stopDesktopPluginRuntime(id)
-  const plugin = await getInstalledDesktopPlugin(id)
-  const { pluginsDir } = getPluginDirs()
-  const pluginRoot = join(pluginsDir, id)
-  const trust: DesktopPluginTrustRecord = { trusted: false }
-  await writePluginTrust(pluginRoot, trust)
-  await appendAudit("plugin.untrusted", {
-    pluginId: id,
-    version: plugin.manifest.version,
-  })
-  return toInstalledPlugin(plugin.manifest, plugin.record, trust)
-}
-
-function assertPluginTrusted(plugin: InstalledDesktopPlugin): void {
-  if (!plugin.trust.trusted) {
-    throw new DesktopPluginError("插件尚未被信任，不能加载或执行", 403)
-  }
+  return toInstalledPlugin(plugin.manifest, record)
 }
 
 export async function uninstallDesktopPlugin(id: string): Promise<void> {
@@ -694,43 +603,9 @@ export async function uninstallDesktopPlugin(id: string): Promise<void> {
   })
 }
 
-export async function rollbackDesktopPlugin(id: string): Promise<InstalledDesktopPlugin> {
-  assertPluginId(id)
-  await stopDesktopPluginRuntime(id)
-  const { pluginsDir, backupsDir } = getPluginDirs()
-  const entries = await readdir(backupsDir, { withFileTypes: true }).catch(() => [])
-  const candidates = entries
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith(`${id}-`))
-    .map((entry) => join(backupsDir, entry.name))
-    .sort((a, b) => b.localeCompare(a))
-
-  const backupDir = candidates[0]
-  if (!backupDir) {
-    throw new DesktopPluginError("没有可回滚的插件备份", 404)
-  }
-
-  const manifest = await readManifest(backupDir)
-  const targetDir = join(pluginsDir, id)
-  const currentManifest = await readManifest(targetDir).catch(() => null)
-  if (currentManifest) {
-    await backupInstalledPlugin(targetDir, currentManifest)
-  }
-  await rm(targetDir, { recursive: true, force: true })
-  await cp(backupDir, targetDir, { recursive: true, dereference: true })
-  const record = await readJsonFile<DesktopPluginInstallRecord>(join(targetDir, ".thunder-install.json"))
-  const trust = await readPluginTrust(targetDir)
-  await appendAudit("plugin.rolled-back", {
-    pluginId: id,
-    version: manifest.version,
-    backupDir,
-  })
-  return toInstalledPlugin(manifest, record, trust)
-}
-
 export async function readDesktopPluginAsset(id: string, assetPathParts: string[]): Promise<StaticPluginAsset> {
   assertPluginId(id)
   const plugin = await getInstalledDesktopPlugin(id)
-  assertPluginTrusted(plugin)
   const { pluginsDir } = getPluginDirs()
   const pluginRoot = join(pluginsDir, id)
   const relativePath = assetPathParts.join("/")
@@ -758,7 +633,6 @@ export async function resolveDesktopPluginApiProxyTarget(
   search: string
 ): Promise<DesktopPluginProxyTarget> {
   const plugin = await getInstalledDesktopPlugin(id)
-  assertPluginTrusted(plugin)
   if (!plugin.manifest.api || !plugin.manifest.permissions.includes("local-api-proxy")) {
     throw new DesktopPluginError("插件未声明本地 API 代理权限", 403)
   }
@@ -853,7 +727,6 @@ async function ensureDesktopPluginRuntime(plugin: InstalledDesktopPlugin): Promi
     THUNDER_PLUGIN_ID: plugin.manifest.id,
     THUNDER_PLUGIN_VERSION: plugin.manifest.version,
     THUNDER_PLUGIN_STATE_DIR: stateDir,
-    THUNDER_PLUGIN_TRUSTED: "1",
     [api.runtime.portEnv ?? "PORT"]: String(port),
   }
 
@@ -916,7 +789,6 @@ async function ensureDesktopPluginRuntime(plugin: InstalledDesktopPlugin): Promi
 export async function startDesktopPluginRuntime(id: string): Promise<DesktopPluginRuntimeStatus> {
   assertPluginId(id)
   const plugin = await getInstalledDesktopPlugin(id)
-  assertPluginTrusted(plugin)
   const baseUrl = await ensureDesktopPluginRuntime(plugin)
   return runtimeStatus.get(id) ?? {
     pluginId: id,
@@ -990,7 +862,6 @@ async function listPluginMigrationFiles(pluginRoot: string, manifest: DesktopPlu
 export async function runDesktopPluginMigrations(id: string): Promise<DesktopPluginMigrationResult> {
   assertPluginId(id)
   const plugin = await getInstalledDesktopPlugin(id)
-  assertPluginTrusted(plugin)
   const { pluginsDir } = getPluginDirs()
   const pluginRoot = join(pluginsDir, id)
   const files = await listPluginMigrationFiles(pluginRoot, plugin.manifest)

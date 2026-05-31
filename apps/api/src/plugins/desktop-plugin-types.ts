@@ -73,7 +73,6 @@ export interface DesktopPluginInstallRecord {
 export interface InstalledDesktopPlugin {
   manifest: DesktopPluginManifest
   record: DesktopPluginInstallRecord
-  trust: DesktopPluginTrustRecord
   route: string
   webEntryUrl: string
   installed: true
@@ -89,14 +88,6 @@ export interface DesktopPluginRuntimeStatus {
   lastExitAt?: string
   lastExitCode?: number | null
   lastError?: string
-}
-
-export interface DesktopPluginTrustRecord {
-  trusted: boolean
-  trustedAt?: string
-  trustedBy?: string
-  manifestSha256?: string
-  permissionsSnapshot?: DesktopPluginPermission[]
 }
 
 export interface DesktopPluginMigrationRecord {

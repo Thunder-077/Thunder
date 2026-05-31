@@ -12,11 +12,9 @@ import {
   installPackagedDesktopPlugin,
   readDesktopPluginAsset,
   resolveDesktopPluginApiProxyTarget,
-  rollbackDesktopPlugin,
   runDesktopPluginMigrations,
   startDesktopPluginRuntime,
   stopDesktopPluginRuntime,
-  trustDesktopPlugin,
   uninstallDesktopPlugin,
 } from "./desktop-plugin-manager"
 
@@ -70,17 +68,35 @@ async function main() {
   )
   const bundled = await installBundledDesktopPlugin("teleprompter")
   assert.equal(bundled.record.source, "bundled")
-  assert.equal(bundled.trust.trusted, false)
   await uninstallDesktopPlugin("teleprompter")
 
-  const installed = await installLocalDesktopPlugin({ sourcePath: examplePlugin })
-  assert.equal(installed.trust.trusted, false)
+  const unknownPermissionDir = join(testRoot, "hello-unknown-permission")
+  await cp(examplePlugin, unknownPermissionDir, { recursive: true })
+  const unknownPermissionManifestPath = join(unknownPermissionDir, "plugin.json")
+  const unknownPermissionManifest = JSON.parse(await readFile(unknownPermissionManifestPath, "utf8"))
+  unknownPermissionManifest.permissions = [...unknownPermissionManifest.permissions, "unknown-permission"]
+  await writeFile(unknownPermissionManifestPath, JSON.stringify(unknownPermissionManifest, null, 2))
   await expectRejects(
-    () => readDesktopPluginAsset("hello-plugin", ["web", "index.html"]),
-    "untrusted plugin assets must be denied"
+    () => installLocalDesktopPlugin({ sourcePath: unknownPermissionDir }),
+    "unknown manifest permissions must be denied"
   )
 
-  await trustDesktopPlugin("hello-plugin")
+  const missingWebviewDir = join(testRoot, "hello-missing-webview")
+  await cp(examplePlugin, missingWebviewDir, { recursive: true })
+  const missingWebviewManifestPath = join(missingWebviewDir, "plugin.json")
+  const missingWebviewManifest = JSON.parse(await readFile(missingWebviewManifestPath, "utf8"))
+  missingWebviewManifest.permissions = missingWebviewManifest.permissions.filter(
+    (permission: string) => permission !== "webview"
+  )
+  await writeFile(missingWebviewManifestPath, JSON.stringify(missingWebviewManifest, null, 2))
+  await expectRejects(
+    () => installLocalDesktopPlugin({ sourcePath: missingWebviewDir }),
+    "plugins with web.entry must declare webview"
+  )
+
+  const installed = await installLocalDesktopPlugin({ sourcePath: examplePlugin })
+  assert.equal(installed.record.source, "local-directory")
+
   const asset = await readDesktopPluginAsset("hello-plugin", ["web", "index.html"])
   assert.equal(asset.contentType, "text/html; charset=utf-8")
 
@@ -107,11 +123,10 @@ async function main() {
   await writeFile(manifestPath, JSON.stringify(upgradedManifest, null, 2))
   const upgraded = await installLocalDesktopPlugin({ sourcePath: upgradeDir })
   assert.equal(upgraded.manifest.version, "1.0.1")
-  const rolledBack = await rollbackDesktopPlugin("hello-plugin")
-  assert.equal(rolledBack.manifest.version, "1.0.0")
+  const downgraded = await installLocalDesktopPlugin({ sourcePath: examplePlugin })
+  assert.equal(downgraded.manifest.version, "1.0.0")
   const auditLog = await readFile(join(testRoot, "plugin-audit.jsonl"), "utf8")
   assert.match(auditLog, /plugin\.upgraded/)
-  assert.match(auditLog, /plugin\.rolled-back/)
 
   await uninstallDesktopPlugin("hello-plugin")
 

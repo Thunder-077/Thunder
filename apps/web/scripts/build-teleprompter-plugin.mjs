@@ -36,8 +36,10 @@ await build({
   alias: {
     "@": resolve(webRoot, "src"),
     "@/components/page-header": resolve(pluginRoot, "src", "shims", "page-header.tsx"),
+    "@/components/ui/select": resolve(pluginRoot, "src", "shims", "select.tsx"),
     "@/lib/notification-store": resolve(pluginRoot, "src", "shims", "notification-store.ts"),
     "@/lib/platform": resolve(pluginRoot, "src", "shims", "platform.ts"),
+    "@thunder/plugin-sdk/browser": resolve(workspaceRoot, "packages", "plugin-sdk", "src", "browser.ts"),
   },
   define: {
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "production"),
@@ -64,7 +66,7 @@ await writeFile(
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./assets/main.js"></script>
+    <script defer src="./assets/main.js"></script>
   </body>
 </html>
 `,

@@ -52,7 +52,6 @@ export interface ThunderPluginRuntimeEnv {
   THUNDER_PLUGIN_ID: string
   THUNDER_PLUGIN_VERSION: string
   THUNDER_PLUGIN_STATE_DIR: string
-  THUNDER_PLUGIN_TRUSTED: "1"
   PORT: string
 }
 
@@ -67,7 +66,6 @@ export function getThunderPluginRuntimeEnv(env: RuntimeEnvSource): ThunderPlugin
     "THUNDER_PLUGIN_ID",
     "THUNDER_PLUGIN_VERSION",
     "THUNDER_PLUGIN_STATE_DIR",
-    "THUNDER_PLUGIN_TRUSTED",
     "PORT",
   ] as const
 
@@ -81,7 +79,6 @@ export function getThunderPluginRuntimeEnv(env: RuntimeEnvSource): ThunderPlugin
     THUNDER_PLUGIN_ID: env.THUNDER_PLUGIN_ID!,
     THUNDER_PLUGIN_VERSION: env.THUNDER_PLUGIN_VERSION!,
     THUNDER_PLUGIN_STATE_DIR: env.THUNDER_PLUGIN_STATE_DIR!,
-    THUNDER_PLUGIN_TRUSTED: "1",
     PORT: env.PORT!,
   }
 }

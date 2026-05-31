@@ -112,7 +112,7 @@ services/*        → 非 TypeScript 独立服务（预留，仅通过 apps/api 
 - 模块平台归属和打包入口统一维护在 `scripts/generate-enabled-modules.mjs` 的模块清单中；`platforms: ["web"]` 表示仅 Web 端启用，不写 `platforms` 表示 Web / Desktop 都启用
 - Web / Desktop 构建时可通过 `--exclude=moduleA,moduleB` 或环境变量 `THUNDER_EXCLUDE_MODULES` / `EXCLUDE_MODULES` 排除模块；被排除模块不得被主应用静态 import
 - 桌面端运行时插件系统独立于构建期内置模块，插件规范见 `docs/desktop-plugin-system.md`；插件不得直接 import 主应用源码、Prisma 或内置模块实现
-- 官方内置桌面插件放在 `plugins/desktop/{plugin-id}`，可随 Desktop 运行时进入插件市场；安装后仍必须由用户显式信任
+- 官方内置桌面插件放在 `plugins/desktop/{plugin-id}`，可随 Desktop 运行时进入插件市场；安装后默认启用，不做单独信任按钮
 - 桌面插件发布使用 `pnpm --filter @thunder/api package:desktop-plugin` 生成签名包和 marketplace entry，使用 `pnpm build:plugin-marketplace` 合并并签名市场索引
 - 前端模块路由由 `apps/web/src/app/modules/[moduleId]/page.tsx` 根据生成的 `apps/web/src/generated/enabled-modules.ts` 动态加载，不为每个模块在 `app/` 下新增静态 page
 - 后端模块路由由生成的 `apps/api/src/generated/enabled-routes.ts` 注册，`apps/api/src/app.ts` / `worker.ts` 不直接 import 业务模块

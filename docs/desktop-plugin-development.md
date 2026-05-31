@@ -1,12 +1,12 @@
 # Desktop Plugin Development Guide
 
-本文档面向 Thunder Desktop 插件作者。平台侧运行机制、信任模型、签名校验和 API 列表见 `docs/desktop-plugin-system.md`。
+本文档面向 Thunder Desktop 插件作者。平台侧运行机制、启用模型、签名校验和 API 列表见 `docs/desktop-plugin-system.md`。
 
 ## 插件与内置模块的区别
 
 内置模块属于构建期能力，由 `scripts/generate-enabled-modules.mjs` 按 Web / Desktop 平台裁剪后打包进应用。
 
-桌面插件属于运行时能力，只在 Desktop 端生效。插件安装在桌面应用数据目录下，不能直接 import Thunder 主应用源码、Prisma、内置模块实现或 Repository。插件与平台之间只能通过插件 Manifest、iframe 页面、受控本地 API 代理和插件自有迁移交互。
+桌面插件属于运行时能力，只在 Desktop 端生效。插件安装在桌面应用数据目录下，不能直接 import Thunder 主应用源码、Prisma、内置模块实现或 Repository。插件与平台之间只能通过插件 Manifest、iframe 页面、`@thunder/plugin-sdk/browser` Host Bridge、受控本地 API 代理和插件自有迁移交互。
 
 Web 端不加载运行时插件。Web 端只使用构建期可用模块。
 
@@ -78,7 +78,7 @@ my-plugin/
 - `id` 只能使用小写字母、数字和连字符，发布后不要修改。
 - `version` 使用 semver，例如 `1.0.0`。
 - `icon` 使用主应用已支持的 lucide 图标名。
-- `permissions` 必须声明插件需要的粗粒度权限。
+- `permissions` 必须声明插件需要的粗粒度权限，未知权限会被拒绝。
 - `web.entry` 必须指向插件目录内的静态页面。
 - `api.runtime.entry` 必须指向插件目录内的 Node 入口文件。
 - `migrations.sqlite` 必须指向插件目录内的 SQLite 迁移目录。
@@ -90,7 +90,9 @@ my-plugin/
 - `plugin-storage`: 预留给插件持久化能力。
 - `network-proxy`: 预留给受控网络代理能力。
 
-插件安装后默认不受信任。用户在 Desktop 插件市场中信任插件后，插件才可以渲染 iframe、启动本地 API、运行迁移。
+插件安装后默认启用。当前阶段不提供单独的 trust / untrust 按钮，也不做每个动作级别的动态授权弹窗；用户安装插件即表示允许该插件使用 Manifest 中声明的平台能力。
+
+声明 `web.entry` 的插件必须包含 `webview` 权限；声明 `api` 的插件必须包含 `local-api-proxy` 权限。
 
 ## SDK
 
@@ -123,6 +125,18 @@ import { getThunderPluginRuntimeEnv } from "@thunder/plugin-sdk"
 const env = getThunderPluginRuntimeEnv(process.env)
 ```
 
+插件前端页面必须使用 `@thunder/plugin-sdk/browser` 与 Thunder 宿主通信：
+
+```ts
+import { thunder } from "@thunder/plugin-sdk/browser"
+
+const manifest = await thunder.plugin.getManifest()
+const status = await thunder.runtime.get("status")
+const result = await thunder.runtime.post("tasks/run", { input: "hello" })
+```
+
+浏览器 SDK 通过 `postMessage` 与宿主页通信。插件页面不要硬编码 `/api/v1/desktop/plugins/{pluginId}/api/*`，也不要直接访问 Tauri、Prisma、内置模块源码或主应用内部状态。
+
 ## 前端页面
 
 插件前端通过 `web.entry` 指定的 HTML 页面渲染。Thunder 会把该页面作为 sandbox iframe 加载：
@@ -134,15 +148,18 @@ const env = getThunderPluginRuntimeEnv(process.env)
 插件页面应该把自己当作隔离应用处理：
 
 - 不依赖主应用全局变量。
-- 不 import `apps/web` 或 `packages/*` 源码。
+- 不 import `apps/web` 或主仓库 `packages/*` 源码；唯一例外是公开发布面 `@thunder/plugin-sdk/browser`。
 - 静态资源使用插件目录内的相对路径。
-- 需要调用插件后端时，请请求插件 API 代理路径。
+- 需要读取 Manifest 或调用插件后端时，请使用 `@thunder/plugin-sdk/browser`。
+- 不依赖 Next.js 页面运行时、App Router、Server Components 或主应用 React Context。
+- 不依赖浏览器同源能力访问 Thunder 内部 API；插件 iframe 运行在 sandbox opaque origin 下。
 
 示例：
 
-```js
-const response = await fetch("/api/v1/desktop/plugins/hello-plugin/api/status")
-const data = await response.json()
+```ts
+import { thunder } from "@thunder/plugin-sdk/browser"
+
+const data = await thunder.runtime.get("status")
 ```
 
 ## 后端运行时
@@ -161,13 +178,12 @@ const data = await response.json()
 }
 ```
 
-用户信任插件后，平台可以启动该 Node 进程。平台会分配本地端口，并注入这些环境变量：
+插件页面打开或插件 API 代理需要访问后端时，平台可以启动该 Node 进程。平台会分配本地端口，并注入这些环境变量：
 
 - `PORT`: 插件服务必须监听的端口。
 - `THUNDER_PLUGIN_ID`: 插件 id。
 - `THUNDER_PLUGIN_VERSION`: 插件版本。
 - `THUNDER_PLUGIN_STATE_DIR`: 插件专属状态目录。
-- `THUNDER_PLUGIN_TRUSTED`: 固定为 `1`。
 
 插件服务应监听 `127.0.0.1`，并实现 `healthPath`：
 
@@ -196,9 +212,9 @@ Thunder 只通过平台 API 代理暴露插件后端：
 /api/v1/desktop/plugins/{pluginId}/api/*
 ```
 
-插件不要把服务绑定到公网地址，也不要假设端口固定。
+这是平台内部代理路径。插件前端不要直接拼接该路径，应通过 `@thunder/plugin-sdk/browser` 请求自己的 runtime。Host Bridge 不会把 Thunder 页面 cookie 转发给插件 runtime，并会过滤敏感请求头。插件不要把服务绑定到公网地址，也不要假设端口固定。
 
-官方提词器插件使用 Node runtime 作为业务后端。它不会让 iframe 直接调用 Tauri，而是通过插件 API 代理到 runtime，再由 runtime 调用平台注入的 `THUNDER_DESKTOP_NATIVE_API_URL`。这样 FunASR / sherpa-onnx 的业务接入仍归插件负责，平台只提供受控原生能力出口。
+官方提词器插件使用 Node runtime 作为业务后端。它不会让 iframe 直接调用 Tauri，而是通过 Browser SDK 请求 Host Bridge，再由宿主按权限代理到插件 runtime，runtime 再调用平台注入的 `THUNDER_DESKTOP_NATIVE_API_URL`。这样 FunASR / sherpa-onnx 的业务接入仍归插件负责，平台只提供受控原生能力出口。
 
 ## 数据与迁移
 
@@ -242,10 +258,9 @@ pnpm dev:desktop
 E:\Code\Thunder\examples\desktop-plugins\hello
 ```
 
-6. 在插件市场中信任插件。
-7. 按需运行迁移、启动运行时、打开插件页面。
+6. 按需运行迁移、打开插件页面。插件页面会自动启动声明的运行时。
 
-开发期间修改插件文件后，可以重新本地安装同一路径。平台会按升级流程备份旧版本。
+开发期间修改插件文件后，可以重新本地安装同一路径。平台会停止旧运行时，并用新目录替换已安装插件。
 
 ## 打包与签名
 
@@ -298,17 +313,14 @@ Desktop 端会按配置的可信公钥校验插件包和市场索引。
 ]
 ```
 
-## 升级与回滚
+## 升级与降级
 
-安装同 id 的新版本会走升级流程：
+安装同 id 的插件会走替换流程：
 
 - 停止旧运行时。
-- 备份当前插件目录。
 - 安装新版本。
-- 如果权限未变化，保留 trust 状态。
-- 如果权限变化，重置为 untrusted，要求用户重新信任。
 
-插件市场页面提供回滚入口，回滚到最近一次备份。
+平台不维护自动备份，也不提供 rollback API。需要降级时，下载或构建低版本插件后重新安装同 id 插件。
 
 ## 发布前检查
 
@@ -345,18 +357,18 @@ $env:THUNDER_ALLOW_UNSIGNED_PLUGINS = "1"
 
 官方内置插件可以随 Desktop 运行时一起分发，默认放在运行时资源的 `plugins/desktop/{plugin-id}` 下。开发环境也会扫描仓库内的 `plugins/desktop/`。
 
-内置插件市场 entry 的 `source` 为 `bundled`。用户点击安装时，平台只按插件 id 从受控内置目录复制插件，不接收任意路径。安装后仍默认未信任。
+内置插件市场 entry 的 `source` 为 `bundled`。用户点击安装时，平台只按插件 id 从受控内置目录复制插件，不接收任意路径。安装后默认启用。
 
 可通过 `THUNDER_BUNDLED_PLUGIN_DIRS` 配置额外内置插件目录，多个目录使用系统 path delimiter 分隔。
 
 ### 插件页面打不开
 
-确认插件已被用户信任，并且 Manifest 包含 `webview` 权限。
+确认插件已安装，并且 Manifest 包含 `webview` 权限。
 
 ### API 代理失败
 
-确认插件已被信任，Manifest 包含 `local-api-proxy` 权限，运行时已启动，`healthPath` 返回成功。
+确认插件已安装，Manifest 包含 `local-api-proxy` 权限，插件前端使用 `@thunder/plugin-sdk/browser`，运行时可以启动，`healthPath` 返回成功。
 
 ### 迁移失败
 
-确认插件已被信任。若错误提示 migration hash changed，说明已执行迁移文件被修改了。应新增一个新的迁移文件，不要修改历史迁移。
+若错误提示 migration hash changed，说明已执行迁移文件被修改了。应新增一个新的迁移文件，不要修改历史迁移。
