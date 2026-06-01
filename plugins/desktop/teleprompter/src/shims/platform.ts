@@ -52,14 +52,6 @@ export async function getTauriDesktopPlatform(): Promise<DesktopPlatform | null>
   return nativeGet<DesktopPlatform>("/platform")
 }
 
-export async function checkFunAsrRunning(): Promise<boolean> {
-  return nativeGet<boolean>("/funasr/status")
-}
-
-export async function startFunAsrService(): Promise<string> {
-  return nativePost<string>("/funasr/start")
-}
-
 export async function checkSherpaRunning(): Promise<boolean> {
   return nativeGet<boolean>("/sherpa/status")
 }
