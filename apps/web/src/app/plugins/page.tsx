@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Box,
   CalendarDays,
@@ -189,6 +190,7 @@ function marketplaceEntryToVisual(entry: DesktopPluginMarketplaceEntry): PluginV
 }
 
 export default function DesktopPluginMarketplacePage() {
+  const router = useRouter()
   const [installed, setInstalled] = useState<InstalledDesktopPlugin[]>([])
   const [marketplace, setMarketplace] = useState<DesktopPluginMarketplaceEntry[]>([])
   const [message, setMessage] = useState<string | null>(null)
@@ -286,6 +288,11 @@ export default function DesktopPluginMarketplacePage() {
                   "flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left text-sm text-muted-foreground transition-colors",
                   item.active && "bg-blue-50 text-blue-600"
                 )}
+                onClick={() => {
+                  if (item.label === "已安装") {
+                    router.push("/plugins/installed")
+                  }
+                }}
               >
                 <item.icon className="h-4 w-4" />
                 <span className="flex-1">{item.label}</span>
