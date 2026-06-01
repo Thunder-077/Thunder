@@ -25,10 +25,7 @@ type FollowStatusPanelProps = {
   fontSize: number
   lineHeight: number
   enablePrediction: boolean
-  showFunAsr: boolean
   showSherpa: boolean
-  funasrReady: boolean
-  funasrStarting: boolean
   sherpaReady: boolean
   sherpaBusy: boolean
   sherpaLoading: boolean
@@ -43,7 +40,6 @@ type FollowStatusPanelProps = {
   onResumeFollowing: () => void
   onStopFollowing: () => void
   onReturnToStart: () => void
-  onStartFunAsr: () => void
   onSelectSherpa: () => void
   onSelectWebSpeech: () => void
   onSelectSherpaModel: (value: string) => void
@@ -65,10 +61,7 @@ export function FollowStatusPanel({
   fontSize,
   lineHeight,
   enablePrediction,
-  showFunAsr,
   showSherpa,
-  funasrReady,
-  funasrStarting,
   sherpaReady,
   sherpaBusy,
   sherpaLoading,
@@ -83,7 +76,6 @@ export function FollowStatusPanel({
   onResumeFollowing,
   onStopFollowing,
   onReturnToStart,
-  onStartFunAsr,
   onSelectSherpa,
   onSelectWebSpeech,
   onSelectSherpaModel,
@@ -155,10 +147,7 @@ export function FollowStatusPanel({
             lineHeight={lineHeight}
             enablePrediction={enablePrediction}
             speechProvider={speechProvider}
-            showFunAsr={showFunAsr}
             showSherpa={showSherpa}
-            funasrReady={funasrReady}
-            funasrStarting={funasrStarting}
             sherpaReady={sherpaReady}
             sherpaBusy={sherpaBusy}
             sherpaLoading={sherpaLoading}
@@ -168,7 +157,6 @@ export function FollowStatusPanel({
             onFontSizeChange={onFontSizeChange}
             onLineHeightChange={onLineHeightChange}
             onEnablePredictionChange={onEnablePredictionChange}
-            onStartFunAsr={onStartFunAsr}
             onSelectSherpa={onSelectSherpa}
             onSelectWebSpeech={onSelectWebSpeech}
             onSelectSherpaModel={onSelectSherpaModel}

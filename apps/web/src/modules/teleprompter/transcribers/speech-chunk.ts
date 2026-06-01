@@ -10,13 +10,6 @@ export const SPEECH_PROVIDER_CAPABILITIES: Record<SpeechProvider, SpeechProvider
     hotwords: false,
     reliability: "fallback",
   },
-  funasr: {
-    partialResults: true,
-    finalResults: true,
-    tokenTimestamps: true,
-    hotwords: true,
-    reliability: "standard",
-  },
   "sherpa-onnx": {
     partialResults: true,
     finalResults: true,

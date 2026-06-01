@@ -8,10 +8,7 @@ import type { SherpaModel } from "@/lib/platform"
 import type { SpeechProvider } from "../transcribers"
 
 type ProviderSelectorProps = {
-  showFunAsr: boolean
   showSherpa: boolean
-  funasrReady: boolean
-  funasrStarting: boolean
   sherpaReady: boolean
   sherpaBusy: boolean
   sherpaLoading: boolean
@@ -19,7 +16,6 @@ type ProviderSelectorProps = {
   selectedSherpaModelId: string | null
   downloadProgress: Record<string, { percentage: number; downloadedText: string; totalText: string; status?: string }>
   speechProvider: SpeechProvider
-  onStartFunAsr: () => void
   onSelectSherpa: () => void
   onSelectWebSpeech: () => void
   onSelectSherpaModel: (value: string) => void
@@ -29,16 +25,13 @@ type ProviderSelectorProps = {
 }
 
 export function ProviderSelector({
-  showFunAsr,
   showSherpa,
-  funasrStarting,
   sherpaBusy,
   sherpaLoading,
   sherpaModels,
   selectedSherpaModelId,
   downloadProgress,
   speechProvider,
-  onStartFunAsr,
   onSelectSherpa,
   onSelectWebSpeech,
   onSelectSherpaModel,
@@ -58,7 +51,7 @@ export function ProviderSelector({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5">
         {showSherpa && (
           <button
             type="button"
@@ -72,29 +65,6 @@ export function ProviderSelector({
           >
             <span className="text-xs font-bold leading-tight">Sherpa ONNX</span>
             {speechProvider === "sherpa-onnx" && (
-              <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-                <Check className="h-2.5 w-2.5 stroke-[3]" />
-              </span>
-            )}
-          </button>
-        )}
-
-        {showFunAsr && (
-          <button
-            type="button"
-            disabled={funasrStarting}
-            onClick={onStartFunAsr}
-            className={cn(
-              "relative flex items-center justify-center rounded-xl border p-2 text-center transition-all h-12 cursor-pointer select-none",
-              speechProvider === "funasr"
-                ? "border-primary bg-primary/5 text-primary shadow-[0_0_0_1px_rgba(59,130,246,0.1)]"
-                : funasrStarting
-                  ? "cursor-not-allowed border-transparent opacity-50 bg-muted/20 text-muted-foreground/50"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted/40 hover:border-muted-foreground/30"
-            )}
-          >
-            <span className="text-xs font-bold leading-tight">FunASR</span>
-            {speechProvider === "funasr" && (
               <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
                 <Check className="h-2.5 w-2.5 stroke-[3]" />
               </span>

@@ -165,7 +165,7 @@ const cases: Case[] = [
     },
   },
   {
-    name: "FunASR 时间戳提升 readOffset 精度",
+    name: "时间戳提升 readOffset 精度",
     run: () => {
       const script = "大家好，今天我们聊一聊智能提词器。"
       const segments = segmentScript(script)

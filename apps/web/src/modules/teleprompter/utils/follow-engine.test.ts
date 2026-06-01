@@ -224,7 +224,7 @@ function runSpeakerGateCase() {
   })
 
   const ignored = engine.pushChunk(createSpeechChunk({
-    provider: "funasr",
+    provider: "sherpa-onnx",
     text: "旁边的人正在说话",
     isFinal: true,
     speakerId: "guest",
@@ -234,7 +234,7 @@ function runSpeakerGateCase() {
   assert.equal(ignored.statsSnapshot.speakerMismatchCount, 1)
 
   const accepted = engine.pushChunk(createSpeechChunk({
-    provider: "funasr",
+    provider: "sherpa-onnx",
     text: "目标说话人第一句",
     isFinal: true,
     speakerId: "target",

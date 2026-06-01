@@ -22,10 +22,7 @@ type FollowSettingsDialogProps = {
   lineHeight: number
   enablePrediction: boolean
   speechProvider: SpeechProvider
-  showFunAsr: boolean
   showSherpa: boolean
-  funasrReady: boolean
-  funasrStarting: boolean
   sherpaReady: boolean
   sherpaBusy: boolean
   sherpaLoading: boolean
@@ -36,7 +33,6 @@ type FollowSettingsDialogProps = {
   onFontSizeChange: (value: number) => void
   onLineHeightChange: (value: number) => void
   onEnablePredictionChange: (value: boolean) => void
-  onStartFunAsr: () => void
   onSelectSherpa: () => void
   onSelectWebSpeech: () => void
   onSelectSherpaModel: (value: string) => void
@@ -50,10 +46,7 @@ export function FollowSettingsDialog({
   lineHeight,
   enablePrediction,
   speechProvider,
-  showFunAsr,
   showSherpa,
-  funasrReady,
-  funasrStarting,
   sherpaReady,
   sherpaBusy,
   sherpaLoading,
@@ -64,7 +57,6 @@ export function FollowSettingsDialog({
   onFontSizeChange,
   onLineHeightChange,
   onEnablePredictionChange,
-  onStartFunAsr,
   onSelectSherpa,
   onSelectWebSpeech,
   onSelectSherpaModel,
@@ -145,10 +137,7 @@ export function FollowSettingsDialog({
             </div>
 
             <ProviderSelector
-              showFunAsr={showFunAsr}
               showSherpa={showSherpa}
-              funasrReady={funasrReady}
-              funasrStarting={funasrStarting}
               sherpaReady={sherpaReady}
               sherpaBusy={sherpaBusy}
               sherpaLoading={sherpaLoading}
@@ -156,7 +145,6 @@ export function FollowSettingsDialog({
               selectedSherpaModelId={selectedSherpaModelId}
               downloadProgress={downloadProgress}
               speechProvider={speechProvider}
-              onStartFunAsr={onStartFunAsr}
               onSelectSherpa={onSelectSherpa}
               onSelectWebSpeech={onSelectWebSpeech}
               onSelectSherpaModel={onSelectSherpaModel}

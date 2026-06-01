@@ -6,12 +6,10 @@ import { PageHeader } from "@/components/page-header"
 import { cn } from "@/lib/utils"
 import {
   activateSherpaModel,
-  checkFunAsrRunning,
   checkSherpaRunning,
   downloadSherpaModel,
   isTauriDesktop,
   listSherpaModels,
-  startFunAsrService,
   type SherpaModel,
 } from "@/lib/platform"
 import { notificationStore } from "@/lib/notification-store"
@@ -66,11 +64,7 @@ export function TeleprompterPage() {
   const [finalTranscript, setFinalTranscript] = useState("")
   const [interimTranscript, setInterimTranscript] = useState("")
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [showFunAsr] = useState(() => isTauriDesktop())
   const [showSherpa] = useState(() => isTauriDesktop())
-  const [funasrReady, setFunasrReady] = useState(false)
-  const [funasrStarting, setFunasrStarting] = useState(false)
-  const [funAsrEndpoint, setFunAsrEndpoint] = useState("ws://127.0.0.1:10095")
   const [sherpaReady, setSherpaReady] = useState(false)
   const [sherpaBusy, setSherpaBusy] = useState(false)
   const [sherpaLoading, setSherpaLoading] = useState(false)
@@ -120,7 +114,6 @@ export function TeleprompterPage() {
 
   const speech = useSpeechRecognition({
     provider: speechProvider,
-    funAsrEndpoint,
   })
   const segments = useMemo(() => segmentScript(script), [script])
   const followEngine = useMemo(() => script ? createFollowEngine(script, segments, { enablePrediction }) : null, [script, segments, enablePrediction])
@@ -170,9 +163,6 @@ export function TeleprompterPage() {
 
   useEffect(() => {
     if (!isTauriDesktop()) return
-    checkFunAsrRunning()
-      .then(setFunasrReady)
-      .catch(() => setFunasrReady(false))
     checkSherpaRunning()
       .then(setSherpaReady)
       .catch(() => setSherpaReady(false))
@@ -639,23 +629,6 @@ export function TeleprompterPage() {
     }
   }
 
-  const startFunAsr = () => {
-    if (funasrStarting) return
-    setFunasrStarting(true)
-    setMessage("正在启动 FunASR 引擎…")
-    startFunAsrService()
-      .then((endpoint) => {
-        setFunAsrEndpoint(endpoint)
-        setSpeechProvider("funasr")
-        setFunasrReady(true)
-        setMessage(null)
-      })
-      .catch((error) => {
-        setMessage(`FunASR 启动失败: ${error instanceof Error ? error.message : String(error)}`)
-      })
-      .finally(() => setFunasrStarting(false))
-  }
-
   const activateSelectedSherpaModel = async () => {
     if (!selectedSherpaModelId) {
       setMessage("请先选择一个 sherpa-onnx 模型")
@@ -767,10 +740,7 @@ export function TeleprompterPage() {
             fontSize={fontSize}
             lineHeight={lineHeight}
             enablePrediction={enablePrediction}
-            showFunAsr={showFunAsr}
             showSherpa={showSherpa}
-            funasrReady={funasrReady}
-            funasrStarting={funasrStarting}
             sherpaReady={sherpaReady}
             sherpaBusy={sherpaBusy}
             sherpaLoading={sherpaLoading}
@@ -785,7 +755,6 @@ export function TeleprompterPage() {
             onResumeFollowing={() => void resumeFollowing()}
             onStopFollowing={stopFollowing}
             onReturnToStart={returnToStart}
-            onStartFunAsr={startFunAsr}
             onSelectSherpa={() => setSpeechProvider("sherpa-onnx")}
             onSelectWebSpeech={() => setSpeechProvider("web-speech")}
             onSelectSherpaModel={setSelectedSherpaModelId}
