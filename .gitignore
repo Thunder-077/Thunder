@@ -33,5 +33,5 @@ packages/database/prisma/schema.sqlite.prisma
 packages/database/src/generated/
 packages/database/prisma/*.db
 packages/database/prisma/*.db-journal
-
-
+# Research and temporary study directories
+_research/
