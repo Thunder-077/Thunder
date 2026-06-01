@@ -50,8 +50,8 @@ export type TranscriberStatus =
 
 export interface SpeechTranscriber {
   start: () => Promise<void>
-  pause: () => void
-  stop: () => void
+  pause: () => Promise<void>
+  stop: () => Promise<void>
   onResult: (handler: (result: TranscriptionResult) => void) => () => void
   onStatusChange: (handler: (status: TranscriberStatus) => void) => () => void
   onError: (handler: (message: string) => void) => () => void

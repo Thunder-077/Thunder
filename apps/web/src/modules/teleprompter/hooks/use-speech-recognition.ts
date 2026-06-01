@@ -38,7 +38,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions) {
       offResult()
       offStatus()
       offError()
-      transcriber.stop()
+      void transcriber.stop()
     }
   }, [transcriber])
 
@@ -52,10 +52,10 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions) {
       return transcriber.start()
     },
     pause: () => transcriber.pause(),
-    stop: () => {
+    stop: async () => {
       setError(null)
       setLastResult(null)
-      transcriber.stop()
+      await transcriber.stop()
     },
     clearResult: () => setLastResult(null),
     clearError: () => setError(null),

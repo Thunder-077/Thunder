@@ -11,7 +11,7 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "build:plugin:teleprompter": "node ./scripts/build-teleprompter-plugin.mjs",
     "test:plugin-bridge": "tsx src/lib/desktop-plugin-bridge.test.ts && tsx src/lib/modules.test.ts",
-    "test:teleprompter": "tsx src/modules/teleprompter/utils/follow-engine.test.ts",
+    "test:teleprompter": "tsx src/modules/teleprompter/utils/follow-engine.test.ts && tsx tests/teleprompter-web-speech-transcriber.test.ts",
     "lint": "eslint",
     "lint:css": "stylelint \"**/*.css\"",
     "typecheck": "tsc --noEmit"

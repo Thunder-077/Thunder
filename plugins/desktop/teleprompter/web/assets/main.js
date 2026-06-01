@@ -40987,8 +40987,12 @@ var SherpaOnnxTranscriber = class {
     this.statusHandlers = /* @__PURE__ */ new Set();
     this.errorHandlers = /* @__PURE__ */ new Set();
     this.active = false;
+    this.acceptingAudio = false;
     this.feeding = false;
+    this.stopping = false;
+    this.stopPromise = null;
     this.pendingChunks = [];
+    this.queueDrainResolvers = /* @__PURE__ */ new Set();
   }
   isSupported() {
     return isTauriDesktop() && typeof window !== "undefined" && navigator.mediaDevices?.getUserMedia !== void 0;
@@ -41002,9 +41006,11 @@ var SherpaOnnxTranscriber = class {
       this.emitError("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u684C\u9762\u7AEF sherpa-onnx \u76F4\u8FDE\u8BC6\u522B\u3002");
       return;
     }
-    this.stop(false);
+    await this.stopInternal(null);
     this.emitStatus("listening");
     this.active = true;
+    this.acceptingAudio = true;
+    this.stopping = false;
     try {
       await startSherpaService();
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -41016,17 +41022,72 @@ var SherpaOnnxTranscriber = class {
       });
       await this.startAudioPump();
     } catch (error) {
-      this.stop(false);
+      if (!this.active) {
+        return;
+      }
+      await this.stopInternal(null);
       this.emitStatus("error");
       this.emitError(toSherpaError(error));
     }
   }
-  pause() {
-    this.stop(false);
-    this.emitStatus("paused");
+  async pause() {
+    await this.stopInternal("paused");
   }
-  stop(emitStopped = true) {
-    this.active = false;
+  async stop() {
+    await this.stopInternal("stopped");
+  }
+  async stopInternal(finalStatus) {
+    if (this.stopPromise) {
+      await this.stopPromise;
+      if (finalStatus) {
+        this.emitStatus(finalStatus);
+      }
+      return;
+    }
+    if (!this.active && !this.acceptingAudio && this.pendingChunks.length === 0 && !this.feeding) {
+      this.releaseAudioResources();
+      if (finalStatus) {
+        this.emitStatus(finalStatus);
+      }
+      return;
+    }
+    this.stopPromise = this.flushAndStop(finalStatus);
+    await this.stopPromise;
+  }
+  async flushAndStop(finalStatus) {
+    this.stopping = true;
+    this.acceptingAudio = false;
+    this.releaseAudioResources();
+    try {
+      if (!this.feeding && this.pendingChunks.length > 0) {
+        await this.drainAudioQueue();
+      }
+      await this.waitForPendingAudio();
+      if (this.active) {
+        const update = await feedSherpaAudio([], true);
+        if (update) {
+          this.handleUpdate(update);
+        }
+      }
+    } catch {
+    } finally {
+      this.active = false;
+      this.acceptingAudio = false;
+      this.feeding = false;
+      this.stopping = false;
+      this.pendingChunks = [];
+      this.resolveQueueDrain();
+      this.stopPromise = null;
+      try {
+        await stopSherpaService();
+      } catch {
+      }
+      if (finalStatus) {
+        this.emitStatus(finalStatus);
+      }
+    }
+  }
+  releaseAudioResources() {
     this.workletNode?.disconnect();
     this.workletNode?.port.close();
     this.sourceNode?.disconnect();
@@ -41036,12 +41097,6 @@ var SherpaOnnxTranscriber = class {
     this.sourceNode = null;
     this.audioContext = null;
     this.mediaStream = null;
-    this.feeding = false;
-    this.pendingChunks = [];
-    if (emitStopped) {
-      void stopSherpaService();
-      this.emitStatus("stopped");
-    }
   }
   onResult(handler) {
     this.resultHandlers.add(handler);
@@ -41066,7 +41121,7 @@ var SherpaOnnxTranscriber = class {
       processorOptions: { inputSampleRate: this.audioContext.sampleRate }
     });
     this.workletNode.port.onmessage = (event) => {
-      if (!this.active || event.data.byteLength === 0) {
+      if (!this.acceptingAudio || event.data.byteLength === 0) {
         return;
       }
       this.pendingChunks.push(new Int16Array(event.data.slice(0)));
@@ -41091,11 +41146,17 @@ var SherpaOnnxTranscriber = class {
         }
       }
     } catch (error) {
+      if (!this.active || this.stopping) {
+        return;
+      }
       this.emitStatus("error");
       this.emitError(toSherpaError(error));
-      this.stop(false);
+      await this.stopInternal(null);
     } finally {
       this.feeding = false;
+      if (this.pendingChunks.length === 0) {
+        this.resolveQueueDrain();
+      }
     }
   }
   handleUpdate(message) {
@@ -41114,7 +41175,23 @@ var SherpaOnnxTranscriber = class {
       source: message.isFinal ? "endpoint" : "streaming",
       chunk
     });
-    this.emitStatus("listening");
+    if (!this.stopping) {
+      this.emitStatus("listening");
+    }
+  }
+  waitForPendingAudio() {
+    if (!this.feeding && this.pendingChunks.length === 0) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.queueDrainResolvers.add(resolve);
+    });
+  }
+  resolveQueueDrain() {
+    for (const resolve of this.queueDrainResolvers) {
+      resolve();
+    }
+    this.queueDrainResolvers.clear();
   }
   emitResult(result) {
     for (const handler of this.resultHandlers) {
@@ -41168,6 +41245,7 @@ var WebSpeechTranscriber = class {
   constructor() {
     this.recognition = null;
     this.shouldRestart = false;
+    this.endingIntentionally = false;
     this.resultHandlers = /* @__PURE__ */ new Set();
     this.statusHandlers = /* @__PURE__ */ new Set();
     this.errorHandlers = /* @__PURE__ */ new Set();
@@ -41194,20 +41272,23 @@ var WebSpeechTranscriber = class {
       this.bindRecognition(this.recognition);
     }
     this.shouldRestart = true;
+    this.endingIntentionally = false;
     this.emitStatus("listening");
     try {
       this.recognition.start();
     } catch {
     }
   }
-  pause() {
+  async pause() {
     this.shouldRestart = false;
+    this.endingIntentionally = true;
     this.recognition?.stop();
     this.emitStatus("paused");
   }
-  stop() {
+  async stop() {
     this.shouldRestart = false;
-    this.recognition?.abort();
+    this.endingIntentionally = true;
+    this.recognition?.stop();
     this.emitStatus("stopped");
   }
   onResult(handler) {
@@ -41245,14 +41326,19 @@ var WebSpeechTranscriber = class {
       }
     };
     recognition.onerror = (event) => {
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      const isPermissionDenied = event.error === "not-allowed" || event.error === "service-not-allowed";
+      if (isPermissionDenied) {
         this.shouldRestart = false;
+      }
+      if (!isPermissionDenied && (this.endingIntentionally || !this.shouldRestart || event.error === "aborted")) {
+        return;
       }
       this.emitStatus("error");
       this.emitError(toChineseSpeechError(event.error));
     };
     recognition.onend = () => {
       if (!this.shouldRestart) {
+        this.endingIntentionally = false;
         return;
       }
       window.setTimeout(() => {
@@ -41311,7 +41397,7 @@ function useSpeechRecognition(options) {
       offResult();
       offStatus();
       offError();
-      transcriber.stop();
+      void transcriber.stop();
     };
   }, [transcriber]);
   return {
@@ -41324,10 +41410,10 @@ function useSpeechRecognition(options) {
       return transcriber.start();
     },
     pause: () => transcriber.pause(),
-    stop: () => {
+    stop: async () => {
       setError(null);
       setLastResult(null);
-      transcriber.stop();
+      await transcriber.stop();
     },
     clearResult: () => setLastResult(null),
     clearError: () => setError(null)
@@ -47728,8 +47814,8 @@ function TeleprompterPage() {
   const handleDraftScriptChange = (nextScript) => {
     setScriptDraft(nextScript);
   };
-  const beginScriptEditing = () => {
-    speech.stop();
+  const beginScriptEditing = async () => {
+    await speech.stop();
     speech.clearError();
     clearRecognitionSession();
     setFollowStatus("idle");
@@ -47837,8 +47923,8 @@ function TeleprompterPage() {
     setFollowStatus("listening");
     await speech.start();
   };
-  const pauseFollowing = () => {
-    speech.pause();
+  const pauseFollowing = async () => {
+    await speech.pause();
     followEngine?.transitionStatus({ type: "pause" });
     setFollowStatus("paused");
   };
@@ -47853,8 +47939,8 @@ function TeleprompterPage() {
     setFollowStatus("listening");
     await speech.start();
   };
-  const stopFollowing = () => {
-    speech.stop();
+  const stopFollowing = async () => {
+    await speech.stop();
     followEngine?.transitionStatus({ type: "stop" });
     setFollowStatus("idle");
     setConfidence(0);

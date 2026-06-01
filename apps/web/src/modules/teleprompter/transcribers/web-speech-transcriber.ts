@@ -79,6 +79,7 @@ function toChineseSpeechError(error: string): string {
 export class WebSpeechTranscriber implements SpeechTranscriber {
   private recognition: BrowserSpeechRecognition | null = null
   private shouldRestart = false
+  private endingIntentionally = false
   private resultHandlers = new Set<(result: TranscriptionResult) => void>()
   private statusHandlers = new Set<(status: TranscriberStatus) => void>()
   private errorHandlers = new Set<(message: string) => void>()
@@ -109,6 +110,7 @@ export class WebSpeechTranscriber implements SpeechTranscriber {
     }
 
     this.shouldRestart = true
+    this.endingIntentionally = false
     this.emitStatus("listening")
 
     try {
@@ -118,15 +120,17 @@ export class WebSpeechTranscriber implements SpeechTranscriber {
     }
   }
 
-  pause() {
+  async pause() {
     this.shouldRestart = false
+    this.endingIntentionally = true
     this.recognition?.stop()
     this.emitStatus("paused")
   }
 
-  stop() {
+  async stop() {
     this.shouldRestart = false
-    this.recognition?.abort()
+    this.endingIntentionally = true
+    this.recognition?.stop()
     this.emitStatus("stopped")
   }
 
@@ -171,8 +175,15 @@ export class WebSpeechTranscriber implements SpeechTranscriber {
     }
 
     recognition.onerror = (event) => {
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      const isPermissionDenied = event.error === "not-allowed" || event.error === "service-not-allowed"
+      if (isPermissionDenied) {
         this.shouldRestart = false
+      }
+
+      // Browsers can dispatch "aborted" or implementation-specific errors after
+      // a user-driven stop. Those events are teardown signals, not recognition failures.
+      if (!isPermissionDenied && (this.endingIntentionally || !this.shouldRestart || event.error === "aborted")) {
+        return
       }
 
       this.emitStatus("error")
@@ -181,6 +192,7 @@ export class WebSpeechTranscriber implements SpeechTranscriber {
 
     recognition.onend = () => {
       if (!this.shouldRestart) {
+        this.endingIntentionally = false
         return
       }
 
