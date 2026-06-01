@@ -20,7 +20,15 @@ import {
 
 export const desktopPlugins = new Hono()
 
-const BLOCKED_PLUGIN_API_PROXY_HEADERS = new Set(["authorization", "cookie", "host", "proxy-authorization"])
+const BLOCKED_PLUGIN_API_PROXY_HEADERS = new Set([
+  "authorization",
+  "connection",
+  "content-length",
+  "cookie",
+  "host",
+  "proxy-authorization",
+  "transfer-encoding",
+])
 
 export function sanitizePluginApiProxyHeaders(headers: Headers): Headers {
   const sanitized = new Headers()
@@ -32,6 +40,17 @@ export function sanitizePluginApiProxyHeaders(headers: Headers): Headers {
     sanitized.set(normalizedName, value)
   }
   return sanitized
+}
+
+async function readPluginApiProxyBody(request: Request, method: string): Promise<ArrayBuffer | undefined> {
+  if (method === "GET" || method === "HEAD") {
+    return undefined
+  }
+
+  // Buffer the body before proxying so large JSON payloads do not depend on nested
+  // request streams and stale content-length headers across the host -> plugin hop.
+  const body = await request.arrayBuffer()
+  return body.byteLength > 0 ? body : undefined
 }
 
 function toErrorResponse(error: unknown) {
@@ -232,6 +251,9 @@ desktopPlugins.get("/:id/web/*", async (c) => {
     return new Response(new Uint8Array(asset.bytes), {
       headers: {
         "content-type": asset.contentType,
+        "cache-control": "no-store, max-age=0",
+        pragma: "no-cache",
+        expires: "0",
         "content-security-policy": asset.contentSecurityPolicy ?? "",
         "x-content-type-options": "nosniff",
       },
@@ -264,12 +286,15 @@ async function handlePluginApiProxy(c: Context) {
     const headers = sanitizePluginApiProxyHeaders(new Headers(c.req.raw.headers))
     headers.set("x-thunder-plugin-id", id)
 
-    const body = method === "GET" || method === "HEAD" ? undefined : c.req.raw.body
+    const body = await readPluginApiProxyBody(c.req.raw, method)
+    if (!body) {
+      headers.delete("content-type")
+    }
+
     const upstream = await fetch(target.url, {
       method,
       headers,
       body,
-      ...(body ? { duplex: "half" as const } : {}),
       redirect: "manual",
     })
 

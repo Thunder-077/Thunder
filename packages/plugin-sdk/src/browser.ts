@@ -124,6 +124,14 @@ export function normalizeThunderPluginStorageKey(key: string): string {
   return normalized
 }
 
+function withOptionalBody<T extends { headers?: Record<string, string> }>(
+  options: T,
+  body: unknown
+): T & { headers: Record<string, string>; body?: unknown } {
+  const headers = body === undefined ? { ...(options.headers ?? {}) } : { "content-type": "application/json", ...(options.headers ?? {}) }
+  return body === undefined ? { ...options, headers } : { ...options, headers, body }
+}
+
 function postHostMessage<T>(method: BridgeMethod, params?: unknown): Promise<T> {
   if (typeof window === "undefined" || !window.parent || window.parent === window) {
     return Promise.reject(new Error("Thunder plugin host bridge is unavailable"))
@@ -185,8 +193,8 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
           path: normalizeThunderPluginRuntimePath(path),
           method: options.method ?? "GET",
           headers: options.headers ?? {},
-          body: options.body,
           cache: options.cache,
+          ...(options.body === undefined ? {} : { body: options.body }),
         }),
       get: async <T = unknown>(path: string, options: Omit<RuntimeRequestOptions, "method" | "body"> = {}) => {
         const response = await postHostMessage<RuntimeResponse<T>>("runtime.request", {
@@ -205,12 +213,7 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
         const response = await postHostMessage<RuntimeResponse<T>>("runtime.request", {
           path: normalizeThunderPluginRuntimePath(path),
           method: "POST",
-          headers: {
-            "content-type": "application/json",
-            ...(options.headers ?? {}),
-          },
-          body,
-          cache: options.cache,
+          ...withOptionalBody(options, body),
         })
         return response.data
       },
@@ -221,7 +224,7 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
           url,
           method: options.method ?? "GET",
           headers: options.headers ?? {},
-          body: options.body,
+          ...(options.body === undefined ? {} : { body: options.body }),
         }),
       get: async <T = unknown>(url: string, options: Omit<NetworkRequestOptions, "method" | "body"> = {}) => {
         const response = await postHostMessage<NetworkResponse<T>>("network.request", {
@@ -239,11 +242,7 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
         const response = await postHostMessage<NetworkResponse<T>>("network.request", {
           url,
           method: "POST",
-          headers: {
-            "content-type": "application/json",
-            ...(options.headers ?? {}),
-          },
-          body,
+          ...withOptionalBody(options, body),
         })
         return response.data
       },

@@ -432,11 +432,14 @@ function toInstalledPlugin(
   manifest: DesktopPluginManifest,
   record: DesktopPluginInstallRecord
 ): InstalledDesktopPlugin {
+  // 同版本插件重装也可能替换静态资源，入口 URL 必须跟随安装记录变化。
+  const cacheKey = `${record.version}-${record.updatedAt}`
+
   return {
     manifest,
     record,
     route: `/plugins/${manifest.id}`,
-    webEntryUrl: `/api/v1/desktop/plugins/${manifest.id}/web/${manifest.web.entry}`,
+    webEntryUrl: `/api/v1/desktop/plugins/${manifest.id}/web/${manifest.web.entry}?v=${encodeURIComponent(cacheKey)}`,
     installed: true,
   }
 }

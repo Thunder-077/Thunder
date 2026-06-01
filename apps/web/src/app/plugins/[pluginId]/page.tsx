@@ -116,16 +116,29 @@ export default function DesktopPluginPage() {
           const params = request.params as RuntimeRequestParams | null
           const rawPath = normalizeRuntimeRequestPath(params?.path)
           const method = normalizeRuntimeRequestMethod(params?.method)
+          const headers = sanitizeRuntimeRequestHeaders(params?.headers)
+          const hasBody =
+            method !== "GET" &&
+            method !== "HEAD" &&
+            params !== null &&
+            typeof params === "object" &&
+            Object.prototype.hasOwnProperty.call(params, "body")
 
-          const hasBody = method !== "GET" && params && "body" in params
+          // Keep empty POSTs body-less so plugin runtimes do not try to parse a fake JSON payload.
+          if (!hasBody) {
+            headers.delete("content-type")
+          }
+
           const response = await fetch(
             `/api/v1/desktop/plugins/${encodeURIComponent(currentPlugin.manifest.id)}/api/${rawPath}`,
             {
               method,
-              headers: sanitizeRuntimeRequestHeaders(params?.headers),
+              headers,
               body: hasBody ? JSON.stringify(params.body) : undefined,
               cache: params?.cache ?? "no-store",
-              credentials: "omit",
+              // Runtime requests are issued by the host page, so they must carry the
+              // current session cookie or middleware will reject them as anonymous.
+              credentials: "same-origin",
             }
           )
 
