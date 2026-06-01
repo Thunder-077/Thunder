@@ -270,7 +270,6 @@ pnpm build:plugin:teleprompter
 - Host Bridge 按 `local-api-proxy` 权限代理到插件自己的 API：`/api/v1/desktop/plugins/teleprompter/api/native/*`
 - 插件 Node runtime 代理到 Tauri 暴露的本机 speech bridge：`THUNDER_DESKTOP_NATIVE_API_URL`
 - Tauri speech bridge 仅监听 `127.0.0.1:43102`
-- FunASR 由 speech bridge 启动本地 Python WebSocket 服务，插件继续使用 WebSocket 推流
 - sherpa-onnx 的模型列表、下载、激活、启动、停止和音频推流都通过 speech bridge 进入 Tauri Rust 原生识别器
 
 插件页面打开时会自动启动插件的 Node runtime。用户需先安装提词器插件。

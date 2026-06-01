@@ -41,7 +41,7 @@ By leveraging a decentralized, loosely-coupled micro-app architecture, Thunder b
 
 ## 📦 Core Modules Included
 
-- 🎤 **Smart Teleprompter**: Supports auto-scroll mode and real-time speech shadowing mode (integrated with Web Speech, FunASR, and offline Sherpa-ONNX engines).
+- 🎤 **Smart Teleprompter**: Supports auto-scroll mode and real-time speech shadowing mode (integrated with Web Speech and offline Sherpa-ONNX engines).
 - 🔐 **Encrypted Vault**: Zero-knowledge client-side encryption, guaranteeing physical-level security for personal secret data.
 - 🎬 **Emby Manager**: Integrated with EMOS and TMDB APIs, facilitating easier assistance and management of media playback data.
 - 🌦️ **Weather Board**: Integrated with QWeather (HeFeng) API, rendering real-time weather forecasts and aesthetic widgets.

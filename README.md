@@ -41,7 +41,7 @@
 
 ## 📦 当前已包含的核心模块
 
-- 🎤 **智能提词器 (Teleprompter)**：支持滚动模式与语音实时自动跟读模式（集成 Web Speech、FunASR 与 Sherpa-ONNX 离线语音引擎）。
+- 🎤 **智能提词器 (Teleprompter)**：支持滚动模式与语音实时自动跟读模式（集成 Web Speech 与 Sherpa-ONNX 离线语音引擎）。
 - 🔐 **加密保险箱 (Vault)**：零知识客户端加密，确保个人私密数据物理级的安全存储。
 - 🎬 **流媒体管家 (Emby Manager)**：集成 EMOS 与 TMDB 开放服务，实现便捷的流媒体数据辅助管理。
 - 🌦️ **智能天气看板 (Weather Board)**：集成和风天气 API，提供精准的实时天气与预报看板。

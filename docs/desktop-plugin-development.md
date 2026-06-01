@@ -233,7 +233,7 @@ Thunder 只通过平台 API 代理暴露插件后端：
 
 这是平台内部代理路径。插件前端不要直接拼接该路径，应通过 `@thunder/plugin-sdk/browser` 请求自己的 runtime。Host Bridge 不会把 Thunder 页面 cookie 转发给插件 runtime，并会过滤敏感请求头。插件不要把服务绑定到公网地址，也不要假设端口固定。
 
-官方提词器插件使用 Node runtime 作为业务后端。它不会让 iframe 直接调用 Tauri，而是通过 Browser SDK 请求 Host Bridge，再由宿主按权限代理到插件 runtime，runtime 再调用平台注入的 `THUNDER_DESKTOP_NATIVE_API_URL`。这样 FunASR / sherpa-onnx 的业务接入仍归插件负责，平台只提供受控原生能力出口。
+官方提词器插件使用 Node runtime 作为业务后端。它不会让 iframe 直接调用 Tauri，而是通过 Browser SDK 请求 Host Bridge，再由宿主按权限代理到插件 runtime，runtime 再调用平台注入的 `THUNDER_DESKTOP_NATIVE_API_URL`。这样 sherpa-onnx 的业务接入仍归插件负责，平台只提供受控原生能力出口。
 
 ## 数据与迁移
 
