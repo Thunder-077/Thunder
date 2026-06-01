@@ -334,6 +334,34 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/plugin-ui:
+    dependencies:
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.4)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.4(react@19.2.4)
+      tailwind-merge:
+        specifier: ^3.5.0
+        version: 3.5.0
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/ui:
     devDependencies:
       typescript:
