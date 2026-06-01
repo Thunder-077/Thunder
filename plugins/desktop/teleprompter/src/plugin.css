@@ -1,6 +1,7 @@
 @source "../../../../apps/web/src/modules/teleprompter/**/*.{ts,tsx}";
 @source "../../../../apps/web/src/components/**/*.{ts,tsx}";
 @source "../../../../apps/web/src/lib/**/*.{ts,tsx}";
+@source "../../../../packages/plugin-ui/src/**/*.{ts,tsx}";
 @source "./**/*.{ts,tsx}";
 
 html,

@@ -15,6 +15,7 @@ const entryPoint = resolve(pluginRoot, "src", "main.tsx")
 const cssOutput = resolve(assetsOutDir, "main.css")
 const globalsCss = resolve(webRoot, "src", "app", "globals.css")
 const pluginCss = resolve(pluginRoot, "src", "plugin.css")
+const pluginUiRoot = resolve(workspaceRoot, "packages", "plugin-ui", "src")
 const reactRoot = resolve(workspaceRoot, "node_modules", "react")
 const reactDomRoot = resolve(workspaceRoot, "node_modules", "react-dom")
 
@@ -44,8 +45,16 @@ await build({
     "react-dom": reactDomRoot,
     "react-dom/client": resolve(reactDomRoot, "client.js"),
     "@": resolve(webRoot, "src"),
+    // Desktop plugins can keep Thunder's visual language through a stable UI package
+    // without importing the web app's internal component implementations.
+    "@/components/ui/badge": resolve(pluginUiRoot, "badge.tsx"),
+    "@/components/ui/button": resolve(pluginUiRoot, "button.tsx"),
+    "@/components/ui/card": resolve(pluginUiRoot, "card.tsx"),
+    "@/components/ui/dialog": resolve(pluginUiRoot, "dialog.tsx"),
+    "@/components/ui/separator": resolve(pluginUiRoot, "separator.tsx"),
     "@/components/page-header": resolve(pluginRoot, "src", "shims", "page-header.tsx"),
-    "@/components/ui/select": resolve(pluginRoot, "src", "shims", "select.tsx"),
+    "@/components/ui/select": resolve(pluginUiRoot, "select.tsx"),
+    "@/components/ui/switch": resolve(pluginUiRoot, "switch.tsx"),
     "@/lib/notification-store": resolve(pluginRoot, "src", "shims", "notification-store.ts"),
     "@/lib/platform": resolve(pluginRoot, "src", "shims", "platform.ts"),
     "@tauri-apps/api/event": resolve(pluginRoot, "src", "shims", "tauri-event.ts"),
