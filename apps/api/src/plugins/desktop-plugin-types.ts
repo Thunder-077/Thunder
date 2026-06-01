@@ -1,58 +1,8 @@
-export type DesktopPluginCategory =
-  | "productivity"
-  | "security"
-  | "ai"
-  | "notes"
-  | "tools"
-  | "dashboard"
-  | "other"
-
-export type DesktopPluginPermission =
-  | "webview"
-  | "plugin-storage"
-  | "network-proxy"
-  | "local-api-proxy"
-
-export interface DesktopPluginWebConfig {
-  entry: string
-  contentSecurityPolicy?: string
-}
-
-export interface DesktopPluginApiConfig {
-  baseUrl?: string
-  healthPath?: string
-  runtime?: {
-    kind: "node"
-    entry: string
-    args?: string[]
-    portEnv?: string
-    env?: Record<string, string>
-  }
-}
-
-export interface DesktopPluginMigrationConfig {
-  sqlite?: string
-}
-
-export interface DesktopPluginManifest {
-  manifestVersion: 1
-  id: string
-  name: string
-  version: string
-  description: string
-  icon: string
-  category: DesktopPluginCategory
-  order?: number
-  author: {
-    name: string
-    url?: string
-  }
-  homepage?: string
-  permissions: DesktopPluginPermission[]
-  web: DesktopPluginWebConfig
-  api?: DesktopPluginApiConfig
-  migrations?: DesktopPluginMigrationConfig
-}
+export type {
+  ThunderPluginCategory as DesktopPluginCategory,
+  ThunderPluginPermission as DesktopPluginPermission,
+  ThunderPluginManifest as DesktopPluginManifest,
+} from "@thunder/plugin-sdk"
 
 export interface DesktopPluginInstallRecord {
   id: string
@@ -71,7 +21,7 @@ export interface DesktopPluginInstallRecord {
 }
 
 export interface InstalledDesktopPlugin {
-  manifest: DesktopPluginManifest
+  manifest: import("@thunder/plugin-sdk").ThunderPluginManifest
   record: DesktopPluginInstallRecord
   route: string
   webEntryUrl: string
@@ -118,12 +68,12 @@ export interface DesktopPluginMarketplaceEntry {
   version: string
   description: string
   icon: string
-  category: DesktopPluginCategory
+  category: import("@thunder/plugin-sdk").ThunderPluginCategory
   author: {
     name: string
     url?: string
   }
-  permissions: DesktopPluginPermission[]
+  permissions: import("@thunder/plugin-sdk").ThunderPluginPermission[]
   source?: "package" | "bundled"
   packageUrl?: string
   packageSha256?: string

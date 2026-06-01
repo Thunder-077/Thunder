@@ -15,6 +15,8 @@ const entryPoint = resolve(pluginRoot, "src", "main.tsx")
 const cssOutput = resolve(assetsOutDir, "main.css")
 const globalsCss = resolve(webRoot, "src", "app", "globals.css")
 const pluginCss = resolve(pluginRoot, "src", "plugin.css")
+const reactRoot = resolve(workspaceRoot, "node_modules", "react")
+const reactDomRoot = resolve(workspaceRoot, "node_modules", "react-dom")
 
 await rm(webOutDir, { recursive: true, force: true })
 await mkdir(assetsOutDir, { recursive: true })
@@ -34,6 +36,13 @@ await build({
     ".wasm": "file",
   },
   alias: {
+    // Pin React-related imports to one canonical path so esbuild does not bundle
+    // duplicate React copies through mixed pnpm junction and workspace paths.
+    react: reactRoot,
+    "react/jsx-runtime": resolve(reactRoot, "jsx-runtime.js"),
+    "react/jsx-dev-runtime": resolve(reactRoot, "jsx-dev-runtime.js"),
+    "react-dom": reactDomRoot,
+    "react-dom/client": resolve(reactDomRoot, "client.js"),
     "@": resolve(webRoot, "src"),
     "@/components/page-header": resolve(pluginRoot, "src", "shims", "page-header.tsx"),
     "@/components/ui/select": resolve(pluginRoot, "src", "shims", "select.tsx"),

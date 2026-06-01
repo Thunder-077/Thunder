@@ -26,6 +26,9 @@ importers:
       '@thunder/emby':
         specifier: workspace:*
         version: link:../../modules/emby
+      '@thunder/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@thunder/vault':
         specifier: workspace:*
         version: link:../../modules/vault
@@ -112,6 +115,9 @@ importers:
       '@thunder/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@thunder/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@thunder/vault':
         specifier: workspace:*
         version: link:../../modules/vault

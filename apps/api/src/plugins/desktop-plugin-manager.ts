@@ -465,11 +465,19 @@ export async function listInstalledDesktopPlugins(): Promise<InstalledDesktopPlu
 
 export async function getInstalledDesktopPlugin(id: string): Promise<InstalledDesktopPlugin> {
   assertPluginId(id)
-  const plugin = (await listInstalledDesktopPlugins()).find((item) => item.manifest.id === id)
-  if (!plugin) {
+  if (!isDesktopPluginRuntimeEnabled()) {
     throw new DesktopPluginError("插件未安装", 404)
   }
-  return plugin
+  await ensureDirs()
+  const { pluginsDir } = getPluginDirs()
+  const pluginRoot = join(pluginsDir, id)
+  try {
+    const manifest = await readManifest(pluginRoot)
+    const record = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json"))
+    return toInstalledPlugin(manifest, record)
+  } catch {
+    throw new DesktopPluginError("插件未安装", 404)
+  }
 }
 
 async function installLocalDesktopPluginInternal(

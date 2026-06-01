@@ -1,47 +1,10 @@
-import type { ModuleCategory } from "@thunder/core"
+import type { ThunderPluginManifest, ThunderPluginPermission } from "@thunder/plugin-sdk"
 import { isTauriDesktop } from "@/lib/platform"
 
 export const DESKTOP_PLUGINS_CHANGED_EVENT = "thunder:desktop-plugins-changed"
 
-export type DesktopPluginPermission =
-  | "webview"
-  | "plugin-storage"
-  | "network-proxy"
-  | "local-api-proxy"
-
-export interface DesktopPluginManifest {
-  manifestVersion: 1
-  id: string
-  name: string
-  version: string
-  description: string
-  icon: string
-  category: ModuleCategory
-  order?: number
-  author: {
-    name: string
-    url?: string
-  }
-  permissions: DesktopPluginPermission[]
-  web: {
-    entry: string
-    contentSecurityPolicy?: string
-  }
-  api?: {
-    baseUrl?: string
-    healthPath?: string
-    runtime?: {
-      kind: "node"
-      entry: string
-      args?: string[]
-      portEnv?: string
-      env?: Record<string, string>
-    }
-  }
-  migrations?: {
-    sqlite?: string
-  }
-}
+export type DesktopPluginPermission = ThunderPluginPermission
+export type DesktopPluginManifest = ThunderPluginManifest
 
 export interface InstalledDesktopPlugin {
   manifest: DesktopPluginManifest
