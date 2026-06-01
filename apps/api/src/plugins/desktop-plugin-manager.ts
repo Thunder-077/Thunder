@@ -1,5 +1,5 @@
 import { constants as fsConstants } from "node:fs"
-import { access, appendFile, cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
+import { access, appendFile, cp, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { spawn, type ChildProcess } from "node:child_process"
 import { createHash, createPublicKey, verify } from "node:crypto"
 import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
@@ -311,6 +311,20 @@ async function pathExists(path: string): Promise<boolean> {
     .catch(() => false)
 }
 
+async function assertNoSymlinks(current: string): Promise<void> {
+  const entries = await readdir(current, { withFileTypes: true })
+  for (const entry of entries) {
+    const entryPath = join(current, entry.name)
+    const entryStat = await lstat(entryPath)
+    if (entryStat.isSymbolicLink()) {
+      throw new DesktopPluginError("插件目录不能包含符号链接")
+    }
+    if (entry.isDirectory()) {
+      await assertNoSymlinks(entryPath)
+    }
+  }
+}
+
 function trustedKeys(): Map<string, string> {
   const raw = process.env.THUNDER_PLUGIN_TRUSTED_KEYS
   if (!raw) return new Map()
@@ -497,6 +511,7 @@ async function installLocalDesktopPluginInternal(
   }
 
   const manifest = await readManifest(sourcePath)
+  await assertNoSymlinks(sourcePath)
   if (!options.allowUnsignedBundled) {
     verifyManifestSignature(manifest, options.signature)
   }

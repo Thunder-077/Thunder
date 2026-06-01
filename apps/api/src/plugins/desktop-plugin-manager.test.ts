@@ -1,6 +1,6 @@
 import { createServer } from "node:http"
 import { createHash, generateKeyPairSync, sign } from "node:crypto"
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { cp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import assert from "node:assert/strict"
@@ -107,6 +107,22 @@ async function main() {
     () => installLocalDesktopPlugin({ sourcePath: missingLocalApiProxyDir }),
     "plugins with api must declare local-api-proxy"
   )
+
+  const symlinkPluginDir = join(testRoot, "hello-with-symlink")
+  await cp(examplePlugin, symlinkPluginDir, { recursive: true })
+  let symlinkCreated = false
+  try {
+    await symlink(testRoot, join(symlinkPluginDir, "outside-link"), "junction")
+    symlinkCreated = true
+  } catch {
+    // Some Windows environments disallow symlink creation for non-elevated users.
+  }
+  if (symlinkCreated) {
+    await expectRejects(
+      () => installLocalDesktopPlugin({ sourcePath: symlinkPluginDir }),
+      "plugins with symlinks must be denied"
+    )
+  }
 
   const installed = await installLocalDesktopPlugin({ sourcePath: examplePlugin })
   assert.equal(installed.record.source, "local-directory")
