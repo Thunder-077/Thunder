@@ -32,8 +32,6 @@ const TRAY_HIDE_ID: &str = "tray-hide";
 const TRAY_QUIT_ID: &str = "tray-quit";
 const DESKTOP_SHORTCUT: &str = "CommandOrControl+Shift+T";
 const DESKTOP_ENV_FILE_NAME: &str = "desktop.env";
-const DEFAULT_FUNASR_PORT: u16 = 10095;
-const DEFAULT_FUNASR_HOST: &str = "127.0.0.1";
 const DEFAULT_NATIVE_API_PORT: u16 = 43102;
 
 #[allow(dead_code)]
@@ -42,7 +40,6 @@ const DEFAULT_NATIVE_API_PORT: u16 = 43102;
 struct RuntimeManifest {
     web_port: u16,
     api_port: u16,
-    funasr_port: Option<u16>,
     sherpa_port: Option<u16>,
     web_entry: String,
     api_entry: String,
@@ -427,39 +424,6 @@ fn spawn_node_process(
     command.spawn()
 }
 
-fn spawn_python_process(
-    python_path: &str,
-    launcher_path: &Path,
-    cwd: &Path,
-    envs: &HashMap<String, String>,
-) -> io::Result<Child> {
-    let mut command = Command::new(python_path);
-    command
-        .arg(launcher_path)
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
-    for (key, value) in envs {
-        command.env(key, value);
-    }
-
-    command.spawn()
-}
-
-fn is_port_open(port: u16) -> bool {
-    let Ok(mut addrs) = ("127.0.0.1", port).to_socket_addrs() else {
-        return false;
-    };
-
-    let Some(addr) = addrs.next() else {
-        return false;
-    };
-
-    TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok()
-}
-
 fn wait_for_port(port: u16, timeout: Duration) -> io::Result<()> {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
@@ -559,65 +523,6 @@ fn get_desktop_platform() -> &'static str {
     }
 }
 
-fn resolve_funasr_config<R: Runtime>(app: &AppHandle<R>) -> (PathBuf, String, String, u16) {
-    let desktop_env = load_desktop_env(app).unwrap_or_default();
-
-    let port = desktop_env
-        .get("THUNDER_FUNASR_PORT")
-        .and_then(|v| v.parse::<u16>().ok())
-        .unwrap_or(DEFAULT_FUNASR_PORT);
-
-    let host = desktop_env
-        .get("THUNDER_FUNASR_HOST")
-        .cloned()
-        .unwrap_or_else(|| DEFAULT_FUNASR_HOST.into());
-
-    if cfg!(debug_assertions) {
-        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .join("..");
-
-        let launcher = workspace
-            .join("services")
-            .join("funasr")
-            .join("start_funasr.py");
-
-        let python = desktop_env
-            .get("THUNDER_FUNASR_PYTHON")
-            .cloned()
-            .unwrap_or_else(|| {
-                let venv = workspace.join("services").join("funasr").join(".venv");
-                let bin = if cfg!(target_os = "windows") {
-                    venv.join("Scripts").join("python.exe")
-                } else {
-                    venv.join("bin").join("python")
-                };
-                if bin.exists() {
-                    bin.to_string_lossy().into()
-                } else {
-                    "python".into()
-                }
-            });
-
-        (launcher, python, host, port)
-    } else {
-        let resource_dir = app.path().resource_dir().unwrap_or_default();
-        let launcher = resource_dir
-            .join("runtime")
-            .join("services")
-            .join("funasr")
-            .join("start_funasr.py");
-
-        let python = desktop_env
-            .get("THUNDER_FUNASR_PYTHON")
-            .cloned()
-            .unwrap_or_else(|| "python".into());
-
-        (launcher, python, host, port)
-    }
-}
-
 fn resolve_sherpa_catalog_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
     if cfg!(debug_assertions) {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -640,11 +545,10 @@ fn resolve_sherpa_catalog_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
 fn resolve_sherpa_config<R: Runtime>(app: &AppHandle<R>) -> (PathBuf, PathBuf, PathBuf) {
     let catalog = resolve_sherpa_catalog_path(app);
     let app_data_root = app.path().app_data_dir().unwrap_or_else(|_| {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("..")
-            .join("..")
-            .join(".thunder")
+        let home = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .unwrap_or_else(|_| ".".to_string());
+        PathBuf::from(home).join(".thunder")
     });
     let sherpa_root = app_data_root.join("speech").join("sherpa-onnx");
     let model_dir = sherpa_root.join("models");
@@ -983,56 +887,6 @@ fn create_sherpa_session(
 }
 
 #[tauri::command]
-fn check_funasr_running(app: tauri::AppHandle) -> bool {
-    let (_, _, _, port) = resolve_funasr_config(&app);
-    is_port_open(port)
-}
-
-#[tauri::command]
-fn start_funasr_service(app: tauri::AppHandle) -> Result<String, String> {
-    let (launcher, python, host, port) = resolve_funasr_config(&app);
-
-    // 已在运行则直接返回
-    if is_port_open(port) {
-        return Ok(format!("ws://{}:{}", host, port));
-    }
-
-    if !launcher.exists() {
-        return Err("FunASR 启动脚本不存在，请检查是否已安装 FunASR 服务。".into());
-    }
-
-    let cwd = launcher.parent().unwrap_or(Path::new(".")).to_path_buf();
-
-    let mut envs = HashMap::new();
-    envs.insert("THUNDER_FUNASR_HOST".into(), host.clone());
-    envs.insert("THUNDER_FUNASR_PORT".into(), port.to_string());
-
-    let child = spawn_python_process(&python, &launcher, &cwd, &envs).map_err(|e| {
-        if e.kind() == io::ErrorKind::NotFound {
-            format!("未找到 Python 可执行文件 ({python})。请安装 Python 并配置 FunASR 环境后重试。")
-        } else {
-            format!("FunASR 进程启动失败: {e}")
-        }
-    })?;
-
-    {
-        let state = app.state::<DesktopState>();
-
-        #[cfg(target_os = "windows")]
-        if let Some(ref job) = state.job {
-            let _ = job.assign(&child);
-        }
-
-        state.sidecars.lock().unwrap().push(child);
-    }
-
-    wait_for_port(port, Duration::from_secs(120))
-        .map_err(|_| "FunASR 服务启动超时，请检查 Python 环境和依赖是否正确安装。".to_string())?;
-
-    Ok(format!("ws://{}:{}", host, port))
-}
-
-#[tauri::command]
 fn check_sherpa_running(app: tauri::AppHandle) -> bool {
     let state = app.state::<DesktopState>();
     let is_running = state.sherpa_session.lock().unwrap().is_some();
@@ -1287,10 +1141,6 @@ fn dispatch_native_speech_request(
     match (method, path) {
         ("GET", "/health") => Ok(serde_json::json!({ "status": "ok" })),
         ("GET", "/platform") => Ok(serde_json::json!(get_desktop_platform())),
-        ("GET", "/funasr/status") => Ok(serde_json::json!(check_funasr_running(app))),
-        ("POST", "/funasr/start") => start_funasr_service(app)
-            .map(|value| serde_json::json!(value))
-            .map_err(|message| (500, message)),
         ("GET", "/sherpa/status") => Ok(serde_json::json!(check_sherpa_running(app))),
         ("GET", "/sherpa/models") => list_sherpa_models(app)
             .map(|value| serde_json::json!(value))
@@ -1363,8 +1213,6 @@ pub fn run() {
         .plugin(tauri_plugin_decorum::init())
         .invoke_handler(tauri::generate_handler![
             get_desktop_platform,
-            check_funasr_running,
-            start_funasr_service,
             check_sherpa_running,
             list_sherpa_models,
             download_sherpa_model,

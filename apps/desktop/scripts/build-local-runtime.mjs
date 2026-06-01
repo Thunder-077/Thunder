@@ -13,7 +13,6 @@ const runtimePluginsDir = resolve(runtimeDir, "plugins")
 const runtimeManifestPath = resolve(runtimeDir, "manifest.json")
 const webPort = Number(process.env.THUNDER_DESKTOP_WEB_PORT ?? "43100")
 const apiPort = Number(process.env.THUNDER_DESKTOP_API_PORT ?? "43101")
-const funasrPort = Number(process.env.THUNDER_FUNASR_PORT ?? "10095")
 const sherpaPort = Number(process.env.THUNDER_SHERPA_PORT ?? "10096")
 
 function run(command, args, options = {}) {
@@ -108,9 +107,6 @@ await cp(staticDir, resolve(appDir.replace(standaloneDir, runtimeWebDir), ".next
 await cp(publicDir, resolve(appDir.replace(standaloneDir, runtimeWebDir), "public"), {
   recursive: true,
 })
-await cp(resolve(workspaceRoot, "services", "funasr"), resolve(runtimeServicesDir, "funasr"), {
-  recursive: true,
-})
 await cp(resolve(workspaceRoot, "services", "sherpa-onnx"), resolve(runtimeServicesDir, "sherpa-onnx"), {
   recursive: true,
 })
@@ -124,7 +120,6 @@ await writeFile(
     {
       webPort,
       apiPort,
-      funasrPort,
       sherpaPort,
       webEntry: posix.join("web", serverEntry.replaceAll("\\", "/")),
       apiEntry: "api/server.cjs",
