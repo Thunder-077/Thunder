@@ -35,3 +35,8 @@ packages/database/prisma/*.db
 packages/database/prisma/*.db-journal
 # Research and temporary study directories
 _research/
+
+# Desktop test logs
+dev-desktop-test.err.log
+dev-desktop-test.out.log
+
