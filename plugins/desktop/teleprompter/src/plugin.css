@@ -12,10 +12,10 @@ body,
 
 body {
   margin: 0;
-  background: var(--background);
+  background: transparent;
   color: var(--foreground);
 }
 
 #root {
-  padding: 1.5rem;
+  padding: 0;
 }
