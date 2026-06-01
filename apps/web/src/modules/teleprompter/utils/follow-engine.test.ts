@@ -56,6 +56,7 @@ runSpeakerGateCase()
 runLowConfidenceHoldCase()
 runLocalCursorLookAheadCase()
 runLocalCursorRejectsSingleTokenJumpCase()
+runLocalRankingKeepsRepeatedTailAtConfirmedPosition()
 
 function loadFixtures(): ReplayFixture[] {
   return readdirSync(fixtureDir)
@@ -286,4 +287,26 @@ function runLocalCursorRejectsSingleTokenJumpCase() {
   assert.equal(held.confirmedReadOffset, first.confirmedReadOffset, `single token jump should be held: ${formatUpdate(held)}`)
   assert.equal(held.displayReadOffset, first.displayReadOffset, `single token jump should not move display: ${formatUpdate(held)}`)
   console.log("PASS 孤立单字不会触发远距离跳转")
+}
+
+function runLocalRankingKeepsRepeatedTailAtConfirmedPosition() {
+  const script = "可以说，\n北大是改变了我一生的地方，\n是提升了我自己的地方，\n使我从一个农村孩子最后走向了世界的地方。"
+  const segments = segmentScript(script)
+  const engine = createFollowEngine(script, segments, { enablePrediction: false })
+
+  engine.push("可以说", true)
+  const confirmed = engine.push("北大是改变了我一生的地方", true)
+  const repeatedTail = engine.push("地方", true)
+
+  assert.equal(
+    repeatedTail.confirmedReadOffset,
+    confirmed.confirmedReadOffset,
+    `repeated short tail should stay on confirmed phrase: ${formatUpdate(repeatedTail)}`,
+  )
+  assert.equal(
+    repeatedTail.displayReadOffset,
+    confirmed.displayReadOffset,
+    `repeated short tail should not move display: ${formatUpdate(repeatedTail)}`,
+  )
+  console.log("PASS 短尾词重复识别不会跳到后续同词位置")
 }

@@ -42137,7 +42137,7 @@ function createFollowEngine(script, segments, config) {
       ...cursorCandidate ? [cursorCandidate] : [],
       ...lexicalCandidates,
       ...timestampCandidate ? [timestampCandidate] : []
-    ]);
+    ], searchMode === "local" ? lastUpdate.confirmedReadOffset : void 0);
     candidateTracks = updateCandidateTracks(candidateTracks, candidates, now);
     const bestCandidate = chooseBestCandidate({
       candidates,
@@ -42399,7 +42399,7 @@ function findLexicalCandidates(options) {
       candidates.push(candidate);
     }
   }
-  return rankCandidates(candidates).slice(0, MAX_CANDIDATES);
+  return rankCandidates(candidates, mode === "local" ? anchorOffset : void 0).slice(0, MAX_CANDIDATES);
 }
 function findLocalCursorCandidate(options) {
   const { speechTokens, index, anchorOffset, params, isFinal } = options;
@@ -42554,8 +42554,20 @@ function createTimestampCandidate(resultText, timestamps, script, segments) {
   }
   return best;
 }
-function rankCandidates(candidates) {
-  return [...candidates].sort((a, b) => b.score - a.score || b.readOffset - a.readOffset).slice(0, MAX_CANDIDATES);
+function rankCandidates(candidates, anchorOffset) {
+  return [...candidates].sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    if (anchorOffset !== void 0) {
+      const aDistance = Math.abs(a.readOffset - anchorOffset);
+      const bDistance = Math.abs(b.readOffset - anchorOffset);
+      if (aDistance !== bDistance) {
+        return aDistance - bDistance;
+      }
+    }
+    return b.readOffset - a.readOffset;
+  }).slice(0, MAX_CANDIDATES);
 }
 function chooseBestCandidate(options) {
   const {

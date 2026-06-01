@@ -281,7 +281,7 @@ export function createFollowEngine(
       ...(cursorCandidate ? [cursorCandidate] : []),
       ...lexicalCandidates,
       ...(timestampCandidate ? [timestampCandidate] : []),
-    ])
+    ], searchMode === "local" ? lastUpdate.confirmedReadOffset : undefined)
     candidateTracks = updateCandidateTracks(candidateTracks, candidates, now)
     const bestCandidate = chooseBestCandidate({
       candidates,
@@ -609,7 +609,7 @@ function findLexicalCandidates(options: {
     }
   }
 
-  return rankCandidates(candidates).slice(0, MAX_CANDIDATES)
+  return rankCandidates(candidates, mode === "local" ? anchorOffset : undefined).slice(0, MAX_CANDIDATES)
 }
 
 function findLocalCursorCandidate(options: {
@@ -820,9 +820,25 @@ function createTimestampCandidate(
   return best
 }
 
-function rankCandidates(candidates: FollowCandidate[]): FollowCandidate[] {
+function rankCandidates(candidates: FollowCandidate[], anchorOffset?: number): FollowCandidate[] {
   return [...candidates]
-    .sort((a, b) => b.score - a.score || b.readOffset - a.readOffset)
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score
+      }
+
+      // 本地跟读时，ASR 可能重复吐出已经确认过的短尾词。
+      // 同分候选优先贴近当前锚点，避免“地方”等短词跳到后续重复位置。
+      if (anchorOffset !== undefined) {
+        const aDistance = Math.abs(a.readOffset - anchorOffset)
+        const bDistance = Math.abs(b.readOffset - anchorOffset)
+        if (aDistance !== bDistance) {
+          return aDistance - bDistance
+        }
+      }
+
+      return b.readOffset - a.readOffset
+    })
     .slice(0, MAX_CANDIDATES)
 }
 
