@@ -19,12 +19,8 @@ export class SherpaOnnxTranscriber implements SpeechTranscriber {
   private statusHandlers = new Set<(status: TranscriberStatus) => void>()
   private errorHandlers = new Set<(message: string) => void>()
   private active = false
-  private acceptingAudio = false
   private feeding = false
-  private stopping = false
-  private stopPromise: Promise<void> | null = null
   private pendingChunks: Int16Array[] = []
-  private queueDrainResolvers = new Set<() => void>()
 
   isSupported() {
     return isTauriDesktop() && typeof window !== "undefined" && navigator.mediaDevices?.getUserMedia !== undefined
@@ -41,11 +37,9 @@ export class SherpaOnnxTranscriber implements SpeechTranscriber {
       return
     }
 
-    await this.stopInternal(null)
+    this.stop(false)
     this.emitStatus("listening")
     this.active = true
-    this.acceptingAudio = true
-    this.stopping = false
 
     try {
       // 每次开始跟读都重建一条新的 sherpa 会话，避免沿用上次残留的流式状态。
@@ -61,87 +55,19 @@ export class SherpaOnnxTranscriber implements SpeechTranscriber {
 
       await this.startAudioPump()
     } catch (error) {
-      if (!this.active) {
-        return
-      }
-      await this.stopInternal(null)
+      this.stop(false)
       this.emitStatus("error")
       this.emitError(toSherpaError(error))
     }
   }
 
-  async pause() {
-    await this.stopInternal("paused")
+  pause() {
+    this.stop(false)
+    this.emitStatus("paused")
   }
 
-  async stop() {
-    await this.stopInternal("stopped")
-  }
-
-  private async stopInternal(finalStatus: "paused" | "stopped" | null) {
-    if (this.stopPromise) {
-      await this.stopPromise
-      if (finalStatus) {
-        this.emitStatus(finalStatus)
-      }
-      return
-    }
-
-    if (!this.active && !this.acceptingAudio && this.pendingChunks.length === 0 && !this.feeding) {
-      this.releaseAudioResources()
-      if (finalStatus) {
-        this.emitStatus(finalStatus)
-      }
-      return
-    }
-
-    this.stopPromise = this.flushAndStop(finalStatus)
-    await this.stopPromise
-  }
-
-  private async flushAndStop(finalStatus: "paused" | "stopped" | null) {
-    this.stopping = true
-    this.acceptingAudio = false
-    this.releaseAudioResources()
-
-    try {
-      if (!this.feeding && this.pendingChunks.length > 0) {
-        await this.drainAudioQueue()
-      }
-
-      await this.waitForPendingAudio()
-
-      if (this.active) {
-        const update = await feedSherpaAudio([], true)
-        if (update) {
-          this.handleUpdate(update)
-        }
-      }
-    } catch {
-      // Graceful stop prefers preserving confirmed text and closing the session cleanly.
-      // Tail-end flush failures during teardown should not surface as user-facing errors.
-    } finally {
-      this.active = false
-      this.acceptingAudio = false
-      this.feeding = false
-      this.stopping = false
-      this.pendingChunks = []
-      this.resolveQueueDrain()
-      this.stopPromise = null
-
-      try {
-        await stopSherpaService()
-      } catch {
-        // The local service may already be closed by the time teardown completes.
-      }
-
-      if (finalStatus) {
-        this.emitStatus(finalStatus)
-      }
-    }
-  }
-
-  private releaseAudioResources() {
+  stop(emitStopped = true) {
+    this.active = false
     this.workletNode?.disconnect()
     this.workletNode?.port.close()
     this.sourceNode?.disconnect()
@@ -152,6 +78,13 @@ export class SherpaOnnxTranscriber implements SpeechTranscriber {
     this.sourceNode = null
     this.audioContext = null
     this.mediaStream = null
+    this.feeding = false
+    this.pendingChunks = []
+
+    if (emitStopped) {
+      void stopSherpaService()
+      this.emitStatus("stopped")
+    }
   }
 
   onResult(handler: (result: TranscriptionResult) => void) {
@@ -183,7 +116,7 @@ export class SherpaOnnxTranscriber implements SpeechTranscriber {
     })
 
     this.workletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-      if (!this.acceptingAudio || event.data.byteLength === 0) {
+      if (!this.active || event.data.byteLength === 0) {
         return
       }
 
@@ -213,20 +146,11 @@ export class SherpaOnnxTranscriber implements SpeechTranscriber {
         }
       }
     } catch (error) {
-      // Clicking stop can invalidate the in-flight sherpa request while the Promise is
-      // still resolving. Once the transcriber is no longer active, that rejection is
-      // expected teardown noise and should not surface as a user-facing error.
-      if (!this.active || this.stopping) {
-        return
-      }
       this.emitStatus("error")
       this.emitError(toSherpaError(error))
-      await this.stopInternal(null)
+      this.stop(false)
     } finally {
       this.feeding = false
-      if (this.pendingChunks.length === 0) {
-        this.resolveQueueDrain()
-      }
     }
   }
 
@@ -248,26 +172,7 @@ export class SherpaOnnxTranscriber implements SpeechTranscriber {
       source: message.isFinal ? "endpoint" : "streaming",
       chunk,
     })
-    if (!this.stopping) {
-      this.emitStatus("listening")
-    }
-  }
-
-  private waitForPendingAudio(): Promise<void> {
-    if (!this.feeding && this.pendingChunks.length === 0) {
-      return Promise.resolve()
-    }
-
-    return new Promise((resolve) => {
-      this.queueDrainResolvers.add(resolve)
-    })
-  }
-
-  private resolveQueueDrain() {
-    for (const resolve of this.queueDrainResolvers) {
-      resolve()
-    }
-    this.queueDrainResolvers.clear()
+    this.emitStatus("listening")
   }
 
   private emitResult(result: TranscriptionResult) {

@@ -120,14 +120,14 @@ export class WebSpeechTranscriber implements SpeechTranscriber {
     }
   }
 
-  async pause() {
+  pause() {
     this.shouldRestart = false
     this.endingIntentionally = true
     this.recognition?.stop()
     this.emitStatus("paused")
   }
 
-  async stop() {
+  stop() {
     this.shouldRestart = false
     this.endingIntentionally = true
     this.recognition?.stop()

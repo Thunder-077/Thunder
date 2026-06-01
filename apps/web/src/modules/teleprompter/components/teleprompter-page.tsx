@@ -407,8 +407,8 @@ export function TeleprompterPage() {
     setScriptDraft(nextScript)
   }
 
-  const beginScriptEditing = async () => {
-    await speech.stop()
+  const beginScriptEditing = () => {
+    speech.stop()
     speech.clearError()
     clearRecognitionSession()
     setFollowStatus("idle")
@@ -541,8 +541,8 @@ export function TeleprompterPage() {
     await speech.start()
   }
 
-  const pauseFollowing = async () => {
-    await speech.pause()
+  const pauseFollowing = () => {
+    speech.pause()
     followEngine?.transitionStatus({ type: "pause" })
     setFollowStatus("paused")
   }
@@ -560,8 +560,8 @@ export function TeleprompterPage() {
     await speech.start()
   }
 
-  const stopFollowing = async () => {
-    await speech.stop()
+  const stopFollowing = () => {
+    speech.stop()
     followEngine?.transitionStatus({ type: "stop" })
     setFollowStatus("idle")
     setConfidence(0)
