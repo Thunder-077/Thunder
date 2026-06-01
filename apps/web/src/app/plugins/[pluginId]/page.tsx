@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
-import { AlertTriangle, ShieldCheck } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import {
+  type LayoutRequestParams,
   PLUGIN_BRIDGE_REQUEST_SOURCE,
   PLUGIN_BRIDGE_VERSION,
   clearPluginStorage,
@@ -16,6 +16,7 @@ import {
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
   listPluginStorageKeys,
+  normalizePluginFrameHeight,
   normalizeRuntimeRequestMethod,
   normalizeRuntimeRequestPath,
   normalizeStorageKey,
@@ -42,6 +43,7 @@ export default function DesktopPluginPage() {
   const [plugin, setPlugin] = useState<InstalledDesktopPlugin | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [hostOrigin] = useState<string | null>(() => (typeof window === "undefined" ? null : window.location.origin))
+  const [frameHeight, setFrameHeight] = useState(960)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
   const postBridgeResponse = useCallback(
@@ -107,6 +109,12 @@ export default function DesktopPluginPage() {
       try {
         if (request.method === "plugin.getManifest") {
           postBridgeResponse(frameOrigin, request.id, true, currentPlugin.manifest)
+          return
+        }
+
+        if (request.method === "layout.setFrameHeight") {
+          const params = request.params as LayoutRequestParams | null
+          setFrameHeight(normalizePluginFrameHeight(params?.height))
           return
         }
 
@@ -265,12 +273,7 @@ export default function DesktopPluginPage() {
   }
 
   if (!plugin || !hostOrigin) {
-    return (
-      <div>
-        <PageHeader title="插件" />
-        <div className="h-[calc(100vh-10rem)] rounded-md border border-border/70 bg-muted/20" />
-      </div>
-    )
+    return <div className="h-[calc(100vh-4rem)] min-h-0 overflow-hidden rounded-md bg-muted/20" />
   }
 
   const frameUrl = createIsolatedPluginFrameUrl(plugin.webEntryUrl, hostOrigin)
@@ -279,24 +282,17 @@ export default function DesktopPluginPage() {
     : "allow-forms allow-modals allow-popups allow-scripts"
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-0 flex-col">
-      <PageHeader title={plugin.manifest.name} />
-      <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
-        <Badge variant="secondary">v{plugin.manifest.version}</Badge>
-        <span>{plugin.manifest.author.name}</span>
-        <span className="inline-flex items-center gap-1">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          沙箱插件
-        </span>
-      </div>
+    <div className="min-h-0">
       <iframe
         ref={iframeRef}
         title={plugin.manifest.name}
         src={frameUrl}
-        allow="microphone"
+        allow="microphone; fullscreen"
+        allowFullScreen
         sandbox={frameSandbox}
         referrerPolicy="no-referrer"
-        className="min-h-0 flex-1 rounded-md border border-border/70 bg-background"
+        className="block w-full border-0 bg-transparent"
+        style={{ height: `${frameHeight}px` }}
       />
     </div>
   )

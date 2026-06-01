@@ -7,6 +7,7 @@ import {
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
   listPluginStorageKeys,
+  normalizePluginFrameHeight,
   normalizeRuntimeRequestMethod,
   normalizeRuntimeRequestPath,
   normalizeStorageKey,
@@ -110,7 +111,10 @@ function main() {
   assert.equal(isPluginFrameOriginIsolated(nonLoopbackFrameUrl, "https://desktop.example.com"), false)
 
   assert.equal(normalizeStorageKey(" theme "), "theme")
+  assert.equal(normalizePluginFrameHeight(640.2), 641)
+  assert.equal(normalizePluginFrameHeight(100), 320)
   rejects(() => normalizeStorageKey(""), "storage key must not be empty")
+  rejects(() => normalizePluginFrameHeight(Number.NaN), "frame height must reject invalid number")
   rejects(() => normalizeStorageKey("x".repeat(129)), "storage key must enforce length")
   rejects(() => normalizeStorageKey("bad\nkey"), "storage key must reject control characters")
 

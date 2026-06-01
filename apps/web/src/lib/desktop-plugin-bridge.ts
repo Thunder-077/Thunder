@@ -13,6 +13,10 @@ export type PluginBridgeRequest = {
   params?: unknown
 }
 
+export type LayoutRequestParams = {
+  height?: number
+}
+
 export type RuntimeRequestParams = {
   path?: string
   method?: string
@@ -143,6 +147,14 @@ export function normalizeStorageKey(key: string | undefined): string {
     throw new Error("插件存储 key 无效")
   }
   return rawKey
+}
+
+export function normalizePluginFrameHeight(height: number | undefined): number {
+  if (!Number.isFinite(height) || height === undefined) {
+    throw new Error("插件布局高度无效")
+  }
+
+  return Math.max(320, Math.ceil(height))
 }
 
 export function pluginStoragePrefix(pluginId: string): string {

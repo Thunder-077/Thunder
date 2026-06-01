@@ -2,6 +2,7 @@ import type { ThunderPluginManifest } from "./index"
 
 type BridgeMethod =
   | "plugin.getManifest"
+  | "layout.setFrameHeight"
   | "runtime.request"
   | "network.request"
   | "storage.get"
@@ -61,6 +62,7 @@ type StorageSetOptions = {
 export interface ThunderBrowserPluginClient {
   plugin: {
     getManifest(): Promise<ThunderPluginManifest>
+    setFrameHeight(height: number): void
   }
   runtime: {
     request<T = unknown>(path: string, options?: RuntimeRequestOptions): Promise<RuntimeResponse<T>>
@@ -182,10 +184,35 @@ function postHostMessage<T>(method: BridgeMethod, params?: unknown): Promise<T> 
   })
 }
 
+function postHostEvent(method: BridgeMethod, params?: unknown): void {
+  if (typeof window === "undefined" || !window.parent || window.parent === window) {
+    return
+  }
+
+  const request: BridgeRequest = {
+    source: "thunder-plugin",
+    version: 1,
+    id: `plugin-event-${Date.now()}-${nextRequestId++}`,
+    method,
+    params,
+  }
+
+  window.parent.postMessage(request, "*")
+}
+
 export function createThunderPluginClient(): ThunderBrowserPluginClient {
   return {
     plugin: {
       getManifest: () => postHostMessage<ThunderPluginManifest>("plugin.getManifest"),
+      setFrameHeight: (height: number) => {
+        if (!Number.isFinite(height)) {
+          throw new Error("Thunder plugin frame height is invalid")
+        }
+
+        postHostEvent("layout.setFrameHeight", {
+          height: Math.max(320, Math.ceil(height)),
+        })
+      },
     },
     runtime: {
       request: <T = unknown>(path: string, options: RuntimeRequestOptions = {}) =>

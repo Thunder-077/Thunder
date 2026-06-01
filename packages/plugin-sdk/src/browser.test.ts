@@ -1,5 +1,9 @@
 import assert from "node:assert/strict"
-import { normalizeThunderPluginRuntimePath, normalizeThunderPluginStorageKey } from "./browser"
+import {
+  createThunderPluginClient,
+  normalizeThunderPluginRuntimePath,
+  normalizeThunderPluginStorageKey,
+} from "./browser"
 
 function rejects(fn: () => unknown, label: string): void {
   let rejected = false
@@ -24,6 +28,29 @@ function main() {
   rejects(() => normalizeThunderPluginStorageKey(""), "storage key must reject empty string")
   rejects(() => normalizeThunderPluginStorageKey("x".repeat(129)), "storage key must reject overlong keys")
   rejects(() => normalizeThunderPluginStorageKey("bad\nkey"), "storage key must reject control characters")
+
+  const postedRequests: unknown[] = []
+  ;(globalThis as { window?: unknown }).window = {
+    parent: {
+      postMessage: (payload: unknown) => {
+        postedRequests.push(payload)
+      },
+    },
+  }
+
+  const thunder = createThunderPluginClient()
+  thunder.plugin.setFrameHeight(640.2)
+  assert.equal(postedRequests.length, 1)
+  assert.deepEqual(postedRequests[0], {
+    source: "thunder-plugin",
+    version: 1,
+    id: postedRequests[0] && typeof postedRequests[0] === "object" ? (postedRequests[0] as { id: string }).id : undefined,
+    method: "layout.setFrameHeight",
+    params: {
+      height: 641,
+    },
+  })
+  rejects(() => thunder.plugin.setFrameHeight(Number.NaN), "frame height must reject invalid numbers")
 
   console.log("[plugin-sdk/browser] tests passed")
 }
