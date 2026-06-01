@@ -267,6 +267,7 @@ pnpm build:plugin:teleprompter
 提词器插件已经接入插件运行时：
 
 - 插件 iframe 通过 `@thunder/plugin-sdk/browser` 请求 Host Bridge。
+- 插件 UI 基础组件通过 `@thunder/plugin-ui` 提供，保持桌面端风格一致，但不直接复用主应用内部 Dialog / Select / ScrollLocker 实现。
 - Host Bridge 按 `local-api-proxy` 权限代理到插件自己的 API：`/api/v1/desktop/plugins/teleprompter/api/native/*`
 - 插件 Node runtime 代理到 Tauri 暴露的本机 speech bridge：`THUNDER_DESKTOP_NATIVE_API_URL`
 - Tauri speech bridge 仅监听 `127.0.0.1:43102`
@@ -288,4 +289,4 @@ pnpm build:plugin:teleprompter
 - 插件后端运行时限制为插件自有 Node 入口文件。Thunder 分配 loopback 端口，注入 `THUNDER_PLUGIN_ID`、`THUNDER_PLUGIN_VERSION`、`THUNDER_PLUGIN_STATE_DIR`，并等待配置的健康检查通过后才代理流量。
 - Desktop 原生语音能力只通过本机 speech bridge 暴露，默认地址为 `http://127.0.0.1:43102`，插件 runtime 通过 `THUNDER_DESKTOP_NATIVE_API_URL` 调用。
 - 插件迁移由平台基础设施按插件声明执行，具体业务数据迁移逻辑由插件自己的 SQL 负责。
-- 插件不能 import Thunder 源码模块，也不能直接访问 Prisma。
+- 插件不能 import `apps/web/src/components/ui/*` 或其他 Thunder 内部源码实现，也不能直接访问 Prisma；需要宿主风格时只能通过稳定公开面 `@thunder/plugin-ui` / `@thunder/plugin-sdk/browser`。

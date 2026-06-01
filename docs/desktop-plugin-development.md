@@ -151,11 +151,13 @@ const viewMode = await thunder.storage.get<string>("view-mode")
 插件页面应该把自己当作隔离应用处理：
 
 - 不依赖主应用全局变量。
-- 不 import `apps/web` 或主仓库 `packages/*` 源码；唯一例外是公开发布面 `@thunder/plugin-sdk/browser`。
+- 不 import `apps/web` 源码，也不 import 主应用内部实现包；公开发布面只允许使用 `@thunder/plugin-sdk/browser` 和插件 UI 包 `@thunder/plugin-ui`。
 - 静态资源使用插件目录内的相对路径。
 - 需要读取 Manifest 或调用插件后端时，请使用 `@thunder/plugin-sdk/browser`。
 - 不依赖 Next.js 页面运行时、App Router、Server Components 或主应用 React Context。
 - 不依赖浏览器同源能力访问 Thunder 内部 API；插件 iframe 运行在与宿主页不同的隔离 loopback origin 下。
+
+如果插件页面需要沿用 Thunder 的桌面端视觉风格，优先使用 `@thunder/plugin-ui` 提供的稳定基础组件和设计 token，不要直接引用 `apps/web/src/components/ui/*`。插件 UI 允许与主应用风格一致，但不能和主应用的 Dialog、Portal、滚动锁、全局 Context 等实现细节强耦合。
 
 示例：
 

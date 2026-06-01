@@ -17,11 +17,6 @@ apps/desktop/runtime/
 apps/desktop/.downloads/
 apps/desktop/desktop.env
 apps/desktop/keys/
-services/funasr/.venv/
-services/funasr/FunASR/
-services/funasr/models/
-services/funasr/modelscope-cache/
-services/funasr/__pycache__/
 # Logs
 *.log
 npm-debug.log*
