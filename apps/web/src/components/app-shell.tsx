@@ -114,9 +114,19 @@ function HitokotoFooter() {
   )
 }
 
-function DesktopTitlebar() {
+function DesktopTitlebar({ children }: { children?: React.ReactNode }) {
   return (
-    <div data-tauri-drag-region className="desktop-titlebar" />
+    <div data-tauri-drag-region className="desktop-titlebar flex items-center">
+      <div data-tauri-drag-region className="flex h-full w-full items-center pl-3 pr-1">
+        <div className="pointer-events-auto ml-auto mr-[156px] flex items-center gap-1">
+          {children}
+        </div>
+      </div>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute right-[147px] top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-amber-300/70 dark:bg-amber-200/40"
+      />
+    </div>
   )
 }
 
@@ -147,7 +157,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }}
     >
       <div className="surface-shell relative flex h-screen flex-col overflow-hidden bg-background">
-        <DesktopTitlebar />
+        <DesktopTitlebar>
+          <UtilityCluster onToggleSidebar={() => setMobileSidebarOpen(true)} compact />
+        </DesktopTitlebar>
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <AppSidebar
             className={cn(
@@ -167,7 +179,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
             <main className="flex-1 overflow-y-auto">
-              <div className="pointer-events-none sticky top-0 z-[var(--z-sticky)]">
+              <div className="web-utility-bar pointer-events-none sticky top-0 z-[var(--z-sticky)]">
                   <div className="pointer-events-auto flex justify-end px-4 pt-4 sm:px-6 sm:pt-5 xl:px-8">
                     <UtilityCluster onToggleSidebar={() => setMobileSidebarOpen(true)} />
                   </div>

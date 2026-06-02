@@ -11,6 +11,7 @@ import {
   Sun,
 } from "lucide-react"
 import { WeatherClient, type WeatherNow } from "@thunder/api-client/modules/weather"
+import { cn } from "@/lib/utils"
 
 const DEFAULT_LOCATION = "101010100"
 const GEO_CACHE_KEY = "thunder_geo_location"
@@ -75,15 +76,16 @@ async function resolveLocation(): Promise<string> {
   return location
 }
 
-function WeatherIcon({ text }: { text: string }) {
+function WeatherIcon({ text, compact = false }: { text: string; compact?: boolean }) {
+  const size = compact ? "h-4 w-4" : "h-5 w-5"
   const value = text.trim()
 
   if (value.includes("雪")) {
-    return <CloudSnow className="h-5 w-5 text-sky-500/80" />
+    return <CloudSnow className={`${size} text-sky-500/80`} />
   }
 
   if (value.includes("雨")) {
-    return <CloudRain className="h-5 w-5 text-blue-500/80" />
+    return <CloudRain className={`${size} text-blue-500/80`} />
   }
 
   if (
@@ -92,25 +94,25 @@ function WeatherIcon({ text }: { text: string }) {
     value.includes("沙") ||
     value.includes("尘")
   ) {
-    return <CloudFog className="h-5 w-5 text-muted-foreground/60" />
+    return <CloudFog className={`${size} text-muted-foreground/60`} />
   }
 
   if (value.includes("晴")) {
-    return <Sun className="h-5 w-5 text-amber-400" />
+    return <Sun className={`${size} text-amber-400`} />
   }
 
   if (value.includes("多云") || value.includes("少云")) {
-    return <CloudSun className="h-5 w-5 text-amber-400/85" />
+    return <CloudSun className={`${size} text-amber-400/85`} />
   }
 
   if (value.includes("阴") || value.includes("云")) {
-    return <Cloud className="h-5 w-5 text-muted-foreground/60" />
+    return <Cloud className={`${size} text-muted-foreground/60`} />
   }
 
-  return <CloudSun className="h-5 w-5 text-amber-400/85" />
+  return <CloudSun className={`${size} text-amber-400/85`} />
 }
 
-export function WeatherSummary() {
+export function WeatherSummary({ compact = false }: { compact?: boolean }) {
   const [weather, setWeather] = useState<WeatherNow | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -147,8 +149,8 @@ export function WeatherSummary() {
 
   if (loading) {
     return (
-      <div className="flex h-8 items-center gap-2 text-muted-foreground/50">
-        <Loader2 className="h-4 w-4 animate-spin" />
+      <div className={cn("flex items-center gap-2 text-muted-foreground/50", compact ? "h-full" : "h-8")}>
+        <Loader2 className={compact ? "h-3.5 w-3.5 animate-spin" : "h-4 w-4 animate-spin"} />
       </div>
     )
   }
@@ -159,18 +161,23 @@ export function WeatherSummary() {
 
   return (
     <div
-      className="flex items-center gap-2 text-sm font-medium text-foreground/85"
+      className={cn(
+        "flex items-center font-medium text-foreground/85",
+        compact ? "gap-1.5 text-xs" : "gap-2 text-sm"
+      )}
       title={`${weather.text} ${weather.temp}°`}
     >
-      <WeatherIcon text={weather.text} />
+      <WeatherIcon text={weather.text} compact={compact} />
 
       <span className="tabular-nums">
         {weather.temp}°
       </span>
 
-      <span className="text-muted-foreground">
-        {weather.text}
-      </span>
+      {!compact && (
+        <span className="text-muted-foreground">
+          {weather.text}
+        </span>
+      )}
     </div>
   )
 }

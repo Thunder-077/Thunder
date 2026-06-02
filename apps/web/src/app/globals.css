@@ -443,11 +443,12 @@
     -webkit-user-select: none;
     border-bottom: 1px solid var(--border);
     background: var(--surface-2);
+    position: relative;
   }
 
   .is-tauri-desktop.is-windows .desktop-titlebar,
   .is-tauri-desktop.is-macos .desktop-titlebar {
-    display: block;
+    display: flex;
   }
 
   .is-tauri-desktop.is-macos .desktop-titlebar {
@@ -456,6 +457,21 @@
 
   .is-tauri-desktop.is-linux .desktop-titlebar {
     display: none;
+  }
+
+  .is-tauri-desktop .web-utility-bar {
+    display: none;
+  }
+
+  .is-tauri-desktop.is-windows .desktop-titlebar .pointer-events-auto {
+    position: relative;
+    z-index: calc(var(--z-max) + 3) !important;
+  }
+
+  .is-tauri-desktop.is-windows .desktop-titlebar [data-radix-popper-content-wrapper],
+  .is-tauri-desktop.is-windows .desktop-titlebar [role="menu"],
+  .is-tauri-desktop.is-windows .desktop-titlebar [role="dialog"] {
+    z-index: calc(var(--z-max) + 4) !important;
   }
 
   .is-tauri-desktop.is-windows div[data-tauri-decorum-tb] {

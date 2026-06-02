@@ -17,9 +17,10 @@ import { notificationStore, type AppNotification } from "@/lib/notification-stor
 
 interface UtilityClusterProps {
   onToggleSidebar?: () => void
+  compact?: boolean
 }
 
-function NotificationButton() {
+function NotificationButton({ compact = false }: { compact?: boolean }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
 
   useEffect(() => {
@@ -42,10 +43,16 @@ function NotificationButton() {
   return (
     <DropdownMenu onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger className="outline-none">
-        <span className="relative flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted/60 hover:text-foreground active:scale-95">
-          <Bell className="size-5" strokeWidth={2.1} />
+        <span className={cn(
+          "relative flex items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted/60 hover:text-foreground active:scale-95",
+          compact ? "h-7 w-7" : "h-10 w-10"
+        )}>
+          <Bell className={compact ? "size-4" : "size-5"} strokeWidth={2.1} />
           {unreadCount > 0 && (
-            <span className="absolute top-2.5 right-2.5 flex h-2 w-2 rounded-full bg-emerald-500" />
+            <span className={cn(
+              "absolute flex h-2 w-2 rounded-full bg-emerald-500",
+              compact ? "top-1 right-1" : "top-2.5 right-2.5"
+            )} />
           )}
         </span>
       </DropdownMenuTrigger>
@@ -328,7 +335,7 @@ function AvatarCropDialog({ imageUrl, onCancel, onSave }: AvatarCropDialogProps)
   )
 }
 
-function UserAvatarMenu() {
+function UserAvatarMenu({ compact = false }: { compact?: boolean }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [username, setUsername] = useState("thunder")
@@ -423,7 +430,7 @@ function UserAvatarMenu() {
           className="ml-1 rounded-full outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
           aria-label="打开用户菜单"
         >
-          <AvatarButton username={username} avatarUrl={avatarUrl} className="h-10 w-10" />
+          <AvatarButton username={username} avatarUrl={avatarUrl} className={compact ? "h-7 w-7 text-xs" : "h-10 w-10"} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8} className="w-max max-w-[calc(100vw-2rem)] p-1.5">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2.5">
@@ -492,28 +499,31 @@ function UserAvatarMenu() {
 
 // Utility cluster is the compact group of global actions shown at the
 // top-right of the page chrome. It is not the page topbar itself.
-export function UtilityCluster({ onToggleSidebar }: UtilityClusterProps) {
+export function UtilityCluster({ onToggleSidebar, compact = false }: UtilityClusterProps) {
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 text-foreground/85">
+    <div className={cn(
+      "flex shrink-0 items-center gap-1 text-foreground/85",
+      compact ? "h-full" : "h-10"
+    )}>
       {onToggleSidebar && (
         <>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 rounded-lg md:hidden"
+            className={cn("rounded-lg md:hidden", compact ? "h-7 w-7" : "h-8 w-8")}
             onClick={onToggleSidebar}
             aria-label="打开导航"
           >
-            <Menu className="h-4 w-4" />
+            <Menu className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
           </Button>
             <div className="mx-1 h-4 w-px bg-border/60 md:hidden" />
           </>
         )}
 
-        <WeatherSummary />
-        <div className="mx-1 h-4 w-px bg-border/50" />
-        <NotificationButton />
-        <UserAvatarMenu />
+        <WeatherSummary compact={compact} />
+        <div className={cn("h-4 w-px bg-border/50", compact ? "mx-0.5" : "mx-1")} />
+        <NotificationButton compact={compact} />
+        <UserAvatarMenu compact={compact} />
       </div>
   )
 }
