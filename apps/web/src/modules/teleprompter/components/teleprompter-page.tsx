@@ -67,13 +67,13 @@ function getIncrementalAlignmentText(text: string, previousRecognitionText: stri
 }
 
 export function TeleprompterPage() {
-  const [mode, setMode] = useState<TeleprompterMode>("auto-scroll")
+  const [mode, setMode] = useState<TeleprompterMode>("follow-read")
   const [script, setScript] = useState("")
   const [scriptDraft, setScriptDraft] = useState("")
   const [isEditingScript, setIsEditingScript] = useState(false)
   const [fontSize, setFontSize] = useState(44)
   const [lineHeight, setLineHeight] = useState(1.65)
-  const [enablePrediction, setEnablePrediction] = useState(true)
+  const [enablePrediction, setEnablePrediction] = useState(false)
   const [speechProvider, setSpeechProvider] = useState<SpeechProvider>("web-speech")
   const [followStatus, setFollowStatus] = useState<FollowStatus>("idle")
   const [currentIndex, setCurrentIndex] = useState(0)

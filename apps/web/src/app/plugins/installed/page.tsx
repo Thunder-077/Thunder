@@ -90,7 +90,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 356,
     installedDate: "2024-05-18",
     icon: Paintbrush,
-    iconClassName: "bg-gradient-to-br from-violet-600 to-violet-800 text-white shadow-md",
+    iconClassName: "bg-gradient-to-br from-violet-600 to-violet-800 text-primary-foreground shadow-md",
     tags: ["主题", "外观", "自定义", "用户界面"],
     detailedDescription: "轻松创建和管理主题，支持实时预览和细致的样式定制，让你的工作空间独一无二。",
     features: [
@@ -114,7 +114,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 124,
     installedDate: "2024-05-20",
     icon: CalendarDays,
-    iconClassName: "bg-gradient-to-br from-orange-500 to-orange-700 text-white shadow-md",
+    iconClassName: "bg-gradient-to-br from-orange-500 to-orange-700 text-primary-foreground shadow-md",
     tags: ["日历", "生产力", "时间管理", "笔记增强"],
     detailedDescription: "在日历视图中查看和管理你的笔记。可以轻松创建每日日记，并在时间线上查看笔记的创建和修改历史。",
     features: [
@@ -138,7 +138,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 842,
     installedDate: "2024-05-15",
     icon: ListChecks,
-    iconClassName: "bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md",
+    iconClassName: "bg-gradient-to-br from-slate-700 to-slate-900 text-primary-foreground shadow-md",
     tags: ["数据查询", "表格", "自动化", "生产力"],
     detailedDescription: "将你的笔记库视为数据库，使用强大的查询语言对笔记进行动态过滤、排序和展示。支持表格、列表、任务和日历视图。",
     features: [
@@ -162,7 +162,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 512,
     installedDate: "2024-05-12",
     icon: Sparkles,
-    iconClassName: "bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md",
+    iconClassName: "bg-gradient-to-br from-indigo-500 to-indigo-700 text-primary-foreground shadow-md",
     tags: ["模板", "自动化", "JavaScript", "效率"],
     detailedDescription: "高级模板系统，允许你向笔记中插入动态内容。不仅支持替换日期、标题等基本变量，还能运行复杂的 JavaScript 脚本。",
     features: [
@@ -186,7 +186,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 1024,
     installedDate: "2024-05-22",
     icon: Palette,
-    iconClassName: "bg-gradient-to-br from-purple-500 to-purple-700 text-white shadow-md",
+    iconClassName: "bg-gradient-to-br from-purple-500 to-purple-700 text-primary-foreground shadow-md",
     tags: ["绘图", "白板", "可视化", "脑图"],
     detailedDescription: "将手绘风格的白板工具 Excalidraw 无缝集成到笔记中。可以直接在笔记中画流程图、线框图或手绘草图，并支持双向链接。",
     features: [
@@ -210,7 +210,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 289,
     installedDate: "2024-05-09",
     icon: Table2,
-    iconClassName: "bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-md",
+    iconClassName: "bg-gradient-to-br from-blue-500 to-blue-700 text-primary-foreground shadow-md",
     tags: ["表格", "格式化", "编辑器", "效率"],
     detailedDescription: "为 Markdown 编辑器添加高级表格编辑 and 格式化功能。自动对齐表格、智能换行、支持 Tab 键导航以及公式计算。",
     features: [
@@ -234,7 +234,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 152,
     installedDate: "2024-05-05",
     icon: Grid2X2,
-    iconClassName: "bg-gradient-to-br from-slate-800 to-slate-950 text-white shadow-md",
+    iconClassName: "bg-gradient-to-br from-slate-800 to-slate-950 text-primary-foreground shadow-md",
     tags: ["字数统计", "编辑器", "阅读时间", "统计数据"],
     detailedDescription: "提供高度可定制的字数统计，可在状态栏显示当前选中区域、当前文件或整个笔记库的字数、字符数、句子数和估计阅读时间。",
     features: [
@@ -258,7 +258,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 98,
     installedDate: "2024-05-01",
     icon: Settings2,
-    iconClassName: "bg-gradient-to-br from-zinc-700 to-zinc-900 text-white shadow-md",
+    iconClassName: "bg-gradient-to-br from-zinc-700 to-zinc-900 text-primary-foreground shadow-md",
     tags: ["主题定制", "样式", "无代码", "外观"],
     detailedDescription: "允许主题和插件开发者提供图形化的配置界面。用户无需修改 CSS，即可轻松调整字体大小、配色、边距等视觉元素。",
     features: [
@@ -282,7 +282,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 67,
     installedDate: "2024-04-28",
     icon: FileText,
-    iconClassName: "bg-gradient-to-br from-gray-600 to-gray-800 text-white shadow-md",
+    iconClassName: "bg-gradient-to-br from-gray-600 to-gray-800 text-primary-foreground shadow-md",
     tags: ["文件管理器", "笔记数量", "数据统计", "用户界面"],
     detailedDescription: "在侧边栏的文件浏览器中，为每个文件夹和子文件夹显示其下包含的 Markdown 笔记数量。",
     features: [
@@ -398,7 +398,7 @@ export default function InstalledPluginsPage() {
       ratingCount: 18,
       installedDate: p.record.installedAt ? p.record.installedAt.split("T")[0] : "2024-05-25",
       icon: ScrollText,
-      iconClassName: "bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-md",
+      iconClassName: "bg-gradient-to-br from-emerald-500 to-emerald-700 text-primary-foreground shadow-md",
       tags: ["提词器", "效率", "语音跟读", "生产力"],
       detailedDescription: "大字提词、语音跟读与自动定位。专为视频录制、直播、演讲等场景设计的智能提词器插件，支持语音识别跟读与滚动条定位。",
       features: [
@@ -830,7 +830,7 @@ export default function InstalledPluginsPage() {
                         {/* Top: Icon, title & author */}
                         <div className="flex items-start gap-3">
                           <div className={cn("h-11 w-11 flex shrink-0 items-center justify-center rounded-[10px] shadow-sm", plugin.iconClassName)}>
-                            <plugin.icon className="h-5.5 w-5.5 text-white/95" />
+                            <plugin.icon className="h-5.5 w-5.5 text-primary-foreground/95" />
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
@@ -986,7 +986,7 @@ export default function InstalledPluginsPage() {
                 {/* Big Icon, Title, Author */}
                 <div className="flex flex-col items-start pr-8">
                   <div className={cn("h-12 w-12 flex items-center justify-center rounded-[12px] shadow-sm", selectedPlugin.iconClassName)}>
-                    <selectedPlugin.icon className="h-6 w-6 text-white/95" />
+                    <selectedPlugin.icon className="h-6 w-6 text-primary-foreground/95" />
                   </div>
                   <h2 className="text-[18px] font-semibold text-foreground mt-4 leading-tight">{selectedPlugin.name}</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">{selectedPlugin.author}</p>

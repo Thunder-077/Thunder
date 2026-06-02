@@ -53,6 +53,10 @@ type PrompterStageProps = {
 }
 
 const CONTROLS_HIDE_DELAY = 3000
+const fullscreenStopButtonClass =
+  "h-8 gap-1.5 border-destructive/35 bg-destructive/10 px-3 text-xs text-destructive shadow-none hover:border-destructive/50 hover:bg-destructive/20 hover:text-destructive"
+const fullscreenResetButtonClass =
+  "h-8 gap-1.5 border-primary-foreground/25 bg-primary-foreground/10 px-3 text-xs text-primary-foreground shadow-none hover:border-primary-foreground/40 hover:bg-primary-foreground/20 hover:text-primary-foreground"
 
 export function PrompterStage({
   stageRef,
@@ -107,7 +111,6 @@ export function PrompterStage({
 
   useEffect(() => {
     if (!isFullscreen) {
-      setControlsVisible(true)
       if (hideTimerRef.current !== null) {
         clearTimeout(hideTimerRef.current)
         hideTimerRef.current = null
@@ -115,10 +118,12 @@ export function PrompterStage({
       return
     }
 
-    showControls()
+    const initialShowTimer = window.setTimeout(showControls, 0)
 
     const stage = stageRef.current
-    if (!stage) return
+    if (!stage) {
+      return () => window.clearTimeout(initialShowTimer)
+    }
 
     const onMouseMove = () => showControls()
     stage.addEventListener("mousemove", onMouseMove)
@@ -127,6 +132,7 @@ export function PrompterStage({
     return () => {
       stage.removeEventListener("mousemove", onMouseMove)
       stage.removeEventListener("touchstart", onMouseMove)
+      window.clearTimeout(initialShowTimer)
       if (hideTimerRef.current !== null) {
         clearTimeout(hideTimerRef.current)
         hideTimerRef.current = null
@@ -329,7 +335,7 @@ export function PrompterStage({
           )}
         >
           <div
-            className="flex items-center gap-3 rounded-2xl border border-white/10 px-5 py-3 backdrop-blur-xl"
+            className="flex items-center gap-3 rounded-2xl border border-border/30 px-5 py-3 backdrop-blur-xl"
             style={{ backgroundColor: "oklch(0.12 0.02 252 / 0.85)" }}
           >
             {mode === "follow-read" ? (
@@ -352,17 +358,17 @@ export function PrompterStage({
                   </Button>
                 )}
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   onClick={onStopFollowing}
-                  className="h-8 gap-1.5 text-xs text-destructive border-destructive/20 hover:bg-destructive/10 hover:text-destructive px-3"
+                  className={fullscreenStopButtonClass}
                 >
-                  <Square className="h-3.5 w-3.5 fill-destructive/80 stroke-none" />
+                  <Square className="h-3.5 w-3.5 fill-current stroke-none" />
                   停止
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   onClick={onReturnToStart}
-                  className="h-8 gap-1.5 text-xs px-3"
+                  className={fullscreenResetButtonClass}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   回到开头
@@ -388,17 +394,17 @@ export function PrompterStage({
                   </Button>
                 )}
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   onClick={onAutoScrollStop}
-                  className="h-8 gap-1.5 text-xs text-destructive border-destructive/20 hover:bg-destructive/10 hover:text-destructive px-3"
+                  className={fullscreenStopButtonClass}
                 >
-                  <Square className="h-3.5 w-3.5 fill-destructive/80 stroke-none" />
+                  <Square className="h-3.5 w-3.5 fill-current stroke-none" />
                   停止
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   onClick={onAutoScrollReset}
-                  className="h-8 gap-1.5 text-xs px-3"
+                  className={fullscreenResetButtonClass}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   回到开头
