@@ -25,6 +25,26 @@ import { PrompterStage } from "./prompter-stage"
 
 type TeleprompterMode = "follow-read" | "auto-scroll"
 
+const READING_ANCHOR_RATIO = 1 / 3
+const TOP_EDGE_ANCHOR_BUFFER = 24
+
+function getDynamicReadingAnchorTop(viewport: HTMLElement) {
+  const stableAnchorTop = viewport.clientHeight * READING_ANCHOR_RATIO
+  return Math.min(stableAnchorTop, viewport.scrollTop + TOP_EDGE_ANCHOR_BUFFER)
+}
+
+function getReadPositionScrollTarget(viewport: HTMLElement, targetEl: HTMLElement) {
+  const stableAnchorTop = viewport.clientHeight * READING_ANCHOR_RATIO
+  const targetTop = targetEl.offsetTop
+  if (targetTop <= stableAnchorTop) {
+    return 0
+  }
+
+  const targetMiddle = targetTop + targetEl.offsetHeight / 2
+  const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+  return Math.max(0, Math.min(maxScrollTop, targetMiddle - stableAnchorTop))
+}
+
 function getIncrementalAlignmentText(text: string, previousRecognitionText: string, isFinal: boolean) {
   const current = text.trim()
   const previous = previousRecognitionText.trim()
@@ -256,7 +276,7 @@ export function TeleprompterPage() {
     if (!viewport) return
 
     const updateActiveIndex = () => {
-      const viewportAnchor = viewport.scrollTop + viewport.clientHeight / 3
+      const viewportAnchor = viewport.scrollTop + getDynamicReadingAnchorTop(viewport)
       let closestIndex = 0
       let closestDistance = Number.POSITIVE_INFINITY
 
@@ -357,12 +377,12 @@ export function TeleprompterPage() {
     const targetEl = charEl ?? segmentEl
     if (!targetEl) return
 
-    const targetTop = targetEl.offsetTop - viewport.clientHeight / 3
+    const targetTop = getReadPositionScrollTarget(viewport, targetEl)
     if (mode === "auto-scroll") {
       cancelScrollAnimation()
-      viewport.scrollTop = Math.max(0, targetTop)
+      viewport.scrollTop = targetTop
     } else {
-      animateScrollTo(Math.max(0, targetTop))
+      animateScrollTo(targetTop)
     }
   }, [animateScrollTo, mode, cancelScrollAnimation])
 
@@ -681,14 +701,14 @@ export function TeleprompterPage() {
   }
 
   return (
-    <div>
-      <PageHeader
-        title="提词器"
-      />
+    <div
+      className="flex flex-col gap-4"
+      style={{ height: "calc(100dvh - var(--desktop-titlebar-height, 38px) - 8rem)" }}
+    >
+      <PageHeader title="提词器" />
 
-      <div className="grid gap-4">
-        {/* ── 模式切换 Tab ── */}
-        <div className="flex gap-2">
+      {/* ── 模式切换 Tab ── */}
+      <div className="flex shrink-0 gap-2">
           <button
             type="button"
             onClick={() => {
@@ -725,7 +745,8 @@ export function TeleprompterPage() {
           </button>
         </div>
 
-        {/* ── 模式对应面板 ── */}
+      {/* ── 模式对应面板 ── */}
+      <div className="shrink-0">
         {mode === "follow-read" ? (
           <FollowStatusPanel
             visibleStatus={visibleStatus}
@@ -778,7 +799,9 @@ export function TeleprompterPage() {
             pausedScrollTopRef={pausedScrollTopRef}
           />
         )}
+      </div>
 
+      <div className="min-h-0 flex-1">
         <PrompterStage
           stageRef={stageRef}
           prompterViewportRef={prompterViewportRef}

@@ -83,7 +83,7 @@ export function PrompterStage({
   return (
     <section
       ref={stageRef}
-      className="relative flex h-[72vh] min-h-[680px] flex-col overflow-hidden rounded-[2rem] border shadow-2xl fullscreen:h-screen fullscreen:min-h-screen fullscreen:rounded-none fullscreen:border-0"
+      className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[2rem] border shadow-2xl fullscreen:h-screen fullscreen:min-h-screen fullscreen:rounded-none fullscreen:border-0"
       style={{
         backgroundColor: "oklch(0.1 0.018 252)",
         borderColor: "oklch(0.28 0.03 252)",
@@ -144,7 +144,7 @@ export function PrompterStage({
         tabIndex={0}
         onPaste={onPrompterPaste}
         className={cn(
-          "relative z-10 min-h-0 flex-1 overflow-y-auto px-5 pt-6 pb-24 outline-none sm:px-10 lg:px-16",
+          "relative z-10 min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-24 outline-none sm:px-10 lg:px-16",
           mode === "auto-scroll" && autoScrollMirrorDisplay && "[transform:scaleX(-1)]"
         )}
       >
@@ -161,11 +161,11 @@ export function PrompterStage({
           </div>
         ) : (
           <div
-            className="mx-auto max-w-5xl font-serif tracking-wide"
+            className="mx-auto flex w-full max-w-5xl flex-col justify-start font-serif tracking-wide"
             style={{
               fontSize,
               lineHeight,
-              paddingTop: viewportHeight ? `${viewportHeight / 3}px` : "33vh",
+              paddingTop: 0,
               paddingBottom: viewportHeight ? `${viewportHeight * 0.7}px` : "70vh",
             }}
           >
@@ -175,11 +175,11 @@ export function PrompterStage({
               const isAutoScrollActive = mode === "auto-scroll" && autoScrollHighlightLine && index === autoScrollActiveIndex
 
               return (
-                <div key={segment.id} className="my-3 flex items-center gap-5">
+                <div key={segment.id} className="flex items-start gap-5 py-3 first:pt-0">
                   {/* ── 行号 ── */}
                   <span
                     className={cn(
-                      "w-8 shrink-0 select-none text-right font-mono text-sm leading-[inherit]",
+                      "w-8 shrink-0 select-none pt-2 text-right font-mono text-sm leading-[inherit]",
                       isFollowActive || isAutoScrollActive ? "text-cyan-300 animate-pulse" : "text-slate-600"
                     )}
                   >
