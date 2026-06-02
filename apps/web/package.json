@@ -6,15 +6,15 @@
     "dev": "node ../../scripts/run-web.mjs dev",
     "build": "node ../../scripts/run-web.mjs build",
     "start": "next start",
-    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "preview:cf": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy:cf": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "build:plugin:teleprompter": "node ./scripts/build-teleprompter-plugin.mjs",
-    "test:plugin-bridge": "tsx src/lib/desktop-plugin-bridge.test.ts && tsx src/lib/modules.test.ts",
-    "test:teleprompter": "tsx src/modules/teleprompter/utils/follow-engine.test.ts && tsx tests/teleprompter-web-speech-transcriber.test.ts",
-    "lint": "eslint",
+    "test:plugin-bridge": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec tsx src/lib/desktop-plugin-bridge.test.ts && pnpm exec tsx src/lib/modules.test.ts",
+    "test:teleprompter": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec tsx src/modules/teleprompter/utils/follow-engine.test.ts && pnpm exec tsx tests/teleprompter-web-speech-transcriber.test.ts",
+    "lint": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec eslint",
     "lint:css": "stylelint \"**/*.css\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec tsc --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

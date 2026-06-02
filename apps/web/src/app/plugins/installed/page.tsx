@@ -90,7 +90,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 356,
     installedDate: "2024-05-18",
     icon: Paintbrush,
-    iconClassName: "bg-violet-100 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400",
+    iconClassName: "bg-gradient-to-br from-violet-600 to-violet-800 text-white shadow-md",
     tags: ["主题", "外观", "自定义", "用户界面"],
     detailedDescription: "轻松创建和管理主题，支持实时预览和细致的样式定制，让你的工作空间独一无二。",
     features: [
@@ -114,7 +114,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 124,
     installedDate: "2024-05-20",
     icon: CalendarDays,
-    iconClassName: "bg-orange-100 text-orange-600 dark:bg-orange-950/60 dark:text-orange-400",
+    iconClassName: "bg-gradient-to-br from-orange-500 to-orange-700 text-white shadow-md",
     tags: ["日历", "生产力", "时间管理", "笔记增强"],
     detailedDescription: "在日历视图中查看和管理你的笔记。可以轻松创建每日日记，并在时间线上查看笔记的创建和修改历史。",
     features: [
@@ -138,7 +138,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 842,
     installedDate: "2024-05-15",
     icon: ListChecks,
-    iconClassName: "bg-slate-800 text-primary-foreground dark:bg-slate-700 dark:text-slate-100",
+    iconClassName: "bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md",
     tags: ["数据查询", "表格", "自动化", "生产力"],
     detailedDescription: "将你的笔记库视为数据库，使用强大的查询语言对笔记进行动态过滤、排序和展示。支持表格、列表、任务和日历视图。",
     features: [
@@ -162,7 +162,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 512,
     installedDate: "2024-05-12",
     icon: Sparkles,
-    iconClassName: "bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400",
+    iconClassName: "bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md",
     tags: ["模板", "自动化", "JavaScript", "效率"],
     detailedDescription: "高级模板系统，允许你向笔记中插入动态内容。不仅支持替换日期、标题等基本变量，还能运行复杂的 JavaScript 脚本。",
     features: [
@@ -186,7 +186,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 1024,
     installedDate: "2024-05-22",
     icon: Palette,
-    iconClassName: "bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400",
+    iconClassName: "bg-gradient-to-br from-purple-500 to-purple-700 text-white shadow-md",
     tags: ["绘图", "白板", "可视化", "脑图"],
     detailedDescription: "将手绘风格的白板工具 Excalidraw 无缝集成到笔记中。可以直接在笔记中画流程图、线框图或手绘草图，并支持双向链接。",
     features: [
@@ -210,7 +210,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 289,
     installedDate: "2024-05-09",
     icon: Table2,
-    iconClassName: "bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400",
+    iconClassName: "bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-md",
     tags: ["表格", "格式化", "编辑器", "效率"],
     detailedDescription: "为 Markdown 编辑器添加高级表格编辑 and 格式化功能。自动对齐表格、智能换行、支持 Tab 键导航以及公式计算。",
     features: [
@@ -234,7 +234,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 152,
     installedDate: "2024-05-05",
     icon: Grid2X2,
-    iconClassName: "bg-slate-900 text-primary-foreground dark:bg-slate-800 dark:text-slate-100",
+    iconClassName: "bg-gradient-to-br from-slate-800 to-slate-950 text-white shadow-md",
     tags: ["字数统计", "编辑器", "阅读时间", "统计数据"],
     detailedDescription: "提供高度可定制的字数统计，可在状态栏显示当前选中区域、当前文件或整个笔记库的字数、字符数、句子数和估计阅读时间。",
     features: [
@@ -258,7 +258,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 98,
     installedDate: "2024-05-01",
     icon: Settings2,
-    iconClassName: "bg-zinc-800 text-primary-foreground dark:bg-zinc-700 dark:text-slate-100",
+    iconClassName: "bg-gradient-to-br from-zinc-700 to-zinc-900 text-white shadow-md",
     tags: ["主题定制", "样式", "无代码", "外观"],
     detailedDescription: "允许主题和插件开发者提供图形化的配置界面。用户无需修改 CSS，即可轻松调整字体大小、配色、边距等视觉元素。",
     features: [
@@ -282,7 +282,7 @@ const mockPluginsData: MockPlugin[] = [
     ratingCount: 67,
     installedDate: "2024-04-28",
     icon: FileText,
-    iconClassName: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+    iconClassName: "bg-gradient-to-br from-gray-600 to-gray-800 text-white shadow-md",
     tags: ["文件管理器", "笔记数量", "数据统计", "用户界面"],
     detailedDescription: "在侧边栏的文件浏览器中，为每个文件夹和子文件夹显示其下包含的 Markdown 笔记数量。",
     features: [
@@ -322,7 +322,7 @@ export default function InstalledPluginsPage() {
   const [mockPlugins, setMockPlugins] = useState<MockPlugin[]>(mockPluginsData)
   const [disabledPluginIds, setDisabledPluginIds] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortOption, setSortOption] = useState<"name" | "downloads" | "rating">("name")
+  const [sortOption, setSortOption] = useState<"default" | "name" | "downloads" | "rating">("default")
   const [view, setView] = useState<"grid" | "list">("grid")
   const [selectedPluginId, setSelectedPluginId] = useState<string>("custom-themes")
   const [currentPage, setCurrentPage] = useState(1)
@@ -398,7 +398,7 @@ export default function InstalledPluginsPage() {
       ratingCount: 18,
       installedDate: p.record.installedAt ? p.record.installedAt.split("T")[0] : "2024-05-25",
       icon: ScrollText,
-      iconClassName: "bg-orange-100 text-orange-600 dark:bg-orange-950/60 dark:text-orange-400",
+      iconClassName: "bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-md",
       tags: ["提词器", "效率", "语音跟读", "生产力"],
       detailedDescription: "大字提词、语音跟读与自动定位。专为视频录制、直播、演讲等场景设计的智能提词器插件，支持语音识别跟读与滚动条定位。",
       features: [
@@ -411,7 +411,7 @@ export default function InstalledPluginsPage() {
       compatibility: "1.0.0+",
     }))
 
-    return [...convertedReal, ...mockPlugins]
+    return [...mockPlugins, ...convertedReal]
   }, [realPlugins, mockPlugins])
 
   // Filter & Sort
@@ -459,9 +459,51 @@ export default function InstalledPluginsPage() {
   }
 
   return (
-    <div className="grid gap-6 lg:-mt-10 lg:grid-cols-[224px_minmax(0,1fr)]">
+    <div className="grid h-full min-h-0 gap-0 grid-rows-1 lg:grid-cols-[280px_minmax(0,1fr)] overflow-hidden">
       {/* Dynamic layout width override to prevent large empty margins on the right */}
       <style dangerouslySetInnerHTML={{ __html: `
+        /* 隐藏全局头部及页脚，接管页面滚动 */
+        main > .sticky.top-0 { display: none !important; }
+        .surface-shell > div > .relative.z-10 > .shrink-0.px-4 { display: none !important; }
+        main.flex-1.overflow-y-auto { 
+          overflow-y: hidden !important; 
+          height: 100% !important; 
+          display: flex !important; 
+          flex-direction: column !important; 
+        }
+        main > .w-full { 
+          padding: 0 !important; 
+          flex: 1 1 0% !important;
+          min-height: 0 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          height: auto !important;
+        }
+        main > .w-full > .mx-auto { 
+          max-width: none !important; 
+          padding: 0 !important; 
+          flex: 1 1 0% !important;
+          min-height: 0 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          width: 100% !important;
+          height: auto !important;
+        }
+        main > .w-full > .mx-auto > div { 
+          padding-bottom: 0 !important; 
+          flex: 1 1 0% !important;
+          min-height: 0 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          height: auto !important;
+        }
+        
+        /* 针对当前组件内部的自定义滚动条，为了美观 */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(150,150,150,0.2); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(150,150,150,0.4); }
+
         @media (min-width: 1280px) {
           main div.mx-auto.w-full.max-w-\\[1280px\\] {
             max-width: 1440px !important;
@@ -474,9 +516,9 @@ export default function InstalledPluginsPage() {
         }
       ` }} />
       {/* 1. Left Sidebar (Sub-navigation) */}
-      <aside className="hidden border-r border-border/70 pr-5 lg:block">
-        <div className="sticky top-20 space-y-5">
-          <h2 className="text-base font-semibold tracking-tight">插件市场</h2>
+      <aside className="hidden h-full overflow-y-auto border-r border-border/70 pr-5 lg:block custom-scrollbar">
+        <div className="space-y-5 py-8 pl-6 pr-1">
+          <h2 className="text-[15px] font-semibold tracking-tight text-foreground/90">插件市场</h2>
           
           {/* Dynamic Search Box */}
           <label className="flex h-9 items-center gap-2 rounded-md border border-border/75 bg-background/85 px-3 text-xs shadow-xs focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
@@ -574,21 +616,26 @@ export default function InstalledPluginsPage() {
         )}
 
         {/* Master Details Responsive Layout */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6 items-start">
+        <div className={cn(
+          "grid h-full gap-0 grid-rows-1 overflow-hidden",
+          selectedPlugin
+            ? "grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px]"
+            : "grid-cols-1"
+        )}>
           
           {/* Main Area: Grid of cards */}
-          <div className="space-y-5">
+          <div className="h-full overflow-y-auto space-y-6 py-8 px-6 xl:px-8 custom-scrollbar">
             
             {/* Header controls inside page */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-border/50 pb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-border/50 pb-5">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2.5">
-                  <h1 className="text-2xl font-bold tracking-tight text-foreground">已安装</h1>
-                  <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs font-semibold px-2 py-0.5 rounded-md min-w-[20px] h-5 flex items-center justify-center">
+                  <h1 className="text-[24px] font-semibold tracking-tight text-foreground/90">已安装</h1>
+                  <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[11px] font-semibold px-2 py-0.5 rounded-md min-w-[20px] h-5 flex items-center justify-center">
                     {allPlugins.length}
                   </span>
                 </div>
-                <p className="text-[13px] text-muted-foreground">
+                <p className="text-[13px] text-muted-foreground/80">
                   管理你已安装的插件，可进行设置、禁用或卸载操作。
                 </p>
               </div>
@@ -600,11 +647,12 @@ export default function InstalledPluginsPage() {
                   <select
                     value={sortOption}
                     onChange={(e) => {
-                      setSortOption(e.target.value as "name" | "downloads" | "rating")
+                      setSortOption(e.target.value as "default" | "name" | "downloads" | "rating")
                       setCurrentPage(1)
                     }}
                     className="appearance-none bg-background hover:bg-muted/50 border border-border rounded-lg pl-3 pr-8 py-1.5 text-xs font-medium text-foreground outline-none cursor-pointer h-8"
                   >
+                    <option value="default">默认排序</option>
                     <option value="name">按名称排序</option>
                     <option value="downloads">按下载量排序</option>
                     <option value="rating">按评分排序</option>
@@ -676,7 +724,7 @@ export default function InstalledPluginsPage() {
               <div className={cn(
                 "transition-all duration-300",
                 view === "grid"
-                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                  ? "grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
                   : "flex flex-col gap-2"
               )}>
                 {paginatedPlugins.map((plugin) => {
@@ -697,8 +745,8 @@ export default function InstalledPluginsPage() {
                       >
                         <div className="flex items-center gap-3.5 min-w-0">
                           {/* Plugin Icon box */}
-                          <div className={cn("h-10 w-10 rounded-xl flex shrink-0 items-center justify-center shadow-xs", plugin.iconClassName)}>
-                            <plugin.icon className="h-5 w-5" />
+                          <div className={cn("h-11 w-11 rounded-xl flex shrink-0 items-center justify-center shadow-xs", plugin.iconClassName)}>
+                            <plugin.icon className="h-5.5 w-5.5" />
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
@@ -772,21 +820,21 @@ export default function InstalledPluginsPage() {
                       key={plugin.id}
                       onClick={() => handleCardClick(plugin.id)}
                       className={cn(
-                        "group border rounded-xl p-4 transition-all hover:shadow-sm cursor-pointer relative bg-card/60 hover:bg-card flex flex-col justify-between",
+                        "group min-h-[200px] rounded-xl border bg-card p-4 transition-all hover:shadow-sm cursor-pointer flex flex-col justify-between",
                         isSelected
-                          ? "border-blue-600 dark:border-blue-500 ring-1 ring-blue-500/20 bg-blue-50/5"
-                          : "border-border/60"
+                          ? "border-blue-500 ring-1 ring-blue-500/20"
+                          : "border-border/60 hover:border-border/80"
                       )}
                     >
                       <div>
                         {/* Top: Icon, title & author */}
                         <div className="flex items-start gap-3">
-                          <div className={cn("h-10 w-10 flex shrink-0 items-center justify-center rounded-xl shadow-xs", plugin.iconClassName)}>
-                            <plugin.icon className="h-5.5 w-5.5" />
+                          <div className={cn("h-11 w-11 flex shrink-0 items-center justify-center rounded-[10px] shadow-sm", plugin.iconClassName)}>
+                            <plugin.icon className="h-5.5 w-5.5 text-white/95" />
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <h3 className="truncate text-sm font-semibold text-foreground leading-snug">{plugin.name}</h3>
+                              <h3 className="line-clamp-1 text-[15px] font-semibold text-foreground/90">{plugin.name}</h3>
                               {isDisabled && (
                                 <span className="bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 text-[9px] px-1.5 py-0.5 rounded font-medium shrink-0">
                                   已禁用
@@ -819,14 +867,14 @@ export default function InstalledPluginsPage() {
                       </div>
 
                       {/* Bottom action row buttons */}
-                      <div className="mt-4.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="mt-5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleCardClick(plugin.id)}
                           className={cn(
-                            "h-8 text-xs font-semibold rounded-lg flex-1 flex items-center justify-center border transition-colors",
+                            "h-8 text-[13px] font-medium rounded-lg flex-1 flex items-center justify-center border transition-colors",
                             isDisabled
                               ? "bg-amber-50 text-amber-600 border-amber-100 hover:bg-amber-100/50 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30"
-                              : "bg-gray-50 text-muted-foreground hover:text-foreground dark:bg-gray-900 dark:hover:bg-gray-800 border-border"
+                              : "bg-gray-50 text-muted-foreground hover:text-foreground dark:bg-gray-900 dark:hover:bg-gray-800 border-border/60"
                           )}
                         >
                           {isDisabled ? "已禁用" : "已安装"}
@@ -923,16 +971,24 @@ export default function InstalledPluginsPage() {
           </div>
 
           {/* 3. Detail Panel (Desktop Inline View) */}
-          <aside className="hidden xl:block xl:pr-8">
-            {selectedPlugin ? (
-              <div className="sticky top-[108px] border border-border/80 rounded-xl p-5 bg-card/40 backdrop-blur-xs flex flex-col relative animate-in fade-in slide-in-from-right-4 duration-300">
+          {selectedPlugin && (
+            <aside className="hidden xl:block h-full overflow-y-auto border-l border-border/70 custom-scrollbar bg-card/10">
+              <div className="py-8 px-8 flex flex-col relative animate-in fade-in slide-in-from-right-4 duration-300">
                 
+                {/* Close Button */}
+                <button 
+                  onClick={() => setSelectedPluginId("")} 
+                  className="absolute right-5 top-5 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+
                 {/* Big Icon, Title, Author */}
-                <div className="flex flex-col items-start mt-2">
-                  <div className={cn("h-14 w-14 flex items-center justify-center rounded-2xl shadow-sm", selectedPlugin.iconClassName)}>
-                    <selectedPlugin.icon className="h-8 w-8" />
+                <div className="flex flex-col items-start pr-8">
+                  <div className={cn("h-12 w-12 flex items-center justify-center rounded-[12px] shadow-sm", selectedPlugin.iconClassName)}>
+                    <selectedPlugin.icon className="h-6 w-6 text-white/95" />
                   </div>
-                  <h2 className="text-lg font-bold text-foreground mt-4 leading-tight">{selectedPlugin.name}</h2>
+                  <h2 className="text-[18px] font-semibold text-foreground mt-4 leading-tight">{selectedPlugin.name}</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">{selectedPlugin.author}</p>
                   
                   <a
@@ -1056,14 +1112,8 @@ export default function InstalledPluginsPage() {
                 </a>
 
               </div>
-            ) : (
-              /* No selection placeholder panel */
-              <div className="sticky top-20 border border-border/60 border-dashed rounded-xl p-8 bg-card/10 text-center flex flex-col items-center justify-center min-h-[300px]">
-                <Package className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                <p className="text-xs text-muted-foreground">请在左侧选择一个插件以查看详细信息。</p>
-              </div>
-            )}
-          </aside>
+            </aside>
+          )}
         </div>
       </main>
     </div>

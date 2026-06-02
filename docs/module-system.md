@@ -48,6 +48,8 @@ type ModuleCategory =
 - `apps/web/src/generated/enabled-modules.ts`：前端启用模块 Manifest、动态页面 loader、公开 server 路径前缀
 - `apps/api/src/generated/enabled-routes.ts`：后端启用模块路由注册函数和定时任务入口
 
+这两个 generated 文件不作为源码提交，开发、构建、测试、类型检查和 Cloudflare 相关入口会先执行生成脚本，再消费生成结果。
+
 ### 注册流程
 
 1. 在 `scripts/generate-enabled-modules.mjs` 的模块清单中声明模块
