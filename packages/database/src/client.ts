@@ -1,6 +1,6 @@
+import { createRequire } from "module"
 import { PrismaNeon } from "@prisma/adapter-neon"
 import { PrismaClient as PGPrismaClient } from "@prisma/client"
-import { PrismaClient as SQLitePrismaClient } from "./generated/sqlite-client/index.js"
 
 const globalForPrisma = globalThis as unknown as {
   prismaConnectionString: string | undefined
@@ -17,6 +17,13 @@ function createPrismaClient(connectionString?: string): any {
   }
 
   if (isSQLite(connectionString)) {
+    let SQLitePrismaClient: any
+    if (typeof require !== "undefined") {
+      SQLitePrismaClient = require("./generated/sqlite-client/index.js").PrismaClient
+    } else {
+      const requireFn = createRequire(new Function("return import.meta.url")())
+      SQLitePrismaClient = requireFn("./generated/sqlite-client/index.js").PrismaClient
+    }
     return new SQLitePrismaClient({
       datasources: {
         db: {
