@@ -254,7 +254,7 @@ export function VaultMainPage({ onOpenSettings }: { onOpenSettings: () => void }
                 <Shield size={18} />
               </div>
               <div>
-                <h1 className="text-xl font-semibold tracking-tight">密码保险箱</h1>
+                <h1 className="text-xl font-semibold tracking-tight">密钥管家</h1>
                 <p className="mt-0.5 text-xs text-muted-foreground">安全管理你的账号、密码与令牌</p>
               </div>
             </div>

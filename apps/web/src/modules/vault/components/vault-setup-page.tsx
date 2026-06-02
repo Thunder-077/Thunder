@@ -87,7 +87,7 @@ return (
         />
       </div>
       <div className="text-center">
-        <h1 className="text-xl font-semibold tracking-tight">创建密码保险箱</h1>
+        <h1 className="text-xl font-semibold tracking-tight">创建密钥管家</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
           设置主密码后，所有数据将仅在你的设备上加密存储
         </p>
@@ -144,7 +144,7 @@ return (
                     <ul className="space-y-1 text-xs leading-relaxed text-callout-muted">
                       <li>主密码仅用于本地解锁，不会明文存储。</li>
                       <li>请妥善保管主密码，忘记后无法为你恢复。</li>
-                      <li>创建后可在密码保险箱中管理网站账号、密钥和备注。</li>
+                      <li>创建后可在密钥管家中管理网站账号、密钥和备注。</li>
                     </ul>
                   </div>
                 </TooltipContent>

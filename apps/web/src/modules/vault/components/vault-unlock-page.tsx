@@ -31,7 +31,7 @@ export function VaultUnlockPage() {
   const handleReset = async () => {
     const ok = await dialog.confirm({
       type: "danger",
-      title: "重置密码保险箱？",
+      title: "重置密钥管家？",
       description:
         "这将清除当前设备上的所有保险箱数据，此操作不可撤销。请确认你已无法找回主密码后再继续。",
       confirmText: "确认重置",
@@ -53,7 +53,7 @@ export function VaultUnlockPage() {
           <Lock className="h-8 w-8" />
         </div>
         <div className="text-center">
-          <h1 className="text-xl font-semibold tracking-tight">解锁密码保险箱</h1>
+          <h1 className="text-xl font-semibold tracking-tight">解锁密钥管家</h1>
         </div>
       </div>
 

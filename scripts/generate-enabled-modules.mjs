@@ -8,7 +8,7 @@ const workspaceRoot = resolve(scriptDir, "..")
 const modules = [
   {
     id: "vault",
-    name: "密码保险箱",
+    name: "密钥管家",
     description: "加密密码管理模块",
     icon: "Lock",
     route: "/modules/vault",

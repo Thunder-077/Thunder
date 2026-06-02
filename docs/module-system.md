@@ -13,7 +13,7 @@ Thunder 的模块系统采用 **Manifest 驱动 + 构建期生成入口** 的设
 ```typescript
 interface ModuleManifest {
   id: string              // 唯一标识符，如 "vault"
-  name: string            // 显示名称，如 "密码保险箱"
+  name: string            // 显示名称，如 "密钥管家"
   description: string     // 模块描述
   icon: string            // 图标名称（lucide-react 图标名）
   route: string           // 路由路径，如 "/vault"

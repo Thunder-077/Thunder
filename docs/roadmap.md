@@ -9,14 +9,14 @@
 - [x] 应用外壳（Sidebar + Topbar + Content）
 - [x] 主题切换（浅色/深色/系统）
 - [x] 模块注册机制（Manifest + Registry）
-- [x] Mock 模块（待办事项、密码保险箱、AI 中心）
+- [x] Mock 模块（待办事项、密钥管家、AI 中心）
 - [x] 基础页面（首页、模块中心、设置、404）
 - [x] 基础组件（ModuleCard、EmptyState、PageHeader 等）
 - [x] 设计文档
 
 ## Phase 2：Vault 模块骨架 ✅ 已完成
 
-**目标**：搭建 Vault 密码保险箱模块的基础结构
+**目标**：搭建 Vault 密钥管家模块的基础结构
 
 - [x] Vault 类型定义
 - [x] Repository 接口 + Dev Mock 实现
