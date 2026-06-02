@@ -52,7 +52,7 @@ type PrompterStageProps = {
   onAutoScrollReset: () => void
 }
 
-const CONTROLS_HIDE_DELAY = 3000
+const CONTROLS_HIDE_DELAY = 2500
 const fullscreenStopButtonClass =
   "h-8 gap-1.5 border-destructive/35 bg-destructive/10 px-3 text-xs text-destructive shadow-none hover:border-destructive/50 hover:bg-destructive/20 hover:text-destructive"
 const fullscreenResetButtonClass =
@@ -255,9 +255,13 @@ export function PrompterStage({
                   {/* ── 行号 ── */}
                   <span
                     className={cn(
-                      "w-8 shrink-0 select-none pt-2 text-right font-mono text-sm leading-[inherit]",
+                      "w-8 shrink-0 select-none text-right font-mono text-sm flex items-center justify-end",
                       isFollowActive || isAutoScrollActive ? "text-cyan-300 animate-pulse" : "text-slate-600"
                     )}
+                    style={{
+                      height: `${lineHeight * fontSize}px`,
+                      marginTop: "0.5rem",
+                    }}
                   >
                     {index + 1}
                   </span>
