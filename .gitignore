@@ -17,6 +17,7 @@ apps/desktop/runtime/
 apps/desktop/.downloads/
 apps/desktop/desktop.env
 apps/desktop/keys/
+plugins/desktop/*/web/
 # Logs
 *.log
 npm-debug.log*
