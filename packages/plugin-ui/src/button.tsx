@@ -19,13 +19,13 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "border-primary bg-primary text-primary-foreground hover:bg-primary/95",
-  accent: "border-brand/15 bg-brand-subtle text-brand hover:bg-brand-subtle/80",
-  outline: "border-border bg-background/88 hover:bg-muted/75 hover:text-foreground",
+  primary: "border-primary bg-primary text-primary-foreground hover:border-primary hover:bg-primary-foreground hover:text-primary hover:shadow-md",
+  accent: "border-brand/15 bg-brand-subtle text-brand hover:bg-brand-subtle/80 hover:border-brand/25 hover:shadow-md",
+  outline: "border-border bg-background/88 hover:bg-muted/75 hover:text-foreground hover:shadow-sm",
   secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-muted",
   ghost: "border-transparent bg-transparent shadow-none hover:bg-muted/82 hover:text-foreground",
-  destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/92",
-  "outline-destructive": "border-destructive/50 bg-background text-destructive hover:bg-destructive/5",
+  destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/92 hover:shadow-md",
+  "outline-destructive": "border-destructive/50 bg-background text-destructive hover:border-destructive/70 hover:bg-destructive/5",
   link: "border-transparent bg-transparent p-0 text-primary shadow-none hover:underline",
 }
 

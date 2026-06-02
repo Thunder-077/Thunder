@@ -116,7 +116,7 @@ function HitokotoFooter() {
 
 function DesktopTitlebar({ children }: { children?: React.ReactNode }) {
   return (
-    <div data-tauri-drag-region className="desktop-titlebar flex items-center">
+    <div data-tauri-drag-region className="desktop-titlebar">
       <div data-tauri-drag-region className="flex h-full w-full items-center pl-3 pr-1">
         <div className="pointer-events-auto ml-auto mr-[156px] flex items-center gap-1">
           {children}

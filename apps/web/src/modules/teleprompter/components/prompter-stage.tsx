@@ -1,7 +1,7 @@
 "use client"
 
-import type { ClipboardEvent, KeyboardEvent, RefObject } from "react"
-import { Check, Maximize2, PencilLine } from "lucide-react"
+import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type RefObject } from "react"
+import { Check, Maximize2, Minimize2, PencilLine, Pause, Play, RotateCcw, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ScriptSegment } from "../utils/script-segmenter"
@@ -11,6 +11,7 @@ import { statusLabels } from "./follow-status-labels"
 import { VoiceWaveform } from "./voice-waveform"
 
 type TeleprompterMode = "follow-read" | "auto-scroll"
+type AutoScrollStatus = "idle" | "countdown" | "scrolling" | "paused"
 
 type PrompterStageProps = {
   stageRef: RefObject<HTMLDivElement | null>
@@ -32,13 +33,26 @@ type PrompterStageProps = {
   autoScrollMirrorDisplay: boolean
   autoScrollHighlightLine: boolean
   autoScrollActiveIndex: number
+  followStatus: FollowStatus
+  autoScrollStatus: AutoScrollStatus
   onToggleFullscreen: () => void
   onBeginScriptEditing: () => void
   onPrompterPaste: (event: ClipboardEvent<HTMLDivElement>) => void
   onDraftScriptChange: (value: string) => void
   onDraftScriptCommit: () => void
   onCalibrateToCharacter: (selectedIndex: number, selectedOffset: number) => void
+  onStartFollowing: () => void
+  onPauseFollowing: () => void
+  onResumeFollowing: () => void
+  onStopFollowing: () => void
+  onReturnToStart: () => void
+  onAutoScrollStart: () => void
+  onAutoScrollPause: () => void
+  onAutoScrollStop: () => void
+  onAutoScrollReset: () => void
 }
+
+const CONTROLS_HIDE_DELAY = 3000
 
 export function PrompterStage({
   stageRef,
@@ -60,13 +74,66 @@ export function PrompterStage({
   autoScrollMirrorDisplay,
   autoScrollHighlightLine,
   autoScrollActiveIndex,
+  followStatus,
+  autoScrollStatus,
   onToggleFullscreen,
   onBeginScriptEditing,
   onPrompterPaste,
   onDraftScriptChange,
   onDraftScriptCommit,
   onCalibrateToCharacter,
+  onStartFollowing,
+  onPauseFollowing,
+  onResumeFollowing,
+  onStopFollowing,
+  onReturnToStart,
+  onAutoScrollStart,
+  onAutoScrollPause,
+  onAutoScrollStop,
+  onAutoScrollReset,
 }: PrompterStageProps) {
+  const [controlsVisible, setControlsVisible] = useState(true)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showControls = useCallback(() => {
+    setControlsVisible(true)
+    if (hideTimerRef.current !== null) {
+      clearTimeout(hideTimerRef.current)
+    }
+    hideTimerRef.current = setTimeout(() => {
+      setControlsVisible(false)
+    }, CONTROLS_HIDE_DELAY)
+  }, [])
+
+  useEffect(() => {
+    if (!isFullscreen) {
+      setControlsVisible(true)
+      if (hideTimerRef.current !== null) {
+        clearTimeout(hideTimerRef.current)
+        hideTimerRef.current = null
+      }
+      return
+    }
+
+    showControls()
+
+    const stage = stageRef.current
+    if (!stage) return
+
+    const onMouseMove = () => showControls()
+    stage.addEventListener("mousemove", onMouseMove)
+    stage.addEventListener("touchstart", onMouseMove)
+
+    return () => {
+      stage.removeEventListener("mousemove", onMouseMove)
+      stage.removeEventListener("touchstart", onMouseMove)
+      if (hideTimerRef.current !== null) {
+        clearTimeout(hideTimerRef.current)
+        hideTimerRef.current = null
+      }
+    }
+  }, [isFullscreen, showControls, stageRef])
+
   const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault()
@@ -79,6 +146,9 @@ export function PrompterStage({
   const progressPercent = totalSegments > 0
     ? Math.round(((stageCurrentIndex + 1) / totalSegments) * 100)
     : 0
+
+  const isFollowPlaying = followStatus === "following" || followStatus === "listening"
+  const isAutoScrollPlaying = autoScrollStatus === "scrolling" || autoScrollStatus === "countdown"
 
   return (
     <section
@@ -126,11 +196,11 @@ export function PrompterStage({
               className="text-slate-200 hover:bg-muted/20 hover:text-foreground"
             >
               {isEditingScript ? <Check className="h-4 w-4" /> : <PencilLine className="h-4 w-4" />}
-              {isEditingScript ? "保存稿件" : "编辑稿件"}
+              {isEditingScript ? "保存" : "编辑"}
             </Button>
           ) : null}
           <Button variant="ghost" size="sm" onClick={onToggleFullscreen} className="text-slate-200 hover:bg-muted/20 hover:text-foreground">
-            <Maximize2 className="h-4 w-4" />
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             {isFullscreen ? "还原" : "全屏"}
           </Button>
         </div>
@@ -210,7 +280,6 @@ export function PrompterStage({
                           key={`${segment.id}-${charEndOffset}`}
                           data-offset={charEndOffset}
                           onClick={() => {
-                            // 如果用户当前正在划选/选择文本，不触发进度校准
                             const selection = window.getSelection()?.toString()
                             if (selection && selection.length > 0) return
                             onCalibrateToCharacter(index, charEndOffset)
@@ -236,12 +305,106 @@ export function PrompterStage({
 
       {/* ── 底部进度条 ── */}
       {segments.length > 0 && !isEditingScript && (
-        <div className="absolute bottom-5 left-6 right-6 z-10">
+        <div className={cn(
+          "absolute bottom-5 left-6 right-6 z-10 transition-opacity duration-500",
+          isFullscreen && !controlsVisible && "opacity-0"
+        )}>
           <div className="h-1 overflow-hidden rounded-full bg-border/20">
             <div
               className="h-full rounded-full bg-primary transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* ── 全屏浮动控制栏 ── */}
+      {isFullscreen && segments.length > 0 && !isEditingScript && (
+        <div
+          className={cn(
+            "absolute bottom-8 left-1/2 -translate-x-1/2 z-20 transition-all duration-500",
+            controlsVisible
+              ? "translate-y-0 opacity-100"
+              : "translate-y-4 opacity-0 pointer-events-none"
+          )}
+        >
+          <div
+            className="flex items-center gap-3 rounded-2xl border border-white/10 px-5 py-3 backdrop-blur-xl"
+            style={{ backgroundColor: "oklch(0.12 0.02 252 / 0.85)" }}
+          >
+            {mode === "follow-read" ? (
+              <>
+                {isFollowPlaying ? (
+                  <Button
+                    onClick={onPauseFollowing}
+                    className="h-8 gap-1.5 text-xs shadow-sm px-3"
+                  >
+                    <Pause className="h-3.5 w-3.5" />
+                    暂停
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={followStatus === "paused" ? onResumeFollowing : onStartFollowing}
+                    className="h-8 gap-1.5 text-xs shadow-sm px-3"
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    {followStatus === "paused" ? "继续" : "开始"}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={onStopFollowing}
+                  className="h-8 gap-1.5 text-xs text-destructive border-destructive/20 hover:bg-destructive/10 hover:text-destructive px-3"
+                >
+                  <Square className="h-3.5 w-3.5 fill-destructive/80 stroke-none" />
+                  停止
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={onReturnToStart}
+                  className="h-8 gap-1.5 text-xs px-3"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  回到开头
+                </Button>
+              </>
+            ) : (
+              <>
+                {isAutoScrollPlaying ? (
+                  <Button
+                    onClick={onAutoScrollPause}
+                    className="h-8 gap-1.5 text-xs shadow-sm px-3"
+                  >
+                    <Pause className="h-3.5 w-3.5" />
+                    暂停
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={onAutoScrollStart}
+                    className="h-8 gap-1.5 text-xs shadow-sm px-3"
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    {autoScrollStatus === "paused" ? "继续" : "开始"}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={onAutoScrollStop}
+                  className="h-8 gap-1.5 text-xs text-destructive border-destructive/20 hover:bg-destructive/10 hover:text-destructive px-3"
+                >
+                  <Square className="h-3.5 w-3.5 fill-destructive/80 stroke-none" />
+                  停止
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={onAutoScrollReset}
+                  className="h-8 gap-1.5 text-xs px-3"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  回到开头
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}

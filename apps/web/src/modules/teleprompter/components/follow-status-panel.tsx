@@ -1,6 +1,6 @@
 "use client"
 
-import { Mic, Pause, RotateCcw, Settings2, Square } from "lucide-react"
+import { Mic, Pause, Play, RotateCcw, Settings2, Square } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -108,26 +108,17 @@ export function FollowStatusPanel({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {followStatus === "paused" ? (
-              <Button onClick={onResumeFollowing} className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm px-3">
-                <Mic className="h-3.5 w-3.5" />
-                开始跟读
+            {(followStatus === "following" || followStatus === "listening") ? (
+              <Button onClick={onPauseFollowing} className="h-8 gap-1.5 text-xs shadow-sm px-3">
+                <Pause className="h-3.5 w-3.5" />
+                暂停
               </Button>
             ) : (
-              <Button onClick={onStartFollowing} className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm px-3">
-                <Mic className="h-3.5 w-3.5" />
-                开始跟读
+              <Button onClick={followStatus === "paused" ? onResumeFollowing : onStartFollowing} className="h-8 gap-1.5 text-xs shadow-sm px-3">
+                <Play className="h-3.5 w-3.5 fill-current" />
+                {followStatus === "paused" ? "继续" : "开始"}
               </Button>
             )}
-            <Button
-              variant="outline"
-              onClick={onPauseFollowing}
-              disabled={followStatus === "idle"}
-              className="h-8 gap-1.5 text-xs px-3"
-            >
-              <Pause className="h-3.5 w-3.5" />
-              暂停
-            </Button>
             <Button
               variant="outline"
               onClick={onStopFollowing}

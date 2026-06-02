@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type RefObject } from "react"
 import { Pause, Play, RotateCcw, Settings2, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,6 +13,13 @@ type AutoScrollDirection = "up" | "down"
 export type AutoScrollViewOptions = {
   mirrorDisplay: boolean
   highlightLine: boolean
+}
+
+export type AutoScrollPanelHandle = {
+  start: () => void
+  pause: () => void
+  stop: () => void
+  reset: () => void
 }
 
 type AutoScrollPanelProps = {
@@ -30,7 +37,7 @@ type AutoScrollPanelProps = {
   pausedScrollTopRef: RefObject<number | null>
 }
 
-export function AutoScrollPanel({
+export const AutoScrollPanel = forwardRef<AutoScrollPanelHandle, AutoScrollPanelProps>(function AutoScrollPanel({
   fontSize,
   lineHeight,
   canScroll,
@@ -43,7 +50,7 @@ export function AutoScrollPanel({
   onReset,
   onStart,
   pausedScrollTopRef,
-}: AutoScrollPanelProps) {
+}: AutoScrollPanelProps, ref) {
   const [status, setStatus] = useState<AutoScrollStatus>("idle")
   const [speed, setSpeed] = useState(1.25)
   const [direction, setDirection] = useState<AutoScrollDirection>("up")
@@ -243,6 +250,16 @@ export function AutoScrollPanel({
     onReset?.()
   }
 
+  const handlersRef = useRef({ start: handleStart, pause: handlePause, stop: handleStop, reset: handleReset })
+  handlersRef.current = { start: handleStart, pause: handlePause, stop: handleStop, reset: handleReset }
+
+  useImperativeHandle(ref, () => ({
+    start: () => handlersRef.current.start(),
+    pause: () => handlersRef.current.pause(),
+    stop: () => handlersRef.current.stop(),
+    reset: () => handlersRef.current.reset(),
+  }), [])
+
   const formattedElapsed = `${String(Math.floor(elapsedSeconds / 60)).padStart(2, "0")}:${String(elapsedSeconds % 60).padStart(2, "0")}`
 
   return (
@@ -279,23 +296,24 @@ export function AutoScrollPanel({
 
           {/* 中间：4个按钮水平排列（开始、暂停、停止、回到开头） */}
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={handleStart}
-              className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm px-3"
-              disabled={!canScroll || status === "scrolling" || status === "countdown"}
-            >
-              <Play className="h-3.5 w-3.5 fill-current" />
-              {status === "paused" ? "继续" : "开始"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handlePause}
-              disabled={status !== "scrolling"}
-              className="h-8 gap-1.5 text-xs px-3"
-            >
-              <Pause className="h-3.5 w-3.5" />
-              暂停
-            </Button>
+            {(status === "scrolling" || status === "countdown") ? (
+              <Button
+                onClick={handlePause}
+                className="h-8 gap-1.5 text-xs shadow-sm px-3"
+              >
+                <Pause className="h-3.5 w-3.5" />
+                暂停
+              </Button>
+            ) : (
+              <Button
+                onClick={handleStart}
+                className="h-8 gap-1.5 text-xs shadow-sm px-3"
+                disabled={!canScroll}
+              >
+                <Play className="h-3.5 w-3.5 fill-current" />
+                {status === "paused" ? "继续" : "开始"}
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={handleStop}
@@ -347,4 +365,4 @@ export function AutoScrollPanel({
       </Card>
     </div>
   )
-}
+})

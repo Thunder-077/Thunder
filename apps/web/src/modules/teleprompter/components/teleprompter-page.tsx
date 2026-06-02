@@ -19,7 +19,7 @@ import { createFollowEngine } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
 import { segmentScript } from "../utils/script-segmenter"
 import type { SpeechProvider } from "../transcribers"
-import { AutoScrollPanel, type AutoScrollViewOptions } from "./auto-scroll-panel"
+import { AutoScrollPanel, type AutoScrollPanelHandle, type AutoScrollViewOptions } from "./auto-scroll-panel"
 import { FollowStatusPanel } from "./follow-status-panel"
 import { PrompterStage } from "./prompter-stage"
 
@@ -106,6 +106,7 @@ export function TeleprompterPage() {
   }, [sherpaModels])
 
   const stageRef = useRef<HTMLDivElement | null>(null)
+  const autoScrollPanelRef = useRef<AutoScrollPanelHandle>(null)
   const prompterViewportRef = useRef<HTMLDivElement | null>(null)
   const segmentRefs = useRef<Array<HTMLParagraphElement | null>>([])
   const animationFrameRef = useRef<number | null>(null)
@@ -785,6 +786,7 @@ export function TeleprompterPage() {
           />
         ) : (
           <AutoScrollPanel
+            ref={autoScrollPanelRef}
             fontSize={fontSize}
             lineHeight={lineHeight}
             canScroll={segments.length > 0 && !isEditingScript}
@@ -821,6 +823,8 @@ export function TeleprompterPage() {
           autoScrollMirrorDisplay={autoScrollViewOptions.mirrorDisplay}
           autoScrollHighlightLine={autoScrollViewOptions.highlightLine}
           autoScrollActiveIndex={autoScrollActiveIndex}
+          followStatus={followStatus}
+          autoScrollStatus={autoScrollStatus}
           onToggleFullscreen={() => void toggleFullscreen()}
           onBeginScriptEditing={beginScriptEditing}
           onPrompterPaste={handlePrompterPaste}
@@ -828,6 +832,15 @@ export function TeleprompterPage() {
           onDraftScriptChange={handleDraftScriptChange}
           onDraftScriptCommit={commitDraftScript}
           onCalibrateToCharacter={calibrateToCharacter}
+          onStartFollowing={() => void startFollowing()}
+          onPauseFollowing={pauseFollowing}
+          onResumeFollowing={() => void resumeFollowing()}
+          onStopFollowing={stopFollowing}
+          onReturnToStart={returnToStart}
+          onAutoScrollStart={() => autoScrollPanelRef.current?.start()}
+          onAutoScrollPause={() => autoScrollPanelRef.current?.pause()}
+          onAutoScrollStop={() => autoScrollPanelRef.current?.stop()}
+          onAutoScrollReset={() => autoScrollPanelRef.current?.reset()}
         />
       </div>
     </div>

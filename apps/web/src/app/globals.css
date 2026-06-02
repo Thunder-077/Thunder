@@ -449,6 +449,7 @@
   .is-tauri-desktop.is-windows .desktop-titlebar,
   .is-tauri-desktop.is-macos .desktop-titlebar {
     display: flex;
+    align-items: center;
   }
 
   .is-tauri-desktop.is-macos .desktop-titlebar {
