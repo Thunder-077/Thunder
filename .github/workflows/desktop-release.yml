@@ -67,7 +67,7 @@ jobs:
         run: pnpm --filter @thunder/desktop prepare:release-config
 
       - name: Build installers and publish release assets
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0
         with:
           projectPath: apps/desktop
           args: ${{ format('{0} --config src-tauri/tauri.release.conf.json', matrix.args) }}
