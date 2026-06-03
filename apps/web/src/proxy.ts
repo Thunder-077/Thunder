@@ -24,7 +24,7 @@ function isApiRequest(pathname: string): boolean {
   return pathname.startsWith("/api/v1")
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (PUBLIC_PATHS.includes(pathname) || isPublicAsset(pathname)) {
