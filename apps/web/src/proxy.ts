@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { AUTH_COOKIE_NAME, verifySessionToken } from "@/lib/auth"
+import { AUTH_COOKIE_NAME, verifySessionToken } from "@/lib/auth-edge"
 import { publicServerPrefixes } from "@/generated/enabled-modules"
 
 const PUBLIC_PATHS = [
