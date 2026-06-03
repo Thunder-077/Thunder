@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { AUTH_COOKIE_NAME, verifySessionToken } from "@/lib/auth-edge"
+import { AUTH_COOKIE_NAME, verifySessionToken } from "@/lib/auth"
 import { publicServerPrefixes } from "@/generated/enabled-modules"
 
 const PUBLIC_PATHS = [
@@ -24,7 +24,7 @@ function isApiRequest(pathname: string): boolean {
   return pathname.startsWith("/api/v1")
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (PUBLIC_PATHS.includes(pathname) || isPublicAsset(pathname)) {
