@@ -13,6 +13,12 @@ export type SherpaModel = {
   installed: boolean
   active: boolean
   downloading?: boolean
+  downloadProgress?: {
+    percentage: number
+    downloaded: number
+    total: number
+    status: string
+  } | null
 }
 
 export type SherpaRecognitionUpdate = {

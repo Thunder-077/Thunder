@@ -35,6 +35,7 @@ import {
   startDesktopPluginRuntime,
   type InstalledDesktopPlugin,
 } from "@/lib/desktop-plugins"
+import { notificationStore } from "@/lib/notification-store"
 
 export default function DesktopPluginPage() {
   const params = useParams<{ pluginId: string }>()
@@ -181,6 +182,20 @@ export default function DesktopPluginPage() {
             throw new Error(payload.message || "插件网络代理请求失败")
           }
           postBridgeResponse(frameOrigin, request.id, true, payload.data)
+          return
+        }
+
+        if (request.method === "notification.add") {
+          const params = request.params as {
+            type?: "info" | "success" | "error"
+            title?: string
+            description?: string
+          } | null
+          notificationStore.addNotification({
+            type: params?.type === "success" || params?.type === "error" ? params.type : "info",
+            title: params?.title?.trim() || currentPlugin.manifest.name,
+            description: params?.description?.trim() || "",
+          })
           return
         }
 

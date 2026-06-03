@@ -13,6 +13,12 @@ export type SherpaModel = {
   installed: boolean
   active: boolean
   downloading?: boolean
+  downloadProgress?: {
+    percentage: number
+    downloaded: number
+    total: number
+    status: string
+  } | null
 }
 
 export type SherpaRecognitionUpdate = {
@@ -63,6 +69,7 @@ export async function listSherpaModels(): Promise<SherpaModel[]> {
 export async function downloadSherpaModel(modelId: string): Promise<SherpaModel[]> {
   const models = await nativePost<SherpaModel[]>("/sherpa/models/download", { modelId })
   const target = models.find((model) => model.id === modelId)
+  emitSherpaModelProgress(target)
   if (target?.downloading) {
     pollSherpaModelDownload(modelId)
   }
@@ -99,6 +106,7 @@ function pollSherpaModelDownload(modelId: string): void {
     try {
       const models = await listSherpaModels()
       const target = models.find((model) => model.id === modelId)
+      emitSherpaModelProgress(target)
 
       if (target?.installed && !target.downloading) {
         pollingDownloads.delete(modelId)
@@ -135,4 +143,16 @@ function pollSherpaModelDownload(modelId: string): void {
   }
 
   window.setTimeout(poll, 1500)
+}
+
+function emitSherpaModelProgress(model: SherpaModel | undefined): void {
+  if (!model?.downloading || !model.downloadProgress) return
+
+  emitPluginEvent("sherpa-download-progress", {
+    modelId: model.id,
+    percentage: model.downloadProgress.percentage,
+    downloaded: model.downloadProgress.downloaded,
+    total: model.downloadProgress.total,
+    status: model.downloadProgress.status,
+  })
 }

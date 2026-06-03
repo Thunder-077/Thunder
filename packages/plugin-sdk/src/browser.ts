@@ -5,6 +5,7 @@ type BridgeMethod =
   | "layout.setFrameHeight"
   | "runtime.request"
   | "network.request"
+  | "notification.add"
   | "storage.get"
   | "storage.set"
   | "storage.remove"
@@ -55,6 +56,12 @@ type NetworkResponse<T> = {
   data: T
 }
 
+type NotificationParams = {
+  type?: "info" | "success" | "error"
+  title?: string
+  description?: string
+}
+
 type StorageSetOptions = {
   value: unknown
 }
@@ -73,6 +80,9 @@ export interface ThunderBrowserPluginClient {
     request<T = unknown>(url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>>
     get<T = unknown>(url: string, options?: Omit<NetworkRequestOptions, "method" | "body">): Promise<T>
     post<T = unknown>(url: string, body?: unknown, options?: Omit<NetworkRequestOptions, "method" | "body">): Promise<T>
+  }
+  notification: {
+    add(notification: NotificationParams): void
   }
   storage: {
     get<T = unknown>(key: string): Promise<T | null>
@@ -272,6 +282,11 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
           ...withOptionalBody(options, body),
         })
         return response.data
+      },
+    },
+    notification: {
+      add: (notification: NotificationParams) => {
+        postHostEvent("notification.add", notification)
       },
     },
     storage: {

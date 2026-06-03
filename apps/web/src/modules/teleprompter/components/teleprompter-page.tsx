@@ -685,7 +685,6 @@ export function TeleprompterPage() {
     })
 
     setSherpaBusy(true)
-    setMessage("已在后台启动模型下载，您可在下方模型按钮上实时查看进度。")
     try {
       const models = await downloadSherpaModel(selectedSherpaModelId)
       syncSherpaModels(models)
