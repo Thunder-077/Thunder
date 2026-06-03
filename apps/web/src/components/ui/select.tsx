@@ -2,7 +2,7 @@
 
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { Check, ChevronDown } from "lucide-react"
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
 export type SelectOption = {
@@ -44,6 +44,7 @@ function Select({
   showDescription,
   renderOption,
 }: SelectProps) {
+  const [open, setOpen] = useState(false)
   const resolvedShowDescription = showDescription ?? size === "default"
   const selectedOption = options.find((option) => option.value === value) ?? null
   const triggerSizeClass = size === "compact" ? "h-8 rounded-lg px-3 text-xs" : "h-10 rounded-xl px-3.5 text-sm"
@@ -53,12 +54,15 @@ function Select({
 
   return (
     <SelectPrimitive.Root
+      open={open}
+      onOpenChange={setOpen}
       value={value ?? undefined}
       disabled={disabled}
       onValueChange={(next) => {
         if (!next) return
         onChange?.(next)
         onValueChange?.(next)
+        setOpen(false)
       }}
     >
       <SelectPrimitive.Trigger

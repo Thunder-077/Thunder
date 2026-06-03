@@ -1,7 +1,7 @@
 "use client"
 
 import { Check, ChevronDown } from "lucide-react"
-import type { ReactNode } from "react"
+import { useState, type FocusEvent, type ReactNode } from "react"
 import { cn } from "./utils"
 
 export type SelectOption = {
@@ -43,6 +43,7 @@ export function Select({
   showDescription,
   renderOption,
 }: SelectProps) {
+  const [open, setOpen] = useState(false)
   const resolvedShowDescription = showDescription ?? size === "default"
   const selectedOption = options.find((option) => option.value === value) ?? null
   const triggerSizeClass = size === "compact" ? "h-8 rounded-lg px-3 text-xs" : "h-10 rounded-xl px-3.5 text-sm"
@@ -50,11 +51,18 @@ export function Select({
   const itemGapClass = size === "compact" ? "gap-2" : "gap-2.5"
   const descriptionClass = size === "compact" ? "text-xs leading-4" : "text-xs leading-4"
 
+  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setOpen(false)
+    }
+  }
+
   return (
-    <div className="group/plugin-select relative">
+    <div className="relative" onBlur={handleBlur}>
       <button
         type="button"
         disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
         className={cn(
           "inline-flex w-full items-center justify-between gap-2 border bg-background/85 text-foreground shadow-xs transition-all duration-normal ease-default outline-none",
           "border-border/80 hover:border-border hover:bg-muted/[0.45]",
@@ -74,11 +82,10 @@ export function Select({
         <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       </button>
 
-      {!disabled && options.length > 0 && (
+      {!disabled && options.length > 0 && open && (
         <div
           className={cn(
-            "pointer-events-none absolute left-0 right-0 top-[calc(100%+6px)] z-[var(--z-dropdown)] min-w-full overflow-hidden rounded-2xl border border-border/80 bg-popover p-1.5 text-popover-foreground opacity-0 shadow-lg transition",
-            "group-focus-within/plugin-select:pointer-events-auto group-focus-within/plugin-select:opacity-100",
+            "absolute left-0 right-0 top-[calc(100%+6px)] z-[var(--z-dropdown)] min-w-full overflow-hidden rounded-2xl border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-lg",
             contentClassName
           )}
         >
@@ -94,6 +101,7 @@ export function Select({
                   if (option.disabled) return
                   onChange?.(option.value)
                   onValueChange?.(option.value)
+                  setOpen(false)
                 }}
                 className={cn(
                   "relative flex w-full cursor-pointer select-none items-center rounded-lg pr-8 text-left text-foreground outline-none transition-colors",
