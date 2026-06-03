@@ -2,10 +2,12 @@ import { Hono } from "hono"
 import { importPKCS8, SignJWT } from "jose"
 import { apiSuccess, apiError } from "@thunder/contracts"
 
-const QWEATHER_API_HOST = process.env.QWEATHER_API_HOST || "nb33jqkfhv.re.qweatherapi.com"
-const QWEATHER_PRIVATE_KEY = (process.env.QWEATHER_PRIVATE_KEY || "").replace(/\\n/g, "\n")
-const QWEATHER_KEY_ID = process.env.QWEATHER_KEY_ID || ""
-const QWEATHER_PROJECT_ID = process.env.QWEATHER_PROJECT_ID || ""
+type WeatherEnv = {
+  QWEATHER_API_HOST?: string
+  QWEATHER_PRIVATE_KEY?: string
+  QWEATHER_KEY_ID?: string
+  QWEATHER_PROJECT_ID?: string
+}
 
 interface QWeatherNowResponse {
   code: string
@@ -26,23 +28,34 @@ interface QWeatherNowResponse {
   }
 }
 
-async function getQWeatherToken(): Promise<string> {
-  if (!QWEATHER_PRIVATE_KEY || !QWEATHER_KEY_ID || !QWEATHER_PROJECT_ID) {
+function getWeatherEnv(bindings?: WeatherEnv) {
+  // Desktop sidecars read process.env; Cloudflare Workers expose bindings on c.env.
+  // Resolve per request so runtime config changes are picked up after process restart.
+  return {
+    host: bindings?.QWEATHER_API_HOST || process.env.QWEATHER_API_HOST || "nb33jqkfhv.re.qweatherapi.com",
+    privateKey: (bindings?.QWEATHER_PRIVATE_KEY || process.env.QWEATHER_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+    keyId: bindings?.QWEATHER_KEY_ID || process.env.QWEATHER_KEY_ID || "",
+    projectId: bindings?.QWEATHER_PROJECT_ID || process.env.QWEATHER_PROJECT_ID || "",
+  }
+}
+
+async function getQWeatherToken(env: ReturnType<typeof getWeatherEnv>): Promise<string> {
+  if (!env.privateKey || !env.keyId || !env.projectId) {
     throw new Error("和风天气 JWT 配置不完整")
   }
 
-  const privateKey = await importPKCS8(QWEATHER_PRIVATE_KEY, "EdDSA")
+  const privateKey = await importPKCS8(env.privateKey, "EdDSA")
   const iat = Math.floor(Date.now() / 1000) - 30
   const exp = iat + 900
 
   const token = await new SignJWT({
-    sub: QWEATHER_PROJECT_ID,
+    sub: env.projectId,
     iat,
     exp,
   })
     .setProtectedHeader({
       alg: "EdDSA",
-      kid: QWEATHER_KEY_ID,
+      kid: env.keyId,
     })
     .sign(privateKey)
 
@@ -58,8 +71,9 @@ weather.get("/now", async (c) => {
       return c.json(apiError("WEATHER_MISSING_LOCATION", "缺少 location 参数"), 400)
     }
 
-    const token = await getQWeatherToken()
-    const url = `https://${QWEATHER_API_HOST}/v7/weather/now?location=${encodeURIComponent(location)}&lang=zh`
+    const weatherEnv = getWeatherEnv(c.env as WeatherEnv | undefined)
+    const token = await getQWeatherToken(weatherEnv)
+    const url = `https://${weatherEnv.host}/v7/weather/now?location=${encodeURIComponent(location)}&lang=zh`
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,

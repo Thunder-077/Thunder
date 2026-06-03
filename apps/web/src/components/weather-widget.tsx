@@ -156,7 +156,19 @@ export function WeatherSummary({ compact = false }: { compact?: boolean }) {
   }
 
   if (error || !weather) {
-    return null
+    return (
+      <div
+        className={cn(
+          "flex items-center font-medium text-muted-foreground/60",
+          compact ? "gap-1.5 text-xs" : "gap-2 text-sm"
+        )}
+        title="天气不可用，请检查桌面运行时配置"
+      >
+        <Cloud className={compact ? "h-4 w-4" : "h-5 w-5"} />
+        <span className="tabular-nums">--°</span>
+        {!compact && <span>天气不可用</span>}
+      </div>
+    )
   }
 
   return (
