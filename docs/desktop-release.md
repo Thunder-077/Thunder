@@ -65,7 +65,7 @@ pnpm db:compile-sqlite-migrations
 
 它不会为桌面 runtime 安装 Prisma CLI、Neon adapter 或 PostgreSQL Client。安装包内只保留 generated SQLite client 所需的 `schema.prisma` 和当前平台 query engine。
 
-Windows 本地构建默认只生成 NSIS 安装器，避免 `targets: "all"` 同时生成 MSI/NSIS/updater 产物导致耗时放大。如需指定安装器或开启 updater artifacts：
+Windows 本地构建默认只生成 NSIS 安装器，避免 `targets: "all"` 同时生成 MSI/NSIS/updater 产物导致耗时放大。CI 走 `desktop-release.yml`，会通过 `THUNDER_DESKTOP_BUNDLE_TARGETS=nsis,msi` 显式声明同时生成两种安装器。如需指定安装器或开启 updater artifacts：
 
 ```bash
 THUNDER_DESKTOP_BUNDLE_TARGETS=msi pnpm build:desktop

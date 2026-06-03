@@ -36,7 +36,7 @@ function resolveBundleTargets() {
       .filter(Boolean)
   }
 
-  return process.platform === "win32" ? ["nsis", "msi"] : undefined
+  return process.platform === "win32" ? ["nsis"] : undefined
 }
 
 function shouldCreateUpdaterArtifacts() {
