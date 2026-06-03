@@ -17,6 +17,16 @@ async function assertPathExists(path) {
   }
 }
 
+async function pathExists(path) {
+  try {
+    await lstat(path)
+    return true
+  } catch (error) {
+    if (error?.code === "ENOENT") return false
+    throw error
+  }
+}
+
 export function resolveStandaloneSymlinkTarget({
   linkPath,
   linkTarget,
@@ -36,8 +46,31 @@ export function resolveStandaloneSymlinkTarget({
   return absoluteTarget
 }
 
+export function resolvePnpmPeerNodeModulesDir({ resolvedTarget, standaloneDir }) {
+  const standalonePnpmDir = resolve(standaloneDir, "node_modules", ".pnpm")
+  if (!isInside(resolvedTarget, standalonePnpmDir)) return null
+
+  const relativeTarget = relative(standalonePnpmDir, resolvedTarget)
+  const parts = relativeTarget.split(/[\\/]/)
+  const nodeModulesIndex = parts.indexOf("node_modules")
+  if (nodeModulesIndex < 1 || nodeModulesIndex === parts.length - 1) return null
+
+  return resolve(standalonePnpmDir, ...parts.slice(0, nodeModulesIndex + 1))
+}
+
 export function shouldPruneRuntimeFile(filePath) {
   return filePath.endsWith(".map") || filePath.endsWith(".d.ts") || filePath.endsWith(".tsbuildinfo")
+}
+
+async function copyPnpmPeerDependencies(peerNodeModulesDir, targetNodeModulesDir, options) {
+  const entries = await readdir(peerNodeModulesDir)
+  for (const entry of entries) {
+    const sourcePath = resolve(peerNodeModulesDir, entry)
+    const targetPath = resolve(targetNodeModulesDir, entry)
+
+    if (await pathExists(targetPath)) continue
+    await copyStandaloneEntry(sourcePath, targetPath, options)
+  }
 }
 
 async function copyStandaloneEntry(sourcePath, targetPath, options) {
@@ -54,6 +87,14 @@ async function copyStandaloneEntry(sourcePath, targetPath, options) {
 
     await assertPathExists(resolvedTarget)
     await copyStandaloneEntry(resolvedTarget, targetPath, options)
+
+    const peerNodeModulesDir = resolvePnpmPeerNodeModulesDir({
+      resolvedTarget,
+      standaloneDir: options.standaloneDir,
+    })
+    if (peerNodeModulesDir) {
+      await copyPnpmPeerDependencies(peerNodeModulesDir, dirname(targetPath), options)
+    }
     return
   }
 

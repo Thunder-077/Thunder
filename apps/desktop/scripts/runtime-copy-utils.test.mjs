@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { resolve } from "node:path"
 import {
+  resolvePnpmPeerNodeModulesDir,
   resolveStandaloneSymlinkTarget,
   shouldPruneRuntimeFile,
 } from "./runtime-copy-utils.mjs"
@@ -21,6 +22,22 @@ assert.equal(
     workspaceRoot,
   }),
   resolve(standaloneDir, "node_modules/.pnpm/next@16.2.4/node_modules/next")
+)
+
+assert.equal(
+  resolvePnpmPeerNodeModulesDir({
+    resolvedTarget: resolve(standaloneDir, "node_modules/.pnpm/next@16.2.4/node_modules/next"),
+    standaloneDir,
+  }),
+  resolve(standaloneDir, "node_modules/.pnpm/next@16.2.4/node_modules")
+)
+
+assert.equal(
+  resolvePnpmPeerNodeModulesDir({
+    resolvedTarget: resolve(standaloneDir, "apps/web/node_modules/next"),
+    standaloneDir,
+  }),
+  null
 )
 
 assert.equal(shouldPruneRuntimeFile("server.js.map"), true)

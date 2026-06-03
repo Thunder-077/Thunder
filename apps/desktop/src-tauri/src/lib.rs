@@ -1,7 +1,12 @@
+mod runtime_paths;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::{
     collections::{HashMap, HashSet},
     fs,
     fs::File,
+    fs::OpenOptions,
     io::{self, BufReader, Read, Write},
     net::{TcpListener, TcpStream, ToSocketAddrs},
     path::{Path, PathBuf},
@@ -26,6 +31,11 @@ use tauri::{
 use tauri_plugin_decorum::WebviewWindowExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
+use runtime_paths::{
+    collect_runtime_root_candidates, normalize_path_for_child_process,
+    resolve_runtime_root_from_candidates,
+};
+
 const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_SHOW_ID: &str = "tray-show";
 const TRAY_HIDE_ID: &str = "tray-hide";
@@ -33,6 +43,10 @@ const TRAY_QUIT_ID: &str = "tray-quit";
 const DESKTOP_SHORTCUT: &str = "CommandOrControl+Shift+T";
 const DESKTOP_ENV_FILE_NAME: &str = "desktop.env";
 const DEFAULT_NATIVE_API_PORT: u16 = 43102;
+const NATIVE_HTTP_READ_TIMEOUT: Duration = Duration::from_secs(5);
+const NATIVE_HTTP_MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[allow(dead_code)]
 #[derive(Deserialize, Clone)]
@@ -58,6 +72,16 @@ struct SherpaModelSummary {
     installed: bool,
     active: bool,
     downloading: bool,
+    download_progress: Option<SherpaDownloadProgress>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct SherpaDownloadProgress {
+    percentage: u32,
+    downloaded: u64,
+    total: u64,
+    status: String,
 }
 
 #[derive(Deserialize)]
@@ -261,6 +285,7 @@ struct DesktopState {
     sidecars: Mutex<Vec<Child>>,
     sherpa_session: Mutex<Option<SherpaSession>>,
     downloading_models: Mutex<HashSet<String>>,
+    sherpa_download_progress: Mutex<HashMap<String, SherpaDownloadProgress>>,
     #[cfg(target_os = "windows")]
     job: Option<WindowsJob>,
 }
@@ -394,13 +419,23 @@ fn load_desktop_env<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<HashMap<Str
     Ok(env_map)
 }
 
+fn resolve_runtime_root<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<PathBuf> {
+    // 安装包布局会随 bundle 目标变化，统一按候选路径探测 runtime 根目录。
+    let resource_dir = app.path().resource_dir().ok();
+    let executable_path = std::env::current_exe().ok();
+    let candidates =
+        collect_runtime_root_candidates(resource_dir.as_deref(), executable_path.as_deref());
+
+    resolve_runtime_root_from_candidates(&candidates).map_err(Into::into)
+}
+
 fn read_runtime_manifest<R: Runtime>(
     app: &AppHandle<R>,
 ) -> tauri::Result<(RuntimeManifest, PathBuf)> {
-    let resource_dir = app.path().resource_dir()?;
-    let manifest_path = resource_dir.join("runtime").join("manifest.json");
+    let runtime_root = resolve_runtime_root(app)?;
+    let manifest_path = runtime_root.join("manifest.json");
     let manifest = serde_json::from_str::<RuntimeManifest>(&fs::read_to_string(&manifest_path)?)?;
-    Ok((manifest, resource_dir))
+    Ok((manifest, runtime_root))
 }
 
 fn spawn_node_process(
@@ -408,20 +443,40 @@ fn spawn_node_process(
     entry_path: &Path,
     cwd: &Path,
     envs: &HashMap<String, String>,
+    log_path: &Path,
 ) -> io::Result<Child> {
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)?;
+    let stderr_file = log_file.try_clone()?;
+
     let mut command = Command::new(node_path);
     command
         .arg(entry_path)
         .current_dir(cwd)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(Stdio::from(log_file))
+        .stderr(Stdio::from(stderr_file));
+
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
 
     for (key, value) in envs {
         command.env(key, value);
     }
 
     command.spawn()
+}
+
+fn append_runtime_log(log_path: &Path, message: &str) {
+    if let Some(parent_dir) = log_path.parent() {
+        let _ = fs::create_dir_all(parent_dir);
+    }
+
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_path) {
+        let _ = writeln!(file, "{}", message);
+    }
 }
 
 fn wait_for_port(port: u16, timeout: Duration) -> io::Result<()> {
@@ -448,7 +503,7 @@ fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         return Ok(());
     }
 
-    let (manifest, resource_dir) = read_runtime_manifest(app)?;
+    let (manifest, runtime_root) = read_runtime_manifest(app)?;
     let mut desktop_env = load_desktop_env(app)?;
 
     // Dynamically resolve and inject local SQLite DATABASE_URL
@@ -480,13 +535,47 @@ fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     };
     let api_env = desktop_env;
 
-    let node_path = resource_dir.join("runtime").join(&manifest.node_entry);
-    let web_entry = resource_dir.join("runtime").join(&manifest.web_entry);
-    let api_entry = resource_dir.join("runtime").join(&manifest.api_entry);
-    let runtime_root = resource_dir.join("runtime");
+    // Node 在 Windows 下不能稳定处理 verbatim path（\\?\...），启动前统一归一化。
+    let node_path = normalize_path_for_child_process(&runtime_root.join(&manifest.node_entry));
+    let web_entry = normalize_path_for_child_process(&runtime_root.join(&manifest.web_entry));
+    let api_entry = normalize_path_for_child_process(&runtime_root.join(&manifest.api_entry));
+    let runtime_cwd = normalize_path_for_child_process(&runtime_root);
+    let runtime_log_dir = app
+        .path()
+        .app_log_dir()
+        .or_else(|_| app.path().app_data_dir().map(|dir| dir.join("logs")))?;
+    let api_log_path = runtime_log_dir.join("desktop-api.log");
+    let web_log_path = runtime_log_dir.join("desktop-web.log");
+    let launcher_log_path = runtime_log_dir.join("desktop-launcher.log");
+    let executable_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("<unknown>"));
+    append_runtime_log(
+        &launcher_log_path,
+        &format!(
+            "[desktop-runtime] version={} exe={} runtime_root={} node={} api_entry={} web_entry={} cwd={}",
+            app.package_info().version,
+            executable_path.display(),
+            runtime_root.display(),
+            node_path.display(),
+            api_entry.display(),
+            web_entry.display(),
+            runtime_cwd.display()
+        ),
+    );
 
-    let api_child = spawn_node_process(&node_path, &api_entry, &runtime_root, &api_env)?;
-    let web_child = spawn_node_process(&node_path, &web_entry, &runtime_root, &web_env)?;
+    let api_child = spawn_node_process(
+        &node_path,
+        &api_entry,
+        &runtime_cwd,
+        &api_env,
+        &api_log_path,
+    )?;
+    let web_child = spawn_node_process(
+        &node_path,
+        &web_entry,
+        &runtime_cwd,
+        &web_env,
+        &web_log_path,
+    )?;
 
     {
         let state = app.state::<DesktopState>();
@@ -502,8 +591,30 @@ fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         sidecars.push(web_child);
     }
 
-    wait_for_port(manifest.api_port, Duration::from_secs(30))?;
-    wait_for_port(manifest.web_port, Duration::from_secs(30))?;
+    if let Err(error) = wait_for_port(manifest.api_port, Duration::from_secs(30)) {
+        append_runtime_log(
+            &launcher_log_path,
+            &format!(
+                "[desktop-runtime] api port {} failed: {}. See {}",
+                manifest.api_port,
+                error,
+                api_log_path.display()
+            ),
+        );
+        return Err(error.into());
+    }
+    if let Err(error) = wait_for_port(manifest.web_port, Duration::from_secs(30)) {
+        append_runtime_log(
+            &launcher_log_path,
+            &format!(
+                "[desktop-runtime] web port {} failed: {}. See {}",
+                manifest.web_port,
+                error,
+                web_log_path.display()
+            ),
+        );
+        return Err(error.into());
+    }
     println!(
         "Thunder desktop runtime ready on http://{}",
         localhost_web_host
@@ -534,11 +645,8 @@ fn resolve_sherpa_catalog_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
         return catalog;
     }
 
-    let resource_dir = app.path().resource_dir().unwrap_or_default();
-    let service_root = resource_dir
-        .join("runtime")
-        .join("services")
-        .join("sherpa-onnx");
+    let runtime_root = resolve_runtime_root(app).unwrap_or_default();
+    let service_root = runtime_root.join("services").join("sherpa-onnx");
     service_root.join("model-catalog.json")
 }
 
@@ -597,6 +705,7 @@ fn list_sherpa_models_from_catalog(
     model_dir: &Path,
     state_dir: &Path,
     downloading_models: &HashSet<String>,
+    download_progress: &HashMap<String, SherpaDownloadProgress>,
 ) -> Result<Vec<SherpaModelSummary>, String> {
     let entries = load_sherpa_catalog(catalog)?;
     let active_model_id = load_active_sherpa_model_id(state_dir);
@@ -605,6 +714,7 @@ fn list_sherpa_models_from_catalog(
         .map(|entry| {
             let installed = is_sherpa_model_installed(model_dir, &entry);
             let downloading = downloading_models.contains(&entry.id);
+            let progress = download_progress.get(&entry.id).cloned();
             SherpaModelSummary {
                 active: installed && active_model_id.as_deref() == Some(entry.id.as_str()),
                 id: entry.id,
@@ -615,6 +725,7 @@ fn list_sherpa_models_from_catalog(
                 size: entry.size,
                 installed,
                 downloading,
+                download_progress: progress,
             }
         })
         .collect::<Vec<_>>();
@@ -626,6 +737,42 @@ fn list_sherpa_models_from_catalog(
     }
 
     Ok(models)
+}
+
+fn update_sherpa_download_progress<R: Runtime>(
+    app: &AppHandle<R>,
+    model_id: &str,
+    percentage: u32,
+    downloaded: u64,
+    total: u64,
+    status: &str,
+) {
+    let progress = SherpaDownloadProgress {
+        percentage,
+        downloaded,
+        total,
+        status: status.to_string(),
+    };
+
+    {
+        let state = app.state::<DesktopState>();
+        state
+            .sherpa_download_progress
+            .lock()
+            .unwrap()
+            .insert(model_id.to_string(), progress);
+    }
+
+    let _ = app.emit(
+        "sherpa-download-progress",
+        serde_json::json!({
+            "modelId": model_id,
+            "percentage": percentage,
+            "downloaded": downloaded,
+            "total": total,
+            "status": status,
+        }),
+    );
 }
 
 fn find_sherpa_model<'a>(
@@ -661,16 +808,7 @@ fn download_sherpa_model_archive<R: Runtime>(
     let mut downloaded_bytes = 0u64;
     let mut last_percentage = 0u32;
 
-    let _ = app.emit(
-        "sherpa-download-progress",
-        serde_json::json!({
-            "modelId": model.id,
-            "percentage": 0,
-            "downloaded": 0,
-            "total": total_bytes,
-            "status": "downloading",
-        }),
-    );
+    update_sherpa_download_progress(app, &model.id, 0, 0, total_bytes, "downloading");
 
     loop {
         let bytes_read = reader
@@ -690,15 +828,13 @@ fn download_sherpa_model_archive<R: Runtime>(
             let percentage = ((downloaded_bytes as f64 / total_bytes as f64) * 100.0) as u32;
             if percentage > last_percentage {
                 last_percentage = percentage;
-                let _ = app.emit(
-                    "sherpa-download-progress",
-                    serde_json::json!({
-                        "modelId": model.id,
-                        "percentage": percentage,
-                        "downloaded": downloaded_bytes,
-                        "total": total_bytes,
-                        "status": "downloading",
-                    }),
+                update_sherpa_download_progress(
+                    app,
+                    &model.id,
+                    percentage,
+                    downloaded_bytes,
+                    total_bytes,
+                    "downloading",
                 );
             }
 
@@ -735,17 +871,7 @@ fn install_sherpa_model<R: Runtime>(
 
     let archive_path = download_sherpa_model_archive(app, model, state_dir)?;
 
-    // 发送正在解压状态事件
-    let _ = app.emit(
-        "sherpa-download-progress",
-        serde_json::json!({
-            "modelId": model.id,
-            "percentage": 100,
-            "downloaded": 0,
-            "total": 0,
-            "status": "extracting",
-        }),
-    );
+    update_sherpa_download_progress(app, &model.id, 100, 0, 0, "extracting");
 
     let result = extract_sherpa_archive(&archive_path, model_dir);
     let _ = fs::remove_file(&archive_path);
@@ -899,7 +1025,8 @@ fn list_sherpa_models(app: tauri::AppHandle) -> Result<Vec<SherpaModelSummary>, 
     ensure_sherpa_storage(&model_dir, &state_dir)?;
     let state = app.state::<DesktopState>();
     let downloading = state.downloading_models.lock().unwrap();
-    list_sherpa_models_from_catalog(&catalog, &model_dir, &state_dir, &downloading)
+    let progress = state.sherpa_download_progress.lock().unwrap();
+    list_sherpa_models_from_catalog(&catalog, &model_dir, &state_dir, &downloading, &progress)
 }
 
 #[tauri::command]
@@ -914,11 +1041,13 @@ fn download_sherpa_model(
     let mut downloading = state.downloading_models.lock().unwrap();
 
     if downloading.contains(&model_id) {
+        let progress = state.sherpa_download_progress.lock().unwrap();
         return list_sherpa_models_from_catalog(
             &catalog_path,
             &model_dir,
             &state_dir,
             &downloading,
+            &progress,
         );
     }
 
@@ -947,6 +1076,11 @@ fn download_sherpa_model(
             let state = app_clone.state::<DesktopState>();
             let mut downloading = state.downloading_models.lock().unwrap();
             downloading.remove(&model_id_clone);
+            state
+                .sherpa_download_progress
+                .lock()
+                .unwrap()
+                .remove(&model_id_clone);
         }
 
         match result {
@@ -965,7 +1099,14 @@ fn download_sherpa_model(
         }
     });
 
-    list_sherpa_models_from_catalog(&catalog_path, &model_dir, &state_dir, &downloading)
+    let progress = state.sherpa_download_progress.lock().unwrap();
+    list_sherpa_models_from_catalog(
+        &catalog_path,
+        &model_dir,
+        &state_dir,
+        &downloading,
+        &progress,
+    )
 }
 
 #[tauri::command]
@@ -988,7 +1129,14 @@ fn activate_sherpa_model(
         .take();
     let state = app.state::<DesktopState>();
     let downloading = state.downloading_models.lock().unwrap();
-    list_sherpa_models_from_catalog(&catalog_path, &model_dir, &state_dir, &downloading)
+    let progress = state.sherpa_download_progress.lock().unwrap();
+    list_sherpa_models_from_catalog(
+        &catalog_path,
+        &model_dir,
+        &state_dir,
+        &downloading,
+        &progress,
+    )
 }
 
 #[tauri::command]
@@ -1100,25 +1248,36 @@ fn start_native_speech_bridge(app: &tauri::AppHandle) {
 }
 
 fn handle_native_speech_request(app: tauri::AppHandle, mut stream: TcpStream) {
-    let mut buffer = vec![0_u8; 1024 * 1024];
-    let bytes_read = match stream.read(&mut buffer) {
-        Ok(bytes_read) => bytes_read,
+    let _ = stream.set_read_timeout(Some(NATIVE_HTTP_READ_TIMEOUT));
+    let request = match read_native_http_request(&mut stream, NATIVE_HTTP_MAX_BODY_BYTES) {
+        Ok(request) => request,
         Err(error) => {
-            let _ = write_native_json(&mut stream, 400, serde_json::json!({ "ok": false, "message": error.to_string() }));
+            let _ = write_native_json(
+                &mut stream,
+                400,
+                serde_json::json!({ "ok": false, "message": error.to_string() }),
+            );
             return;
         }
     };
 
-    let request = String::from_utf8_lossy(&buffer[..bytes_read]).to_string();
     let Some((header, body)) = request.split_once("\r\n\r\n") else {
-        let _ = write_native_json(&mut stream, 400, serde_json::json!({ "ok": false, "message": "Invalid HTTP request" }));
+        let _ = write_native_json(
+            &mut stream,
+            400,
+            serde_json::json!({ "ok": false, "message": "Invalid HTTP request" }),
+        );
         return;
     };
     let mut lines = header.lines();
     let request_line = lines.next().unwrap_or_default();
     let parts = request_line.split_whitespace().collect::<Vec<_>>();
     if parts.len() < 2 {
-        let _ = write_native_json(&mut stream, 400, serde_json::json!({ "ok": false, "message": "Invalid HTTP request line" }));
+        let _ = write_native_json(
+            &mut stream,
+            400,
+            serde_json::json!({ "ok": false, "message": "Invalid HTTP request line" }),
+        );
         return;
     }
 
@@ -1127,9 +1286,73 @@ fn handle_native_speech_request(app: tauri::AppHandle, mut stream: TcpStream) {
     let result = dispatch_native_speech_request(app, method, path, body);
     let (status, payload) = match result {
         Ok(data) => (200, serde_json::json!({ "ok": true, "data": data })),
-        Err((status, message)) => (status, serde_json::json!({ "ok": false, "message": message })),
+        Err((status, message)) => (
+            status,
+            serde_json::json!({ "ok": false, "message": message }),
+        ),
     };
     let _ = write_native_json(&mut stream, status, payload);
+}
+
+fn read_native_http_request<R: Read>(reader: &mut R, max_body_bytes: usize) -> io::Result<String> {
+    let mut buffer = Vec::new();
+    let mut chunk = [0_u8; 8192];
+    let mut expected_total_len = None;
+
+    loop {
+        let bytes_read = reader.read(&mut chunk)?;
+        if bytes_read == 0 {
+            break;
+        }
+
+        buffer.extend_from_slice(&chunk[..bytes_read]);
+
+        if expected_total_len.is_none() {
+            if let Some(header_end) = find_http_header_end(&buffer) {
+                let header = String::from_utf8_lossy(&buffer[..header_end]);
+                let body_len = parse_http_content_length(&header)?;
+                if body_len > max_body_bytes {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Native bridge request body is too large",
+                    ));
+                }
+                expected_total_len = Some(header_end + 4 + body_len);
+            }
+        }
+
+        if let Some(total_len) = expected_total_len {
+            if buffer.len() >= total_len {
+                buffer.truncate(total_len);
+                break;
+            }
+        }
+    }
+
+    String::from_utf8(buffer).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+}
+
+fn find_http_header_end(buffer: &[u8]) -> Option<usize> {
+    buffer.windows(4).position(|window| window == b"\r\n\r\n")
+}
+
+fn parse_http_content_length(header: &str) -> io::Result<usize> {
+    for line in header.lines().skip(1) {
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+
+        if name.trim().eq_ignore_ascii_case("content-length") {
+            return value.trim().parse::<usize>().map_err(|error| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Invalid Content-Length header: {error}"),
+                )
+            });
+        }
+    }
+
+    Ok(0)
 }
 
 fn dispatch_native_speech_request(
@@ -1166,9 +1389,13 @@ fn dispatch_native_speech_request(
         }
         ("POST", "/sherpa/feed") => {
             let request = parse_native_json::<NativeSherpaFeedRequest>(body)?;
-            feed_sherpa_audio(app, request.samples, request.input_finished.unwrap_or(false))
-                .map(|value| serde_json::json!(value))
-                .map_err(|message| (500, message))
+            feed_sherpa_audio(
+                app,
+                request.samples,
+                request.input_finished.unwrap_or(false),
+            )
+            .map(|value| serde_json::json!(value))
+            .map_err(|message| (500, message))
         }
         _ => Err((404, "Unknown native speech bridge route".into())),
     }
@@ -1193,6 +1420,43 @@ fn write_native_json(
     )
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{read_native_http_request, NATIVE_HTTP_MAX_BODY_BYTES};
+    use std::io::Cursor;
+
+    #[test]
+    fn native_http_reader_preserves_large_json_body() {
+        let body = serde_json::json!({
+            "samples": vec![123_i16; 4096],
+            "inputFinished": false,
+        })
+        .to_string();
+        assert!(body.len() > 8192);
+
+        let request = format!(
+            "POST /sherpa/feed HTTP/1.1\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        let mut cursor = Cursor::new(request.into_bytes());
+
+        let parsed = read_native_http_request(&mut cursor, NATIVE_HTTP_MAX_BODY_BYTES).unwrap();
+
+        assert_eq!(parsed.split_once("\r\n\r\n").unwrap().1, body);
+    }
+
+    #[test]
+    fn native_http_reader_rejects_oversized_body() {
+        let request = "POST /sherpa/feed HTTP/1.1\r\ncontent-length: 4\r\n\r\nnull";
+        let mut cursor = Cursor::new(request.as_bytes());
+
+        let error = read_native_http_request(&mut cursor, 3).unwrap_err();
+
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
@@ -1201,6 +1465,7 @@ pub fn run() {
             sidecars: Mutex::new(Vec::new()),
             sherpa_session: Mutex::new(None),
             downloading_models: Mutex::new(HashSet::new()),
+            sherpa_download_progress: Mutex::new(HashMap::new()),
             #[cfg(target_os = "windows")]
             job: WindowsJob::new().ok(),
         })
