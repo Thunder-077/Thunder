@@ -47,6 +47,9 @@ const modules = [
         exportName: "serverEmby",
       },
     ],
+    runtimeDependencies: {
+      api: ["sharp"],
+    },
     scheduledTasks: [
       {
         importPath: "../modules/emby/emby-routes",
@@ -115,6 +118,29 @@ function getEnabledModules() {
     if (excludedModuleIds.has(module.id)) return false
     return !module.platforms || module.platforms.includes(targetPlatform)
   })
+}
+
+function collectRuntimeDependencies(selectedModules, surface) {
+  return [
+    ...new Set(
+      selectedModules.flatMap((module) => module.runtimeDependencies?.[surface] ?? [])
+    ),
+  ].sort()
+}
+
+function getModuleSelection() {
+  const targetPlatform = resolveTargetPlatform()
+  const excludedModuleIds = resolveExcludedModuleIds()
+  const enabledModules = getEnabledModules()
+  const enabledModuleIds = new Set(enabledModules.map((module) => module.id))
+  const excludedModules = modules.filter((module) => module.enabled && !enabledModuleIds.has(module.id))
+
+  return {
+    targetPlatform,
+    excludedModuleIds,
+    enabledModules,
+    excludedModules,
+  }
 }
 
 function toManifest(module) {
@@ -207,10 +233,42 @@ ${scheduledCalls.join("\n") || "  return"}
   await writeFile(outputPath, content, "utf8")
 }
 
-const enabledModules = getEnabledModules()
+async function writeRuntimeDependenciesGenerated(selection) {
+  const outputPath = resolve(workspaceRoot, "apps/api/src/generated/runtime-dependencies.json")
+  await mkdir(dirname(outputPath), { recursive: true })
+
+  const desktopOnlyApiExclusions =
+    selection.targetPlatform === "desktop" ? ["@prisma/adapter-neon"] : []
+
+  const content = {
+    targetPlatform: selection.targetPlatform,
+    enabledModuleIds: selection.enabledModules.map((module) => module.id),
+    excludedModuleIds: selection.excludedModules.map((module) => module.id),
+    requestedExcludedModuleIds: [...selection.excludedModuleIds].sort(),
+    api: {
+      dependencies: collectRuntimeDependencies(selection.enabledModules, "api"),
+      excludedDependencies: [
+        ...new Set([
+          ...collectRuntimeDependencies(selection.excludedModules, "api"),
+          ...desktopOnlyApiExclusions,
+        ]),
+      ].sort(),
+    },
+    web: {
+      dependencies: collectRuntimeDependencies(selection.enabledModules, "web"),
+      excludedDependencies: collectRuntimeDependencies(selection.excludedModules, "web"),
+    },
+  }
+
+  await writeFile(outputPath, `${JSON.stringify(content, null, 2)}\n`, "utf8")
+}
+
+const selection = getModuleSelection()
+const enabledModules = selection.enabledModules
 await writeWebGenerated(enabledModules)
 await writeApiGenerated(enabledModules)
+await writeRuntimeDependenciesGenerated(selection)
 
 console.log(
-  `[modules] target=${resolveTargetPlatform()} enabled=${enabledModules.map((module) => module.id).join(",") || "(none)"}`
+  `[modules] target=${selection.targetPlatform} enabled=${enabledModules.map((module) => module.id).join(",") || "(none)"}`
 )

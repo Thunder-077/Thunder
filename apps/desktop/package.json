@@ -6,6 +6,7 @@
     "tauri": "tauri",
     "check:rust": "cargo check --manifest-path src-tauri/Cargo.toml",
     "build:runtime": "node ./scripts/build-local-runtime.mjs",
+    "analyze:runtime": "node ./scripts/analyze-runtime.mjs",
     "prepare:release-config": "node ./scripts/prepare-release-config.mjs",
     "build:release": "node ./scripts/build-release.mjs"
   },

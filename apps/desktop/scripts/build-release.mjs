@@ -1,5 +1,11 @@
 import { spawn } from "node:child_process"
+import { rm } from "node:fs/promises"
+import { resolve } from "node:path"
 import { loadDesktopEnv } from "./desktop-env.mjs"
+
+const desktopRoot = resolve(import.meta.dirname, "..")
+const releaseTargetDir = resolve(desktopRoot, "src-tauri", "target", "release")
+const releaseStagingDirs = ["bundle", "_up_", "resources", "wix", "nsis"]
 
 await loadDesktopEnv()
 
@@ -13,7 +19,14 @@ for (let i = 0; i < process.argv.length; i++) {
   }
 }
 
+async function cleanReleaseStaging() {
+  for (const dirName of releaseStagingDirs) {
+    await rm(resolve(releaseTargetDir, dirName), { recursive: true, force: true })
+  }
+}
+
 await run("node", ["./scripts/prepare-release-config.mjs"])
+await cleanReleaseStaging()
 await run("tauri", ["build", "--config", "src-tauri/tauri.release.conf.json"])
 
 function run(command, args) {

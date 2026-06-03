@@ -54,6 +54,32 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD="..."
 pnpm build:desktop -- --exclude=emby
 ```
 
+构建脚本会同时生成 `apps/api/src/generated/runtime-dependencies.json`。桌面 API bundle 只读取该 manifest 中的依赖并写入 `apps/desktop/runtime/api/package.json`，因此 Web-only 模块的依赖不会因为根 workspace 已安装而进入桌面安装包。模块需要外置运行时依赖时，应在模块清单的 `runtimeDependencies` 中声明。
+
+桌面端只使用 SQLite。`pnpm build:desktop` 会自动运行 SQLite-only Prisma 生成和 SQLite 迁移编译：
+
+```bash
+pnpm db:generate:sqlite
+pnpm db:compile-sqlite-migrations
+```
+
+它不会为桌面 runtime 安装 Prisma CLI、Neon adapter 或 PostgreSQL Client。安装包内只保留 generated SQLite client 所需的 `schema.prisma` 和当前平台 query engine。
+
+Windows 本地构建默认只生成 NSIS 安装器，避免 `targets: "all"` 同时生成 MSI/NSIS/updater 产物导致耗时放大。如需指定安装器或开启 updater artifacts：
+
+```bash
+THUNDER_DESKTOP_BUNDLE_TARGETS=msi pnpm build:desktop
+THUNDER_DESKTOP_BUNDLE_TARGETS=nsis,msi THUNDER_DESKTOP_UPDATER_ARTIFACTS=true pnpm build:desktop
+```
+
+正式 Tauri build 前会清理 `target/release/bundle`、`target/release/_up_`、`target/release/resources`、`target/release/wix` 和 `target/release/nsis` 这些 packaging/staging 目录，但不会清理 Cargo 编译缓存。
+
+运行时体积分析：
+
+```bash
+pnpm --filter @thunder/desktop analyze:runtime
+```
+
 ## 运行时配置
 
 桌面应用生产态不会直接继承你开发机里的 shell 环境变量。

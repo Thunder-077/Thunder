@@ -9,7 +9,10 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "db:generate": "prisma generate --schema=prisma/schema.prisma && node scripts/sync-sqlite-schema.mjs && prisma generate --schema=prisma/schema.sqlite.prisma && node scripts/compile-migrations.mjs",
+    "db:generate": "pnpm run db:generate:postgres && pnpm run db:generate:sqlite && pnpm run db:compile-sqlite-migrations",
+    "db:generate:postgres": "prisma generate --schema=prisma/schema.prisma",
+    "db:generate:sqlite": "node scripts/sync-sqlite-schema.mjs && prisma generate --schema=prisma/schema.sqlite.prisma",
+    "db:compile-sqlite-migrations": "node scripts/compile-migrations.mjs",
     "db:migrate": "prisma migrate dev",
     "db:migrate:sqlite": "node scripts/sync-sqlite-schema.mjs && node scripts/create-sqlite-migration.mjs",
     "db:push": "prisma db push",

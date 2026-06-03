@@ -21,6 +21,10 @@ interface ModuleManifest {
   order: number           // 排序权重
   enabled: boolean        // 是否启用
   platforms?: ("web" | "desktop")[] // 目标平台；不写表示 Web / Desktop 都启用
+  runtimeDependencies?: { // 模块运行时必须外置安装的依赖
+    api?: string[]
+    web?: string[]
+  }
   component?: string      // 组件路径（预留）
   settingsSchema?: Record<string, unknown> // 设置 schema（预留）
 }
@@ -47,6 +51,7 @@ type ModuleCategory =
 
 - `apps/web/src/generated/enabled-modules.ts`：前端启用模块 Manifest、动态页面 loader、公开 server 路径前缀
 - `apps/api/src/generated/enabled-routes.ts`：后端启用模块路由注册函数和定时任务入口
+- `apps/api/src/generated/runtime-dependencies.json`：当前目标平台启用模块需要的 runtime dependency 清单，以及被裁剪模块对应的排除依赖
 
 这两个 generated 文件不作为源码提交，开发、构建、测试、类型检查和 Cloudflare 相关入口会先执行生成脚本，再消费生成结果。
 
@@ -59,6 +64,7 @@ type ModuleCategory =
 5. 侧边栏、模块中心和命令面板只渲染启用模块
 6. `/modules/[moduleId]` 根据 generated loader 动态加载模块页面
 7. API 只注册 generated routes 中的后端模块路由
+8. 桌面 API runtime 只安装 generated runtime dependency 清单中的依赖
 
 ## 模块代码组织
 
@@ -144,6 +150,8 @@ EXCLUDE_MODULES=emby pnpm build:desktop
 ```
 
 被目标平台或排除列表禁用的模块不会出现在 generated Manifest、前端动态 loader、API 路由注册和定时任务入口中。为了保证未启用模块不进入无关平台包，主应用层禁止直接静态 import 业务模块文件。
+
+模块如果需要 `sharp` 这类必须外置安装或携带原生二进制的运行时依赖，必须在模块清单中声明 `runtimeDependencies`，不能在桌面打包脚本中硬编码。桌面构建会从启用模块图推导依赖；当模块因 `platforms` 或 `--exclude` 被裁剪时，其 runtime dependency 会进入排除清单，校验脚本会阻止这些依赖进入桌面 API runtime。
 
 Web 开发/构建入口由 `scripts/run-web.mjs` 包装，负责先生成 enabled modules 再运行 Next.js。桌面生产构建会以 `desktop` 目标生成 Web 和 API 运行时。
 

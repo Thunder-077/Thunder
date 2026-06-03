@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { dirname, posix, resolve } from "node:path"
 import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
+import { copyStandaloneRuntime, pruneRuntimeFiles } from "./runtime-copy-utils.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const desktopRoot = resolve(scriptDir, "..")
@@ -84,6 +85,8 @@ await run("pnpm", ["--filter", "@thunder/web", "build"], {
     NEXT_PUBLIC_EXCLUDE_MODULES: excludeModules,
   },
 })
+await run("pnpm", ["--filter", "@thunder/database", "db:generate:sqlite"])
+await run("pnpm", ["--filter", "@thunder/database", "db:compile-sqlite-migrations"])
 await run("pnpm", ["--filter", "@thunder/api", "build:desktop-bundle"], {
   env: {
     ...process.env,
@@ -100,7 +103,10 @@ const staticDir = resolve(workspaceRoot, "apps", "web", ".next", "static")
 const publicDir = resolve(workspaceRoot, "apps", "web", "public")
 const { appDir, serverEntry } = await detectStandaloneAppDir(standaloneDir)
 
-await cp(standaloneDir, runtimeWebDir, { recursive: true, dereference: true })
+await copyStandaloneRuntime(standaloneDir, runtimeWebDir, {
+  standaloneDir,
+  workspaceRoot,
+})
 await cp(staticDir, resolve(appDir.replace(standaloneDir, runtimeWebDir), ".next", "static"), {
   recursive: true,
 })
@@ -113,6 +119,13 @@ await cp(resolve(workspaceRoot, "services", "sherpa-onnx"), resolve(runtimeServi
 await cp(resolve(workspaceRoot, "plugins", "desktop"), resolve(runtimePluginsDir, "desktop"), {
   recursive: true,
 })
+
+const pruneResult = await pruneRuntimeFiles(runtimeDir)
+if (pruneResult.removedFiles > 0) {
+  console.log(
+    `[desktop-build] pruned ${pruneResult.removedFiles} runtime files (${(pruneResult.removedBytes / 1024 / 1024).toFixed(2)} MB)`
+  )
+}
 
 await writeFile(
   runtimeManifestPath,

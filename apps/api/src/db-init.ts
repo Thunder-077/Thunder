@@ -10,28 +10,25 @@ const currentDir = typeof __dirname !== 'undefined' ? __dirname : path.resolve()
 function resolveAndInjectQueryEngine() {
   if (process.env.PRISMA_QUERY_ENGINE_LIBRARY) return;
 
-  // Search in node_modules/@prisma/client
-  const baseDir = path.join(currentDir, 'node_modules', '@prisma', 'client');
-  if (fs.existsSync(baseDir)) {
-    const files = fs.readdirSync(baseDir);
-    const engineFile = files.find(f => f.includes('query_engine') && f.endsWith('.node'));
+  const candidateDirs = [
+    // Packaged desktop runtime: runtime/api/server.cjs runs with cwd=runtime.
+    path.join(currentDir, '..', 'generated', 'sqlite-client'),
+    path.join(process.cwd(), 'generated', 'sqlite-client'),
+    path.join(currentDir, 'generated', 'sqlite-client'),
+    path.join(currentDir, 'node_modules', '@prisma', 'client'),
+    path.join(currentDir, '..', 'node_modules', '.prisma', 'client'),
+  ];
+
+  for (const candidateDir of candidateDirs) {
+    if (!fs.existsSync(candidateDir)) continue;
+
+    const files = fs.readdirSync(candidateDir);
+    const engineFile = files.find((fileName) => fileName.includes('query_engine') && fileName.endsWith('.node'));
     if (engineFile) {
-      const enginePath = path.join(baseDir, engineFile);
+      const enginePath = path.join(candidateDir, engineFile);
       process.env.PRISMA_QUERY_ENGINE_LIBRARY = enginePath;
       console.log(`[Prisma] Dynamically located query engine at: ${enginePath}`);
       return;
-    }
-  }
-
-  // Fallback: search in parent/sibling node_modules (for dev or monorepo paths)
-  const devDir = path.join(currentDir, '..', 'node_modules', '.prisma', 'client');
-  if (fs.existsSync(devDir)) {
-    const files = fs.readdirSync(devDir);
-    const engineFile = files.find(f => f.includes('query_engine') && f.endsWith('.node'));
-    if (engineFile) {
-      const enginePath = path.join(devDir, engineFile);
-      process.env.PRISMA_QUERY_ENGINE_LIBRARY = enginePath;
-      console.log(`[Prisma] Dynamically located dev query engine at: ${enginePath}`);
     }
   }
 }

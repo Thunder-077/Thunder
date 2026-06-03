@@ -27,6 +27,22 @@ function assertHttpsUrl(value, fieldName) {
   return url.toString()
 }
 
+function resolveBundleTargets() {
+  const rawTargets = process.env.THUNDER_DESKTOP_BUNDLE_TARGETS?.trim()
+  if (rawTargets) {
+    return rawTargets
+      .split(",")
+      .map((target) => target.trim())
+      .filter(Boolean)
+  }
+
+  return process.platform === "win32" ? ["nsis"] : undefined
+}
+
+function shouldCreateUpdaterArtifacts() {
+  return process.env.THUNDER_DESKTOP_UPDATER_ARTIFACTS === "true"
+}
+
 await loadDesktopEnv()
 
 const updaterEndpoint = assertHttpsUrl(
@@ -43,7 +59,8 @@ config.build.beforeBuildCommand = "node ./scripts/build-local-runtime.mjs"
 
 config.bundle = {
   ...config.bundle,
-  createUpdaterArtifacts: true,
+  targets: resolveBundleTargets() ?? config.bundle?.targets,
+  createUpdaterArtifacts: shouldCreateUpdaterArtifacts(),
   resources: ["../runtime/**/*"],
 }
 
