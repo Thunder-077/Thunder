@@ -1516,6 +1516,26 @@ pub fn run() {
                         .emit("thunder://desktop-window-hidden", "tray");
                 }
             }
+        })
+        // decorum 插件的 titlebar 按钮是在 `DOMContentLoaded` 触发前通过 `eval`
+        // 注入的脚本里注册回调来创建的，F5 刷新时 webview 重载，IPC 注入会被
+        // 延后到 `DOMContentLoaded` 之后，导致按钮 DOM 不再被重建。
+        // 这里在每次主窗口页面开始加载时重新调用一次 `create_overlay_titlebar`，
+        // 让 decorum 重新注入脚本，保证刷新后 min/max/close 按钮仍然存在。
+        .on_page_load(|webview, payload| {
+            if webview.label() != MAIN_WINDOW_LABEL {
+                return;
+            }
+            if !matches!(payload.event, tauri::PageLoadEvent::Started) {
+                return;
+            }
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
+            {
+                use tauri_plugin_decorum::WebviewWindowExt;
+                let _ = webview.create_overlay_titlebar();
+                #[cfg(target_os = "macos")]
+                let _ = webview.set_traffic_lights_inset(12.0, 16.0);
+            }
         });
 
     // The updater plugin requires a non-null `plugins.updater` config.

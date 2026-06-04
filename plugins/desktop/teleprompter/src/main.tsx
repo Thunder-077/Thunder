@@ -39,9 +39,23 @@ function PluginFrameAutoHeight() {
   return null
 }
 
+function PluginThemeSync() {
+  React.useEffect(() => {
+    const unsubscribe = thunder.theme.onChange((theme) => {
+      document.documentElement.classList.toggle("dark", theme === "dark")
+      document.documentElement.dataset.theme = theme
+      document.documentElement.style.colorScheme = theme
+    })
+    return unsubscribe
+  }, [])
+
+  return null
+}
+
 createRoot(root).render(
   <React.StrictMode>
     <PluginFrameAutoHeight />
+    <PluginThemeSync />
     <TeleprompterPage />
   </React.StrictMode>
 )
