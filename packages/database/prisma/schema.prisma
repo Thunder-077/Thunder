@@ -121,3 +121,16 @@ model VaultItem {
   @@index([vaultId])
   @@map("vault_items")
 }
+
+model ActivityLog {
+  id           String  @id
+  module       String
+  action       String
+  title        String
+  description String?
+  metadataJson String? @map("metadata_json")
+  createdAt    String  @map("created_at")
+
+  @@index([createdAt])
+  @@map("activity_logs")
+}

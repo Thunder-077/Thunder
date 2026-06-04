@@ -32,6 +32,8 @@ export type ApiErrorCode =
   | "WEATHER_MISSING_LOCATION"
   | "WEATHER_UPSTREAM_ERROR"
   | "TURNSTILE_FAILED"
+  | "ACTIVITY_NOT_FOUND"
+  | "ACTIVITY_DELETE_FAILED"
 
 export function apiSuccess<T>(data: T): ApiResponse<T> {
   return { ok: true, data }

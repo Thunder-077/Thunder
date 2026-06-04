@@ -15,3 +15,10 @@ export const EMBY_ERROR_CODES = {
 } as const
 
 export type EmbyErrorCode = (typeof EMBY_ERROR_CODES)[keyof typeof EMBY_ERROR_CODES]
+
+export const ACTIVITY_ERROR_CODES = {
+  ACTIVITY_NOT_FOUND: "ACTIVITY_NOT_FOUND",
+  ACTIVITY_DELETE_FAILED: "ACTIVITY_DELETE_FAILED",
+} as const
+
+export type ActivityErrorCode = (typeof ACTIVITY_ERROR_CODES)[keyof typeof ACTIVITY_ERROR_CODES]
