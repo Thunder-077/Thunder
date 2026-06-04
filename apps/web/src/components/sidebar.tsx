@@ -76,7 +76,7 @@ function SidebarNavItem({
       href={href}
       onClick={onNavigate}
       className={cn(
-        "group/sidebar-item flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
+        "group/sidebar-item flex h-8 w-full items-center gap-2 rounded-md px-2 text-[14px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
         active
           ? "bg-muted/70 text-foreground"
           : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -84,7 +84,7 @@ function SidebarNavItem({
     >
       <Icon
         className={cn(
-          "h-[14px] w-[14px] shrink-0 transition-colors",
+          "h-4 w-4 shrink-0 transition-colors",
           active ? "text-foreground" : "text-muted-foreground group-hover/sidebar-item:text-sidebar-accent-foreground"
         )}
       />
@@ -225,7 +225,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
           href="/settings"
           onClick={onNavigate}
           className={cn(
-            "group/sidebar-item flex h-7 w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
+            "group/sidebar-item flex h-8 w-full items-center gap-2 rounded-md px-2 text-[14px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
             pathname === "/settings"
               ? "bg-muted/70 text-foreground"
               : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -234,9 +234,9 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
         >
           <Settings
             className={cn(
-              "h-[14px] w-[14px] shrink-0 transition-colors",
-              pathname === "/settings" 
-                ? "text-foreground" 
+              "h-4 w-4 shrink-0 transition-colors",
+              pathname === "/settings"
+                ? "text-foreground"
                 : "text-muted-foreground group-hover/sidebar-item:text-sidebar-accent-foreground"
             )}
           />
