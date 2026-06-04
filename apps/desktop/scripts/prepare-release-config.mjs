@@ -6,6 +6,11 @@ const desktopRoot = resolve(import.meta.dirname, "..")
 const tauriConfigPath = resolve(desktopRoot, "src-tauri", "tauri.conf.json")
 const releaseConfigPath = resolve(desktopRoot, "src-tauri", "tauri.release.conf.json")
 const webPort = Number(process.env.THUNDER_DESKTOP_WEB_PORT ?? "43100")
+const DEFAULT_UPDATER_PROXY_PREFIXES = [
+  "https://gh-proxy.org/",
+  "https://ghfast.top/",
+  "https://gh-proxy.com/",
+]
 
 function requireEnv(name) {
   const value = process.env[name]?.trim()
@@ -25,6 +30,47 @@ function assertHttpsUrl(value, fieldName) {
   }
 
   return url.toString()
+}
+
+function splitList(value) {
+  return (value ?? "")
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function joinProxyEndpoint(proxyPrefix, endpoint) {
+  const normalizedPrefix = proxyPrefix.endsWith("/") ? proxyPrefix : `${proxyPrefix}/`
+  return `${normalizedPrefix}${endpoint}`
+}
+
+function unique(values) {
+  return [...new Set(values)]
+}
+
+function resolveUpdaterEndpoints(primaryEndpoint) {
+  const explicitEndpoints = splitList(process.env.THUNDER_DESKTOP_UPDATER_ENDPOINTS)
+  if (explicitEndpoints.length > 0) {
+    return unique(
+      explicitEndpoints.map((endpoint, index) =>
+        assertHttpsUrl(endpoint, `THUNDER_DESKTOP_UPDATER_ENDPOINTS[${index}]`)
+      )
+    )
+  }
+
+  const proxyPrefixes =
+    process.env.THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES === "none"
+      ? []
+      : splitList(process.env.THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES).length > 0
+        ? splitList(process.env.THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES)
+        : DEFAULT_UPDATER_PROXY_PREFIXES
+
+  const proxyEndpoints = proxyPrefixes.map((prefix, index) => {
+    const validatedPrefix = assertHttpsUrl(prefix, `THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES[${index}]`)
+    return assertHttpsUrl(joinProxyEndpoint(validatedPrefix, primaryEndpoint), `updater proxy endpoint ${index}`)
+  })
+
+  return unique([primaryEndpoint, ...proxyEndpoints])
 }
 
 function resolveBundleTargets() {
@@ -49,6 +95,7 @@ const updaterEndpoint = assertHttpsUrl(
   requireEnv("THUNDER_DESKTOP_UPDATER_ENDPOINT"),
   "THUNDER_DESKTOP_UPDATER_ENDPOINT"
 )
+const updaterEndpoints = resolveUpdaterEndpoints(updaterEndpoint)
 const updaterPubkey = requireEnv("TAURI_SIGNING_PUBLIC_KEY")
 
 const rawConfig = await readFile(tauriConfigPath, "utf8")
@@ -68,7 +115,7 @@ config.plugins = {
   ...(config.plugins ?? {}),
   updater: {
     pubkey: updaterPubkey,
-    endpoints: [updaterEndpoint],
+    endpoints: updaterEndpoints,
   },
 }
 
