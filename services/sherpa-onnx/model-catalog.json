@@ -7,7 +7,7 @@
     "runtime": "streaming-paraformer",
     "size": "103 MB",
     "archiveRoot": "sherpa-onnx-streaming-paraformer-bilingual-zh-en",
-    "downloadUrl": "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
+    "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
     "files": {
       "tokens": "tokens.txt",
       "paraformerEncoder": "encoder.int8.onnx",
@@ -22,7 +22,7 @@
     "runtime": "streaming-zipformer",
     "size": "488 MB",
     "archiveRoot": "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
-    "downloadUrl": "https://gh-proxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2",
+    "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2",
     "files": {
       "tokens": "tokens.txt",
       "encoder": "encoder-epoch-99-avg-1.int8.onnx",

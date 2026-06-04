@@ -6,11 +6,6 @@ const desktopRoot = resolve(import.meta.dirname, "..")
 const tauriConfigPath = resolve(desktopRoot, "src-tauri", "tauri.conf.json")
 const releaseConfigPath = resolve(desktopRoot, "src-tauri", "tauri.release.conf.json")
 const webPort = Number(process.env.THUNDER_DESKTOP_WEB_PORT ?? "43100")
-const DEFAULT_UPDATER_PROXY_PREFIXES = [
-  "https://gh-proxy.org/",
-  "https://ghfast.top/",
-  "https://gh-proxy.com/",
-]
 
 function requireEnv(name) {
   const value = process.env[name]?.trim()
@@ -39,11 +34,6 @@ function splitList(value) {
     .filter(Boolean)
 }
 
-function joinProxyEndpoint(proxyPrefix, endpoint) {
-  const normalizedPrefix = proxyPrefix.endsWith("/") ? proxyPrefix : `${proxyPrefix}/`
-  return `${normalizedPrefix}${endpoint}`
-}
-
 function unique(values) {
   return [...new Set(values)]
 }
@@ -58,19 +48,7 @@ function resolveUpdaterEndpoints(primaryEndpoint) {
     )
   }
 
-  const proxyPrefixes =
-    process.env.THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES === "none"
-      ? []
-      : splitList(process.env.THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES).length > 0
-        ? splitList(process.env.THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES)
-        : DEFAULT_UPDATER_PROXY_PREFIXES
-
-  const proxyEndpoints = proxyPrefixes.map((prefix, index) => {
-    const validatedPrefix = assertHttpsUrl(prefix, `THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES[${index}]`)
-    return assertHttpsUrl(joinProxyEndpoint(validatedPrefix, primaryEndpoint), `updater proxy endpoint ${index}`)
-  })
-
-  return unique([primaryEndpoint, ...proxyEndpoints])
+  return [primaryEndpoint]
 }
 
 function resolveBundleTargets() {
