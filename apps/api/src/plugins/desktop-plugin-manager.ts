@@ -20,6 +20,7 @@ import type {
   DesktopPluginRuntimeStatus,
   InstalledDesktopPlugin,
 } from "./desktop-plugin-types"
+import { recordActivity } from "../modules/activity/activity-service"
 
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/
@@ -556,6 +557,16 @@ async function installLocalDesktopPluginInternal(
     sourceRef: installRecord.sourceRef,
   })
 
+  try {
+    await recordActivity({
+      module: `plugin:${manifest.id}`,
+      action: previousManifest ? "plugin.upgraded" : "plugin.installed",
+      title: previousManifest ? `升级了插件 ${manifest.name || manifest.id}` : `安装了插件 ${manifest.name || manifest.id}`,
+    })
+  } catch (e) {
+    console.error("[plugin-activity] Failed to record activity", e)
+  }
+
   return toInstalledPlugin(manifest, installRecord)
 }
 
@@ -575,6 +586,17 @@ export async function installBundledDesktopPlugin(pluginId: string): Promise<Ins
     version: plugin.manifest.version,
     sourcePath,
   })
+
+  try {
+    await recordActivity({
+      module: `plugin:${plugin.manifest.id}`,
+      action: "plugin.bundled-installed",
+      title: `启用了内置插件 ${plugin.manifest.name || plugin.manifest.id}`,
+    })
+  } catch (e) {
+    console.error("[plugin-activity] Failed to record activity", e)
+  }
+
   return plugin
 }
 
@@ -618,6 +640,17 @@ export async function installPackagedDesktopPlugin(
     version: plugin.manifest.version,
     packageSha256: options.packageSha256,
   })
+
+  try {
+    await recordActivity({
+      module: `plugin:${plugin.manifest.id}`,
+      action: "plugin.package-installed",
+      title: `从市场安装了插件 ${plugin.manifest.name || plugin.manifest.id}`,
+    })
+  } catch (e) {
+    console.error("[plugin-activity] Failed to record activity", e)
+  }
+
   return toInstalledPlugin(plugin.manifest, record)
 }
 
@@ -633,6 +666,16 @@ export async function uninstallDesktopPlugin(id: string): Promise<void> {
     pluginId: id,
     version: plugin?.manifest.version,
   })
+
+  try {
+    await recordActivity({
+      module: `plugin:${id}`,
+      action: "plugin.uninstalled",
+      title: `卸载了插件 ${plugin?.manifest.name || id}`,
+    })
+  } catch (e) {
+    console.error("[plugin-activity] Failed to record activity", e)
+  }
 }
 
 export async function readDesktopPluginAsset(id: string, assetPathParts: string[]): Promise<StaticPluginAsset> {

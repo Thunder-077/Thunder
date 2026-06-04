@@ -3,6 +3,7 @@ import { cors } from "hono/cors"
 import type { VaultMetadata, VaultItemRecord } from "@thunder/vault"
 import { apiSuccess, apiError } from "@thunder/contracts"
 import { VaultRepositorySQLite } from "./vault-repository.sqlite"
+import { recordActivity } from "../activity/activity-service"
 
 const repository = new VaultRepositorySQLite()
 const vault = new Hono()
@@ -23,6 +24,11 @@ vault.put("/metadata", async (c) => {
   try {
     const body = await c.req.json<{ metadata: VaultMetadata }>()
     await repository.saveMetadata(body.metadata)
+    try {
+      await recordActivity({ module: "vault", action: "item.created", title: "创建了密码条目" })
+    } catch (e) {
+      console.error("[vault-api] recordActivity failed", e)
+    }
     return c.json(apiSuccess(null))
   } catch (error) {
     console.error("[vault-api] PUT /metadata failed", error)
@@ -63,6 +69,11 @@ vault.put("/items/:id", async (c) => {
     const id = c.req.param("id")
     const body = await c.req.json<{ record: VaultItemRecord }>()
     await repository.saveItem({ ...body.record, id })
+    try {
+      await recordActivity({ module: "vault", action: "item.updated", title: "更新了密码条目" })
+    } catch (e) {
+      console.error("[vault-api] recordActivity failed", e)
+    }
     return c.json(apiSuccess(null))
   } catch (error) {
     console.error("[vault-api] PUT /items/:id failed", error)
@@ -74,6 +85,11 @@ vault.delete("/items/:id", async (c) => {
   try {
     const id = c.req.param("id")
     await repository.deleteItem(id)
+    try {
+      await recordActivity({ module: "vault", action: "item.deleted", title: "删除了密码条目" })
+    } catch (e) {
+      console.error("[vault-api] recordActivity failed", e)
+    }
     return c.json(apiSuccess(null))
   } catch (error) {
     console.error("[vault-api] DELETE /items/:id failed", error)

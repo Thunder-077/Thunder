@@ -2,6 +2,7 @@ import { Hono } from "hono"
 import { apiError, apiSuccess } from "@thunder/contracts"
 import { prisma } from "@thunder/database"
 import { verifyTurnstileToken } from "./turnstile"
+import { recordActivity } from "../activity/activity-service"
 
 interface AuthUserProfile {
   username: string
@@ -122,6 +123,12 @@ auth.post("/login", async (c) => {
     const passwordHash = await hashPassword(password, user.passwordSalt)
     if (!timingSafeEqual(passwordHash, user.passwordHash)) {
       return c.json(apiError("UNAUTHORIZED", "账号或密码不正确"), 401)
+    }
+
+    try {
+      await recordActivity({ module: "auth", action: "user.login", title: "登录了系统" })
+    } catch (e) {
+      console.error("[auth-api] recordActivity failed", e)
     }
 
     return c.json(apiSuccess(toProfile(user)))

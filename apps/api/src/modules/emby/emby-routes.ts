@@ -16,6 +16,7 @@ import type {
   EmbyWatchRefreshTask,
 } from "@thunder/emby"
 import { EmbyRepositorySQLite } from "./emby-repository"
+import { recordActivity } from "../activity/activity-service"
 
 const emby = new Hono()
 const serverEmby = new Hono()
@@ -1237,6 +1238,19 @@ emby.put("/config", async (c) => {
       playlists: incoming.playlists,
     })
 
+    const currentSlugs = new Set(current.playlists.map((p) => p.slug))
+    for (const playlist of incoming.playlists) {
+      try {
+        if (currentSlugs.has(playlist.slug)) {
+          await recordActivity({ module: "emby", action: "playlist.updated", title: `更新了播放列表 ${playlist.name}` })
+        } else {
+          await recordActivity({ module: "emby", action: "playlist.created", title: `创建了播放列表 ${playlist.name}` })
+        }
+      } catch (e) {
+        console.error("[emby-api] recordActivity failed", e)
+      }
+    }
+
     return c.json(apiSuccess({ config: toPublicConfig(saved) }))
   } catch (error) {
     console.error("[emby-api] PUT /config failed", error)
@@ -1262,6 +1276,11 @@ emby.get("/playlists/:slug/preview", async (c) => {
     })
 
     const preview = result.preview
+    try {
+      await recordActivity({ module: "emby", action: "playlist.refreshed", title: `刷新了 ${playlist.name} 片单` })
+    } catch (e) {
+      console.error("[emby-api] recordActivity failed", e)
+    }
     return c.json(apiSuccess({ preview }))
   } catch (error) {
     console.error("[emby-api] GET /playlists/:slug/preview failed", error)
