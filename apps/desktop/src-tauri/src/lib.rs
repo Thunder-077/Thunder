@@ -28,6 +28,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, Runtime, WebviewWindow, WindowEvent,
 };
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use tauri_plugin_decorum::WebviewWindowExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -1491,8 +1492,8 @@ pub fn run() {
             start_local_runtime(&app.handle())?;
             build_tray(&app.handle())?;
 
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
             if let Some(main_window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-                #[cfg(any(target_os = "windows", target_os = "macos"))]
                 main_window.create_overlay_titlebar()?;
                 #[cfg(target_os = "macos")]
                 main_window.set_traffic_lights_inset(12.0, 16.0)?;
