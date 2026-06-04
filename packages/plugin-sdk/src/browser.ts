@@ -11,6 +11,7 @@ type BridgeMethod =
   | "storage.remove"
   | "storage.keys"
   | "storage.clear"
+  | "activity.track"
 
 type BridgeRequest = {
   source: "thunder-plugin"
@@ -66,10 +67,21 @@ type StorageSetOptions = {
   value: unknown
 }
 
+type ThemeChangeMessage = {
+  source: "thunder-host"
+  type: "theme.change"
+  theme: "light" | "dark"
+}
+
+type ThemeChangeCallback = (theme: "light" | "dark") => void
+
 export interface ThunderBrowserPluginClient {
   plugin: {
     getManifest(): Promise<ThunderPluginManifest>
     setFrameHeight(height: number): void
+  }
+  theme: {
+    onChange(callback: ThemeChangeCallback): () => void
   }
   runtime: {
     request<T = unknown>(path: string, options?: RuntimeRequestOptions): Promise<RuntimeResponse<T>>
@@ -90,6 +102,9 @@ export interface ThunderBrowserPluginClient {
     remove(key: string): Promise<void>
     keys(): Promise<string[]>
     clear(): Promise<void>
+  }
+  activity: {
+    track(params: { action: string; title: string; description?: string; metadata?: Record<string, unknown> }): Promise<void>
   }
 }
 
@@ -224,6 +239,27 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
         })
       },
     },
+    theme: {
+      onChange: (callback: ThemeChangeCallback) => {
+        if (typeof window === "undefined") return () => {}
+
+        function handleMessage(event: MessageEvent<ThemeChangeMessage>) {
+          const data = event.data
+          if (
+            !data ||
+            data.source !== "thunder-host" ||
+            data.type !== "theme.change" ||
+            (data.theme !== "light" && data.theme !== "dark")
+          ) {
+            return
+          }
+          callback(data.theme)
+        }
+
+        window.addEventListener("message", handleMessage)
+        return () => window.removeEventListener("message", handleMessage)
+      },
+    },
     runtime: {
       request: <T = unknown>(path: string, options: RuntimeRequestOptions = {}) =>
         postHostMessage<RuntimeResponse<T>>("runtime.request", {
@@ -305,6 +341,11 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
         }),
       keys: () => postHostMessage<string[]>("storage.keys"),
       clear: () => postHostMessage<void>("storage.clear"),
+    },
+    activity: {
+      track: (params: { action: string; title: string; description?: string; metadata?: Record<string, unknown> }) => {
+        return postHostMessage<void>("activity.track", params)
+      },
     },
   }
 }

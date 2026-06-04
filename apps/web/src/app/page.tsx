@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { ModuleCard } from "@/components/module-card"
+import { ActivityList } from "@/components/activity-list"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
 import { Button } from "@/components/ui/button"
 
@@ -191,96 +192,7 @@ export default function DashboardPage() {
       {/* 最近活动 */}
       <section className="min-h-0 flex-1">
         <h2 className="mb-3 text-sm font-medium text-muted-foreground">最近活动</h2>
-        <div className="relative overflow-hidden rounded-2xl border border-border/70 px-8 pb-8 pt-6 text-center surface-card">
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute left-1/4 top-5 h-2.5 w-2.5 rounded-full bg-blue-200/60 dark:bg-blue-800/20" />
-            <div className="absolute right-1/3 top-12 h-2 w-2 rounded-full bg-purple-200/50 dark:bg-purple-800/20" />
-            <div className="absolute right-1/4 top-7 h-2 w-2 rounded-full bg-blue-200/40 dark:bg-blue-800/15" />
-            <div className="absolute bottom-16 left-1/3 h-1.5 w-1.5 rounded-full bg-green-200/50 dark:bg-green-800/20" />
-            <div className="absolute bottom-10 right-1/4 h-2.5 w-2.5 rounded-full bg-purple-200/40 dark:bg-purple-800/15" />
-          </div>
-          <div className="relative mx-auto h-24 w-32">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 220 160"
-              fill="none"
-              className="h-full w-full"
-            >
-              <defs>
-                <linearGradient id="cardGradient" x1="60" y1="28" x2="160" y2="132" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#DBEAFE" stopOpacity="0.85" />
-                  <stop offset="1" stopColor="#EFF6FF" stopOpacity="0.35" />
-                </linearGradient>
-                <linearGradient id="iconGradient" x1="82" y1="50" x2="138" y2="110" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#60A5FA" />
-                  <stop offset="1" stopColor="#2563EB" />
-                </linearGradient>
-                <filter id="softShadow" x="55" y="25" width="110" height="110" filterUnits="userSpaceOnUse">
-                  <feDropShadow dx="0" dy="14" stdDeviation="18" floodColor="#60A5FA" floodOpacity="0.16" />
-                </filter>
-              </defs>
-
-              <circle cx="110" cy="80" r="48" fill="url(#cardGradient)" filter="url(#softShadow)" />
-
-              <circle cx="70" cy="70" r="5" fill="#BFDBFE" />
-              <circle cx="154" cy="64" r="6" fill="#DBEAFE" />
-              <circle cx="62" cy="98" r="3" fill="#DBEAFE" />
-              <circle cx="162" cy="104" r="3" fill="#BFDBFE" />
-
-              <rect
-                x="83"
-                y="48"
-                width="54"
-                height="64"
-                rx="14"
-                fill="white"
-                stroke="#DBEAFE"
-                strokeWidth="1.5"
-              />
-
-              <path
-                d="M98 68H122"
-                stroke="url(#iconGradient)"
-                strokeWidth="4"
-                strokeLinecap="round"
-              />
-
-              <path
-                d="M98 82H122"
-                stroke="url(#iconGradient)"
-                strokeWidth="4"
-                strokeLinecap="round"
-                opacity="0.82"
-              />
-
-              <path
-                d="M98 96H115"
-                stroke="url(#iconGradient)"
-                strokeWidth="4"
-                strokeLinecap="round"
-                opacity="0.62"
-              />
-
-              <path
-                d="M137 55C145 59 150 66 151 75"
-                stroke="#BFDBFE"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeDasharray="4 6"
-              />
-
-              <path
-                d="M71 103C77 111 86 117 97 119"
-                stroke="#DBEAFE"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeDasharray="4 6"
-              />
-            </svg>
-          </div>
-          <p className="relative mt-3.5 text-sm font-medium text-foreground">暂无活动记录</p>
-          <p className="relative mt-1 text-xs leading-5 text-muted-foreground">开始使用模块后，这里会显示你的最近活动</p>
-        </div>
+        <ActivityList />
       </section>
     </div>
   )

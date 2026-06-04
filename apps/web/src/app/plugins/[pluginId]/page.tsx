@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent } from "@/components/ui/card"
+import { useTheme } from "@/components/theme-provider"
 import {
   type LayoutRequestParams,
   PLUGIN_BRIDGE_REQUEST_SOURCE,
@@ -36,6 +37,7 @@ import {
   type InstalledDesktopPlugin,
 } from "@/lib/desktop-plugins"
 import { notificationStore } from "@/lib/notification-store"
+import { ActivityClient } from "@thunder/api-client"
 
 export default function DesktopPluginPage() {
   const params = useParams<{ pluginId: string }>()
@@ -46,6 +48,7 @@ export default function DesktopPluginPage() {
   const [hostOrigin] = useState<string | null>(() => (typeof window === "undefined" ? null : window.location.origin))
   const [frameHeight, setFrameHeight] = useState(960)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  const { resolvedTheme } = useTheme()
 
   const postBridgeResponse = useCallback(
     (targetOrigin: string, id: string, ok: boolean, data?: unknown, bridgeError?: string) => {
@@ -85,6 +88,32 @@ export default function DesktopPluginPage() {
       cancelled = true
     }
   }, [desktopEnabled, pluginId])
+
+  // Record plugin.opened activity
+  useEffect(() => {
+    if (!plugin) return
+    const activityClient = new ActivityClient()
+    activityClient
+      .recordActivity({
+        module: `plugin:${pluginId}`,
+        action: "plugin.opened",
+        title: `打开了${plugin.manifest.name}`,
+      })
+      .catch((e) => {
+        console.error("[plugin-activity] Failed to record plugin.opened", e)
+      })
+  }, [plugin, pluginId])
+
+  // Push theme changes to the plugin iframe
+  useEffect(() => {
+    if (!plugin || !hostOrigin) return
+    const frameUrl = createIsolatedPluginFrameUrl(plugin.webEntryUrl, hostOrigin)
+    const frameOrigin = new URL(frameUrl).origin
+    iframeRef.current?.contentWindow?.postMessage(
+      { source: "thunder-host", type: "theme.change", theme: resolvedTheme },
+      frameOrigin
+    )
+  }, [hostOrigin, plugin, resolvedTheme])
 
   useEffect(() => {
     if (!plugin || !hostOrigin) return
@@ -239,6 +268,25 @@ export default function DesktopPluginPage() {
         if (request.method === "storage.clear") {
           ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
           clearPluginStorage(window.localStorage, currentPlugin.manifest.id)
+          postBridgeResponse(frameOrigin, request.id, true)
+          return
+        }
+
+        if (request.method === "activity.track") {
+          const params = request.params as {
+            action?: string
+            title?: string
+            description?: string
+            metadata?: Record<string, unknown>
+          } | null
+          const activityClient = new ActivityClient()
+          await activityClient.recordActivity({
+            module: `plugin:${currentPlugin.manifest.id}`,
+            action: params?.action ?? "",
+            title: params?.title ?? "",
+            description: params?.description,
+            metadataJson: params?.metadata ? JSON.stringify(params.metadata) : undefined,
+          })
           postBridgeResponse(frameOrigin, request.id, true)
           return
         }
