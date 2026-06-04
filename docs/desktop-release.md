@@ -40,6 +40,8 @@ Thunder 桌面端当前采用 `本地 Web + 本地 API + 本地 SQLite` 的桌�
 
 ```env
 THUNDER_DESKTOP_UPDATER_ENDPOINT="https://github.com/Thunder-077/Thunder/releases/latest/download/latest.json"
+# 可选：为国内网络增加 GitHub Release 代理后备地址。
+THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES="https://gh-proxy.org/,https://ghfast.top/,https://gh-proxy.com/"
 TAURI_SIGNING_PUBLIC_KEY="Public: ..."
 TAURI_SIGNING_PRIVATE_KEY="D:\\self\\Thunder\\apps\\desktop\\keys\\thunder-updater.key"
 TAURI_SIGNING_PRIVATE_KEY_PASSWORD="..."
@@ -47,6 +49,15 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD="..."
 
 本地执行 `pnpm build:desktop` 时，`apps/desktop/scripts/build-release.mjs` 会读取这个文件，
 再把变量传给 Tauri 构建进程。CI 仍然使用 GitHub Actions variables / secrets。
+
+自动更新端点生成规则：
+
+- `THUNDER_DESKTOP_UPDATER_ENDPOINT` 是主更新地址，默认指向 GitHub Release 的 `latest.json`
+- `THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES` 会把主地址派生为代理后备地址，例如 `https://gh.llkk.cc/https://github.com/.../latest.json`
+- `THUNDER_DESKTOP_UPDATER_ENDPOINTS` 可以直接指定完整端点列表，逗号或换行分隔；设置后会覆盖主地址 + 代理前缀的派生逻辑
+- `THUNDER_DESKTOP_UPDATER_PROXY_PREFIXES=none` 可禁用内置代理后备，只保留主更新地址
+
+Updater 会按端点列表尝试检查更新；安装包签名仍由 Tauri updater 验证，代理只承担下载转发，不改变信任边界。公共代理可用性不稳定，正式发布建议优先替换为自有 CDN 或可信镜像域名。
 
 桌面包默认以 `desktop` 平台生成本地 Web/API runtime。模块如果在 `scripts/generate-enabled-modules.mjs` 中声明为 `platforms: ["web"]`，不会进入桌面 runtime；临时排除模块可使用：
 
