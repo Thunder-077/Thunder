@@ -124,7 +124,7 @@ function DesktopTitlebar({ children }: { children?: React.ReactNode }) {
       </div>
       <div
         aria-hidden
-        className="pointer-events-none absolute right-[147px] top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-amber-300/70 dark:bg-amber-200/40"
+        className="pointer-events-none absolute right-[147px] top-1/2 h-4 w-px -translate-y-1/2 bg-border/80"
       />
     </div>
   )

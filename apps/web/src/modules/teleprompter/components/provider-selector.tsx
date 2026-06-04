@@ -136,8 +136,8 @@ export function ProviderSelector({
                   {selectedModelProgress 
                     ? selectedModelProgress.status === "extracting"
                       ? "正在解压并激活模型，请稍候…"
-                      : `正在后台下载并激活 (${selectedModelProgress.percentage}% - ${selectedModelProgress.downloadedText}/${selectedModelProgress.totalText})`
-                    : "正在后台下载并激活…"}
+                      : `正在下载并激活 (${selectedModelProgress.percentage}% - ${selectedModelProgress.downloadedText}/${selectedModelProgress.totalText})`
+                    : "正在下载并激活…"}
                 </Button>
               ) : !selectedSherpaModel.installed ? (
                 <Button

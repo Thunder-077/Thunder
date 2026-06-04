@@ -464,6 +464,16 @@
     display: none;
   }
 
+  .is-tauri-desktop .web-utility-bar + div {
+    padding-top: 1.5rem !important;
+  }
+
+  @media (min-width: 640px) {
+    .is-tauri-desktop .web-utility-bar + div {
+      padding-top: 2rem !important;
+    }
+  }
+
   .is-tauri-desktop.is-windows .desktop-titlebar .pointer-events-auto {
     position: relative;
     z-index: calc(var(--z-max) + 3) !important;

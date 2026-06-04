@@ -236,7 +236,6 @@ export function TeleprompterPage() {
 
         const modelName = sherpaModelsRef.current.find((m) => m.id === modelId)?.name || modelId
         notificationStore.completeNotification(modelId, true, `模型 ${modelName} 下载并激活成功！`)
-        setMessage(`模型 ${modelName} 下载并激活成功！`)
       })
 
       unlistenFailed = await listen<{ modelId: string; error: string }>(
