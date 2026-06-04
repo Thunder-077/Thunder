@@ -18,6 +18,10 @@ import { useSpeechRecognition } from "../hooks/use-speech-recognition"
 import { createFollowEngine } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
 import { segmentScript } from "../utils/script-segmenter"
+import {
+  readTeleprompterStorage,
+  writeTeleprompterStorage,
+} from "../utils/teleprompter-storage"
 import type { SpeechProvider } from "../transcribers"
 import { AutoScrollPanel, type AutoScrollPanelHandle, type AutoScrollViewOptions } from "./auto-scroll-panel"
 import { FollowStatusPanel } from "./follow-status-panel"
@@ -113,6 +117,9 @@ export function TeleprompterPage() {
   const processedResultRef = useRef<object | null>(null)
   const interimAlignmentTextRef = useRef("")
   const scrollTargetRef = useRef<number | null>(null)
+  const storageHydratedRef = useRef(false)
+  const storageSaveTimerRef = useRef<number | null>(null)
+  const lastSavedStorageSnapshotRef = useRef<string | null>(null)
   const userScrollingRef = useRef(false)
   const userScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pausedScrollTopRef = useRef<number | null>(null)
@@ -153,6 +160,10 @@ export function TeleprompterPage() {
   const scrollReadOffset = Math.max(0, Math.min(readOffset, script.length))
   const visibleStatus: FollowStatus = speech.error ? "failed" : followStatus
   const visibleMessage = message ?? speech.error
+  const storageSnapshot = useMemo(
+    () => JSON.stringify({ script, scriptDraft }),
+    [script, scriptDraft],
+  )
 
   const syncSherpaModels = useCallback((models: SherpaModel[]) => {
     setSherpaModels(models)
@@ -269,6 +280,70 @@ export function TeleprompterPage() {
   useEffect(() => {
     segmentRefs.current = segmentRefs.current.slice(0, segments.length)
   }, [segments.length])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const hydratePersistedScript = async () => {
+      const persisted = await readTeleprompterStorage()
+      if (cancelled) {
+        return
+      }
+
+      storageHydratedRef.current = true
+      if (!persisted) {
+        return
+      }
+
+      lastSavedStorageSnapshotRef.current = JSON.stringify({
+        script: persisted.script,
+        scriptDraft: persisted.scriptDraft,
+      })
+
+      setScript((current) => current || persisted.script)
+      setScriptDraft((current) => current || persisted.scriptDraft)
+    }
+
+    void hydratePersistedScript()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!storageHydratedRef.current) {
+      return
+    }
+
+    if (storageSaveTimerRef.current !== null) {
+      clearTimeout(storageSaveTimerRef.current)
+      storageSaveTimerRef.current = null
+    }
+
+    if (storageSnapshot === lastSavedStorageSnapshotRef.current) {
+      return
+    }
+
+    storageSaveTimerRef.current = window.setTimeout(() => {
+      storageSaveTimerRef.current = null
+      if (storageSnapshot === lastSavedStorageSnapshotRef.current) {
+        return
+      }
+
+      void (async () => {
+        await writeTeleprompterStorage({ script, scriptDraft })
+        lastSavedStorageSnapshotRef.current = storageSnapshot
+      })()
+    }, 300)
+
+    return () => {
+      if (storageSaveTimerRef.current !== null) {
+        clearTimeout(storageSaveTimerRef.current)
+        storageSaveTimerRef.current = null
+      }
+    }
+  }, [script, scriptDraft, storageSnapshot])
 
   useEffect(() => {
     if (mode !== "auto-scroll") return

@@ -10,7 +10,7 @@
   "author": {
     "name": "Thunder"
   },
-  "permissions": ["webview", "local-api-proxy"],
+  "permissions": ["webview", "local-api-proxy", "plugin-storage"],
   "web": {
     "entry": "web/index.html",
     "contentSecurityPolicy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:*; worker-src 'self' blob:"
