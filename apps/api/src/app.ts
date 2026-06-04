@@ -3,6 +3,7 @@ import { cors } from "hono/cors"
 import { logger } from "hono/logger"
 import { auth } from "./modules/auth/auth-routes"
 import { weather } from "./modules/weather/weather-routes"
+import { activities } from "./modules/activity/activity-routes"
 import { registerEnabledModuleRoutes } from "./generated/enabled-routes"
 import { desktopPlugins } from "./plugins/desktop-plugin-routes"
 
@@ -41,6 +42,7 @@ app.get("/health", (c) => {
 app.route("/api/v1/weather", weather)
 app.route("/api/v1/auth", auth)
 app.route("/api/v1/desktop/plugins", desktopPlugins)
+app.route("/api/v1/activities", activities)
 registerEnabledModuleRoutes(app)
 
 export default app
