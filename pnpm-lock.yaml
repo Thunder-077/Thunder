@@ -118,6 +118,9 @@ importers:
       '@thunder/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+      '@thunder/teleprompter-core':
+        specifier: workspace:*
+        version: link:../../packages/teleprompter-core
       '@thunder/vault':
         specifier: workspace:*
         version: link:../../modules/vault
@@ -421,6 +424,22 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.3(@types/react@19.2.14)
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/teleprompter-core:
+    dependencies:
+      pinyin-pro:
+        specifier: ^3.28.1
+        version: 3.28.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
       typescript:
         specifier: ^5
         version: 5.9.3
