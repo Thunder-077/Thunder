@@ -37,6 +37,7 @@ import {
   isInstalledDesktopPluginV2,
   shouldLoadDesktopPlugins,
   startDesktopPluginRuntime,
+  invokeDesktopPluginWorker,
   type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
 import { notificationStore } from "@/lib/notification-store"
@@ -231,6 +232,28 @@ export default function DesktopPluginPage() {
             throw new Error(payload.message || "插件网络代理请求失败")
           }
           postBridgeResponse(frameOrigin, request.id, true, payload.data)
+          return
+        }
+
+        if (request.method === "worker.invoke") {
+          if (!isInstalledDesktopPluginV2(currentPlugin)) {
+            throw new Error("仅 manifest v2 插件支持 worker.invoke")
+          }
+
+          const params = request.params as {
+            method?: string
+            payload?: unknown
+          } | null
+
+          if (!params?.method || typeof params.method !== "string") {
+            throw new Error("worker.invoke 缺少 method")
+          }
+
+          const result = await invokeDesktopPluginWorker(currentPlugin.manifest.id, params.method, params.payload)
+          postBridgeResponse(frameOrigin, request.id, true, {
+            ok: true,
+            result,
+          })
           return
         }
 

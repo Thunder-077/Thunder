@@ -26,6 +26,9 @@ importers:
       '@thunder/emby':
         specifier: workspace:*
         version: link:../../modules/emby
+      '@thunder/plugin-host-runtime':
+        specifier: workspace:*
+        version: link:../../packages/plugin-host-runtime
       '@thunder/plugin-schema':
         specifier: workspace:*
         version: link:../../packages/plugin-schema
@@ -446,6 +449,28 @@ importers:
 
   packages/ui:
     devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  plugins-v2/teleprompter:
+    dependencies:
+      '@thunder/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      react:
+        specifier: ^19.2.4
+        version: 19.2.4
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.2.4
+        version: 19.2.14
+      tsx:
+        specifier: ^4.19.4
+        version: 4.21.0
       typescript:
         specifier: ^5
         version: 5.9.3

@@ -1,3 +1,5 @@
+import { pathToFileURL } from "node:url"
+import { resolve } from "node:path"
 import { createPipeServer, type PipeServer } from "./rpc/pipe-server"
 import type {
   PluginRuntimeStatus,
@@ -14,6 +16,27 @@ export interface TrustedRuntimeSupervisorOptions {
   socketDirectory?: string
 }
 
+type LoadedWorker = {
+  handlers: Record<string, (payload: unknown) => Promise<unknown> | unknown>
+}
+
+async function loadTrustedWorker(plugin: RegisteredPlugin): Promise<LoadedWorker> {
+  const entry = plugin.manifest.runtime?.entry
+  if (!entry) {
+    throw new Error(`Trusted plugin ${plugin.manifest.id} is missing runtime.entry`)
+  }
+
+  const entryPath = resolve(plugin.pluginRoot, entry)
+  const workerModule = (await import(pathToFileURL(entryPath).href)) as { default?: LoadedWorker }
+  const worker = workerModule.default
+
+  if (!worker || typeof worker !== "object" || !worker.handlers || typeof worker.handlers !== "object") {
+    throw new Error(`Trusted plugin ${plugin.manifest.id} runtime must export default worker handlers`)
+  }
+
+  return worker
+}
+
 export function createTrustedRuntimeSupervisor(
   options: TrustedRuntimeSupervisorOptions = {},
 ): TrustedPluginRuntimeSupervisor {
@@ -28,19 +51,21 @@ export function createTrustedRuntimeSupervisor(
         servers.delete(plugin.manifest.id)
       }
 
+      const worker = await loadTrustedWorker(plugin)
+
       const server = await createPipeServer({
         socketDirectory: options.socketDirectory,
-        handle(method, payload) {
+        async handle(method, payload) {
           if (options.handleRpc) {
             return options.handleRpc(plugin, method, payload)
           }
 
-          return {
-            ok: true,
-            pluginId: plugin.manifest.id,
-            method,
-            payload,
+          const handler = worker.handlers[method]
+          if (!handler) {
+            throw new Error(`Unknown trusted plugin worker method: ${method}`)
           }
+
+          return handler(payload)
         },
       })
 

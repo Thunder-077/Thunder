@@ -77,6 +77,7 @@ export interface DesktopPluginRuntimeStatus {
   pid?: number
   port?: number
   baseUrl?: string
+  endpoint?: string
   startedAt?: string
   lastExitAt?: string
   lastExitCode?: number | null
@@ -335,6 +336,36 @@ export async function startDesktopPluginRuntime(pluginId: string): Promise<Deskt
 
 export async function stopDesktopPluginRuntime(pluginId: string): Promise<DesktopPluginRuntimeStatus> {
   return postRuntimeAction(pluginId, "stop")
+}
+
+export async function invokeDesktopPluginWorker<TResult = unknown, TPayload = unknown>(
+  pluginId: string,
+  method: string,
+  payload?: TPayload,
+): Promise<TResult> {
+  const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/worker/invoke`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ method, payload }),
+  })
+
+  const data = (await response.json()) as {
+    ok: boolean
+    data?: {
+      ok: true
+      result: TResult
+    }
+    message?: string
+  }
+
+  if (!response.ok || !data.ok || !data.data) {
+    throw new Error(data.message || "插件 worker 调用失败")
+  }
+
+  return data.data.result
 }
 
 async function postRuntimeAction(pluginId: string, action: "start" | "stop"): Promise<DesktopPluginRuntimeStatus> {

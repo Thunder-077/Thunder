@@ -198,6 +198,31 @@ async function main() {
   })
   assert.deepEqual(await networkPromise, { ok: true })
 
+  const workerInvokePromise = thunder.worker.invoke<{ normalized: string }, { text: string }>("speech.transcribe", {
+    text: "  hello  ",
+  })
+  assert.deepEqual(bridge.postedRequests.at(-1), {
+    source: "thunder-plugin",
+    version: 1,
+    id: bridge.postedRequests.at(-1)?.id,
+    method: "worker.invoke",
+    params: {
+      method: "speech.transcribe",
+      payload: {
+        text: "  hello  ",
+      },
+    },
+  })
+  bridge.respond({
+    ok: true,
+    result: {
+      normalized: "hello",
+    },
+  })
+  assert.deepEqual(await workerInvokePromise, {
+    normalized: "hello",
+  })
+
   const storageGetPromise = thunder.storage.get<string>(" theme ")
   assert.deepEqual(bridge.postedRequests.at(-1), {
     source: "thunder-plugin",

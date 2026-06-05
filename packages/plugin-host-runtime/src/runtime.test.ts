@@ -17,6 +17,19 @@ const pluginDir = join(root, "teleprompter")
 
 mkdirSync(join(pluginDir, "dist"), { recursive: true })
 writeFileSync(
+  join(pluginDir, "dist", "worker.js"),
+  [
+    'export default {',
+    '  handlers: {',
+    '    async "speech.transcribe"(payload) {',
+    '      return { normalized: String(payload?.text ?? "").trim() }',
+    '    },',
+    '  },',
+    '}',
+    "",
+  ].join("\n"),
+)
+writeFileSync(
   join(pluginDir, "plugin.json"),
   JSON.stringify({
     manifestVersion: 2,
@@ -85,15 +98,7 @@ assert.deepEqual(sandboxedStatus, {
 })
 assert.equal((await sandboxedRuntime.stop("teleprompter")).running, false)
 
-const trustedRuntime = createTrustedRuntimeSupervisor({
-  handleRpc(plugin, method, payload) {
-    return {
-      pluginId: plugin.manifest.id,
-      method,
-      payload,
-    }
-  },
-})
+const trustedRuntime = createTrustedRuntimeSupervisor()
 const trustedStatus = await trustedRuntime.start({
   manifest,
   pluginRoot: join(root, "plugins", "teleprompter"),
@@ -106,16 +111,12 @@ assert.equal(trustedRuntime.getEndpoint("teleprompter"), trustedStatus.endpoint 
 
 const trustedClient = await createPipeClient(trustedStatus.endpoint ?? "")
 const trustedRpcResult = await trustedClient.invoke<{
-  pluginId: string
-  method: string
-  payload: { text: string }
+  normalized: string
 }>("speech.transcribe", {
-  text: "hello",
+  text: "  hello  ",
 })
 assert.deepEqual(trustedRpcResult, {
-  pluginId: "teleprompter",
-  method: "speech.transcribe",
-  payload: { text: "hello" },
+  normalized: "hello",
 })
 await trustedClient.close()
 assert.equal((await trustedRuntime.stop("teleprompter")).running, false)

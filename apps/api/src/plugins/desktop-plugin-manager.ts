@@ -10,6 +10,7 @@ import { createServer, isIP } from "node:net"
 // @ts-ignore node:sqlite types are provided by the Node runtime used by desktop.
 import { DatabaseSync } from "node:sqlite"
 import { x as extractTar } from "tar"
+import { createPipeClient, createTrustedRuntimeSupervisor } from "@thunder/plugin-host-runtime"
 import type {
   DesktopPluginMigrationRecord,
   DesktopPluginInstallRecord,
@@ -51,6 +52,7 @@ const STATIC_CONTENT_TYPES: Record<string, string> = {
 }
 const RUNTIME_START_TIMEOUT_MS = 10_000
 const RUNTIME_STOP_TIMEOUT_MS = 5_000
+const trustedRuntimeSupervisor = createTrustedRuntimeSupervisor()
 
 export class DesktopPluginError extends Error {
   constructor(
@@ -624,6 +626,12 @@ export async function getInstalledDesktopPluginRecord(
   return getInstalledDesktopPlugin(id)
 }
 
+function isInstalledDesktopPluginRecordV2(
+  plugin: InstalledDesktopPlugin | InstalledDesktopPluginV2
+): plugin is InstalledDesktopPluginV2 {
+  return "uiEntryUrl" in plugin
+}
+
 async function installLocalDesktopPluginInternal(
   options: InstallLocalPluginInternalOptions
 ): Promise<InstalledDesktopPlugin> {
@@ -1093,6 +1101,34 @@ async function ensureDesktopPluginRuntime(plugin: InstalledDesktopPlugin): Promi
   }
 }
 
+async function startTrustedDesktopPluginRuntime(
+  plugin: InstalledDesktopPluginV2
+): Promise<DesktopPluginRuntimeStatus> {
+  if (plugin.manifest.kind !== "trusted") {
+    throw new DesktopPluginError("当前仅支持 trusted v2 runtime", 501)
+  }
+
+  const currentStatus = trustedRuntimeSupervisor.getStatus(plugin.manifest.id)
+  if (currentStatus.running && currentStatus.endpoint) {
+    return {
+      pluginId: currentStatus.pluginId,
+      running: currentStatus.running,
+      endpoint: currentStatus.endpoint,
+    }
+  }
+
+  const status = await trustedRuntimeSupervisor.start({
+    manifest: plugin.manifest,
+    pluginRoot: plugin.pluginRoot,
+  })
+
+  return {
+    pluginId: status.pluginId,
+    running: status.running,
+    endpoint: status.endpoint,
+  }
+}
+
 async function startDesktopPluginRuntimeProcess(plugin: InstalledDesktopPlugin): Promise<string> {
   const api = plugin.manifest.api
   if (!api?.runtime) {
@@ -1175,7 +1211,12 @@ async function startDesktopPluginRuntimeProcess(plugin: InstalledDesktopPlugin):
 
 export async function startDesktopPluginRuntime(id: string): Promise<DesktopPluginRuntimeStatus> {
   assertPluginId(id)
-  const plugin = await getInstalledDesktopPlugin(id)
+  const plugin = await getInstalledDesktopPluginRecord(id)
+
+  if (isInstalledDesktopPluginRecordV2(plugin)) {
+    return startTrustedDesktopPluginRuntime(plugin)
+  }
+
   const baseUrl = await ensureDesktopPluginRuntime(plugin)
   return runtimeStatus.get(id) ?? {
     pluginId: id,
@@ -1186,6 +1227,16 @@ export async function startDesktopPluginRuntime(id: string): Promise<DesktopPlug
 
 export async function stopDesktopPluginRuntime(id: string): Promise<DesktopPluginRuntimeStatus> {
   assertPluginId(id)
+  const plugin = await getInstalledDesktopPluginRecord(id).catch(() => null)
+  if (plugin && isInstalledDesktopPluginRecordV2(plugin)) {
+    const status = await trustedRuntimeSupervisor.stop(id)
+    return {
+      pluginId: status.pluginId,
+      running: status.running,
+      endpoint: status.endpoint,
+    }
+  }
+
   const record = runtimeProcesses.get(id)
   if (record && !record.child.killed) {
     const exited = new Promise<void>((resolveExit) => {
@@ -1216,9 +1267,50 @@ export async function stopDesktopPluginRuntime(id: string): Promise<DesktopPlugi
 
 export function getDesktopPluginRuntimeStatus(id: string): DesktopPluginRuntimeStatus {
   assertPluginId(id)
+  const trustedStatus = trustedRuntimeSupervisor.getStatus(id)
+  if (trustedStatus.running || trustedStatus.endpoint) {
+    return {
+      pluginId: trustedStatus.pluginId,
+      running: trustedStatus.running,
+      endpoint: trustedStatus.endpoint,
+    }
+  }
+
   return runtimeStatus.get(id) ?? {
     pluginId: id,
     running: false,
+  }
+}
+
+export async function invokeDesktopPluginWorker(
+  id: string,
+  method: string,
+  payload: unknown,
+): Promise<unknown> {
+  assertPluginId(id)
+
+  const plugin = await getInstalledDesktopPluginRecord(id)
+  if (!isInstalledDesktopPluginRecordV2(plugin)) {
+    throw new DesktopPluginError("仅 manifest v2 插件支持 worker.invoke", 400)
+  }
+  if (plugin.manifest.kind !== "trusted") {
+    throw new DesktopPluginError("当前仅支持 trusted worker.invoke", 501)
+  }
+  if (!plugin.manifest.permissions.includes("native-runtime")) {
+    throw new DesktopPluginError("插件未声明 native-runtime 权限", 403)
+  }
+
+  const status = await startTrustedDesktopPluginRuntime(plugin)
+  const endpoint = status.endpoint ?? trustedRuntimeSupervisor.getEndpoint(plugin.manifest.id)
+  if (!endpoint) {
+    throw new DesktopPluginError("trusted runtime endpoint 不可用", 502)
+  }
+
+  const client = await createPipeClient(endpoint)
+  try {
+    return await client.invoke(method, payload)
+  } finally {
+    await client.close()
   }
 }
 

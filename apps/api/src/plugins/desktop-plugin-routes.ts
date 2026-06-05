@@ -18,6 +18,7 @@ import {
   startDesktopPluginRuntime,
   stopDesktopPluginRuntime,
   uninstallDesktopPlugin,
+  invokeDesktopPluginWorker,
 } from "./desktop-plugin-manager"
 
 export const desktopPlugins = new Hono()
@@ -200,6 +201,29 @@ desktopPlugins.post("/:id/network", async (c) => {
   try {
     const result = await requestDesktopPluginNetworkProxy(c.req.param("id"), await c.req.json())
     return c.json({ ok: true, data: result })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.post("/:id/worker/invoke", async (c) => {
+  try {
+    const body = (await c.req.json().catch(() => null)) as
+      | {
+          method?: string
+          payload?: unknown
+        }
+      | null
+
+    if (!body?.method || typeof body.method !== "string") {
+      return new Response(JSON.stringify({ ok: false, message: "method 不能为空" }), {
+        status: 400,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      })
+    }
+
+    const result = await invokeDesktopPluginWorker(c.req.param("id"), body.method, body.payload)
+    return c.json({ ok: true, data: { ok: true, result } })
   } catch (error) {
     return jsonError(error)
   }

@@ -48,6 +48,7 @@ export interface DesktopPluginRuntimeStatus {
   pid?: number
   port?: number
   baseUrl?: string
+  endpoint?: string
   startedAt?: string
   lastExitAt?: string
   lastExitCode?: number | null

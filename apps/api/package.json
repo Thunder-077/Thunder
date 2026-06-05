@@ -20,6 +20,7 @@
     "@thunder/database": "workspace:*",
     "@thunder/emby": "workspace:*",
     "@thunder/plugin-schema": "workspace:*",
+    "@thunder/plugin-host-runtime": "workspace:*",
     "@thunder/plugin-sdk": "workspace:*",
     "@thunder/vault": "workspace:*",
     "dotenv": "^17.4.2",

@@ -1,0 +1,26 @@
+{
+  "manifestVersion": 2,
+  "id": "teleprompter",
+  "name": "提词器",
+  "version": "0.1.0",
+  "description": "桌面提词器插件，支持脚本编辑、演讲模式和可信 worker 扩展能力。",
+  "kind": "trusted",
+  "engines": {
+    "thunder": "^2.0.0"
+  },
+  "author": {
+    "name": "Thunder"
+  },
+  "icon": "ScrollText",
+  "permissions": ["storage", "notifications", "activity", "native-runtime"],
+  "contributes": {
+    "sidebar": {
+      "title": "提词器",
+      "icon": "ScrollText",
+      "entry": "dist/index.html"
+    }
+  },
+  "runtime": {
+    "entry": "dist/worker.js"
+  }
+}
