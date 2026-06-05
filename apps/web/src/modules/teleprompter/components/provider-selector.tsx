@@ -4,7 +4,7 @@ import { Check, Download, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import type { SherpaModel } from "@/lib/platform"
+import type { TeleprompterSpeechModel } from "../runtime/types"
 import type { SpeechProvider } from "../transcribers"
 
 type ProviderSelectorProps = {
@@ -12,7 +12,7 @@ type ProviderSelectorProps = {
   sherpaReady: boolean
   sherpaBusy: boolean
   sherpaLoading: boolean
-  sherpaModels: SherpaModel[]
+  sherpaModels: TeleprompterSpeechModel[]
   selectedSherpaModelId: string | null
   downloadProgress: Record<string, { percentage: number; downloadedText: string; totalText: string; status?: string }>
   speechProvider: SpeechProvider

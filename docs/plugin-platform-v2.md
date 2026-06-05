@@ -37,7 +37,14 @@ v2 插件必须提供 `plugin.json`：
     "name": "Thunder"
   },
   "icon": "ScrollText",
-  "permissions": ["storage", "notifications", "activity", "native-runtime"],
+  "permissions": [
+    "storage",
+    "notifications",
+    "activity",
+    "microphone",
+    "native-runtime",
+    "filesystem:plugin-data"
+  ],
   "contributes": {
     "sidebar": {
       "title": "提词器",
@@ -204,11 +211,14 @@ plugins-v2/teleprompter/
 - v2 manifest
 - public SDK 面板注册
 - trusted worker handler
-- 安装与 e2e 验证
+- 共享文稿编辑 / 分段预览 / follow session 逻辑复用
+- Desktop speech bridge 接入后的模型列表、下载、激活、启动、停止和音频 feed
+- 安装、UI 资源读取、trusted runtime 启停与 `worker.invoke` 的 e2e 验证
 
 还没有完成的部分：
 
-- 真正的商用级 UI build 管线
+- worker crash recovery 与更强的可观测性
+- 下载进度的事件驱动刷新与更完整的商用品质交互
 - 主应用提词器能力向公开插件包的彻底迁移
 - 远程分发打包约束
 
@@ -217,16 +227,23 @@ plugins-v2/teleprompter/
 当前 v2 相关验证：
 
 ```bash
+pnpm --dir packages/plugin-cli exec tsc --noEmit
+pnpm --dir packages/plugin-cli exec tsx src/index.test.ts
+pnpm --dir packages/plugin-cli exec tsx src/index.ts build D:/self/Thunder/plugins-v2/teleprompter
 pnpm --filter @thunder/plugin-sdk test:browser
 pnpm --dir packages/plugin-host-runtime exec tsx src/runtime.test.ts
 pnpm --dir apps/api exec tsx src/plugins/plugin-v2-e2e.test.ts
 pnpm --filter @thunder/plugin-teleprompter-v2 test
 pnpm --filter @thunder/plugin-teleprompter-v2 typecheck
+pnpm --dir apps/web exec tsc --noEmit
+pnpm --filter @thunder/web test:plugin-bridge
 ```
 
 ## 当前限制
 
 - trusted runtime 目前是 Desktop only
 - v2 本地安装链已经有了，但远程 marketplace 分发未完成
-- `plugins-v2/teleprompter` 仍处于骨架阶段，不代表功能迁移完成
-- 测试隔离环境里 activity 表不存在时会打印日志噪音，但不影响 v2 安装链正确性
+- `plugin-cli` 现在已经能完成 `create/build/pack`，`dev` 也会自动复用或拉起 `pnpm dev:desktop` 并同步当前插件，但它仍然缺少更细粒度的 worker 热重启反馈和自动打开页面动作
+- plugin Devtools 已经内嵌到插件详情页并接了 manifest/runtime/storage/RPC 基础数据，但还没有独立窗口、下载进度等更完整的调试体验
+- `plugins-v2/teleprompter` 已经不是纯骨架，但离 spec 里的 commercial-grade 完成态还有距离
+- `teleprompter` 的本地语音能力仍然是插件自有 trusted 能力，尚未抽象为通用平台 speech API

@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "echo \"todo: build plugin\"",
-    "dev": "echo \"todo: dev plugin\""
+    "build": "thunder-plugin build .",
+    "dev": "thunder-plugin dev .",
+    "pack": "thunder-plugin pack ."
   },
   "dependencies": {
     "@thunder/plugin-sdk": "workspace:*",

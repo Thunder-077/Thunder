@@ -1,66 +1,39 @@
 import { thunder } from "@thunder/plugin-sdk/browser"
+import {
+  buildTeleprompterStoragePayload,
+  clearTeleprompterStorageFallback,
+  clearTeleprompterStorageValue,
+  hasPersistableTeleprompterContent,
+  parseTeleprompterStoragePayload,
+  readTeleprompterStorageFallback,
+  readTeleprompterStorageValue,
+  TELEPROMPTER_STORAGE_KEY,
+  type TeleprompterStoragePayload,
+  type TeleprompterStorageAdapter,
+  writeTeleprompterStorageFallback,
+  writeTeleprompterStorageValue,
+} from "@thunder/teleprompter-core"
 
-export const TELEPROMPTER_STORAGE_KEY = "thunder:teleprompter:document-state"
-export const TELEPROMPTER_STORAGE_VERSION = 1 as const
+export {
+  buildTeleprompterStoragePayload,
+  parseTeleprompterStoragePayload,
+  TELEPROMPTER_STORAGE_KEY,
+}
 
-export type TeleprompterStoragePayload = {
-  version: typeof TELEPROMPTER_STORAGE_VERSION
-  updatedAt: number
-  script: string
-  scriptDraft: string
+function createPluginStorageAdapter(): TeleprompterStorageAdapter {
+  return {
+    get: (key: string) => thunder.storage.get<unknown>(key),
+    set: (key: string, value: unknown) => thunder.storage.set(key, value),
+    remove: (key: string) => thunder.storage.remove(key),
+  }
 }
 
 function hasWindowStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined"
 }
 
-export function buildTeleprompterStoragePayload(input: {
-  script: string
-  scriptDraft: string
-}): TeleprompterStoragePayload {
-  return {
-    version: TELEPROMPTER_STORAGE_VERSION,
-    updatedAt: Date.now(),
-    script: input.script,
-    scriptDraft: input.scriptDraft,
-  }
-}
-
-export function parseTeleprompterStoragePayload(value: unknown): TeleprompterStoragePayload | null {
-  if (!value || typeof value !== "object") {
-    return null
-  }
-
-  const payload = value as Partial<TeleprompterStoragePayload>
-  if (payload.version !== TELEPROMPTER_STORAGE_VERSION) {
-    return null
-  }
-  if (typeof payload.updatedAt !== "number" || !Number.isFinite(payload.updatedAt)) {
-    return null
-  }
-  if (typeof payload.script !== "string" || typeof payload.scriptDraft !== "string") {
-    return null
-  }
-
-  return {
-    version: TELEPROMPTER_STORAGE_VERSION,
-    updatedAt: payload.updatedAt,
-    script: payload.script,
-    scriptDraft: payload.scriptDraft,
-  }
-}
-
-function hasPersistableContent(input: { script: string; scriptDraft: string }) {
-  return Boolean(input.script.trim() || input.scriptDraft.trim())
-}
-
 async function readFromPluginStorage(): Promise<TeleprompterStoragePayload | null> {
-  try {
-    const value = await thunder.storage.get<unknown>(TELEPROMPTER_STORAGE_KEY)
-    return parseTeleprompterStoragePayload(value)
-  } catch {
-    return null
-  }
+  return readTeleprompterStorageValue(createPluginStorageAdapter())
 }
 
 function readFromLocalStorage(): TeleprompterStoragePayload | null {
@@ -68,16 +41,7 @@ function readFromLocalStorage(): TeleprompterStoragePayload | null {
     return null
   }
 
-  const raw = window.localStorage.getItem(TELEPROMPTER_STORAGE_KEY)
-  if (!raw) {
-    return null
-  }
-
-  try {
-    return parseTeleprompterStoragePayload(JSON.parse(raw))
-  } catch {
-    return null
-  }
+  return readTeleprompterStorageFallback(window.localStorage)
 }
 
 export async function readTeleprompterStorage(): Promise<TeleprompterStoragePayload | null> {
@@ -90,12 +54,7 @@ export async function readTeleprompterStorage(): Promise<TeleprompterStoragePayl
 }
 
 async function writeToPluginStorage(payload: TeleprompterStoragePayload): Promise<boolean> {
-  try {
-    await thunder.storage.set(TELEPROMPTER_STORAGE_KEY, payload)
-    return true
-  } catch {
-    return false
-  }
+  return writeTeleprompterStorageValue(createPluginStorageAdapter(), payload)
 }
 
 function writeToLocalStorage(payload: TeleprompterStoragePayload): boolean {
@@ -103,19 +62,14 @@ function writeToLocalStorage(payload: TeleprompterStoragePayload): boolean {
     return false
   }
 
-  try {
-    window.localStorage.setItem(TELEPROMPTER_STORAGE_KEY, JSON.stringify(payload))
-    return true
-  } catch {
-    return false
-  }
+  return writeTeleprompterStorageFallback(window.localStorage, payload)
 }
 
 export async function writeTeleprompterStorage(input: {
   script: string
   scriptDraft: string
 }): Promise<void> {
-  if (!hasPersistableContent(input)) {
+  if (!hasPersistableTeleprompterContent(input)) {
     await clearTeleprompterStorage()
     return
   }
@@ -130,12 +84,7 @@ export async function writeTeleprompterStorage(input: {
 }
 
 async function clearPluginStorage(): Promise<boolean> {
-  try {
-    await thunder.storage.remove(TELEPROMPTER_STORAGE_KEY)
-    return true
-  } catch {
-    return false
-  }
+  return clearTeleprompterStorageValue(createPluginStorageAdapter())
 }
 
 function clearLocalStorage(): boolean {
@@ -143,12 +92,7 @@ function clearLocalStorage(): boolean {
     return false
   }
 
-  try {
-    window.localStorage.removeItem(TELEPROMPTER_STORAGE_KEY)
-    return true
-  } catch {
-    return false
-  }
+  return clearTeleprompterStorageFallback(window.localStorage)
 }
 
 export async function clearTeleprompterStorage(): Promise<void> {

@@ -22,6 +22,7 @@ const nextConfig: NextConfig = {
     "@thunder/core",
     "@thunder/api-client",
     "@thunder/platform",
+    "@thunder/plugin-devtools",
     "@thunder/plugin-sdk",
     "@thunder/vault",
     "@thunder/contracts",

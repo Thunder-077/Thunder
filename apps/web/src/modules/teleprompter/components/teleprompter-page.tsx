@@ -5,16 +5,17 @@ import { Mic, Play } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
 import { cn } from "@/lib/utils"
 import {
-  activateSherpaModel,
-  checkSherpaRunning,
-  downloadSherpaModel,
-  isTauriDesktop,
-  listSherpaModels,
-  type SherpaModel,
-} from "@/lib/platform"
-import { notificationStore } from "@/lib/notification-store"
+  useFollowReadSession,
+  usePersistedTeleprompterDocument,
+  useTeleprompterDocumentSession,
+} from "../../../../../../packages/teleprompter-ui/src/index"
 import { useAnimatedReadOffset } from "../hooks/use-animated-read-offset"
 import { useSpeechRecognition } from "../hooks/use-speech-recognition"
+import {
+  createDefaultTeleprompterSpeechRuntime,
+  createDownloadProgressView,
+} from "../runtime/default-speech-runtime"
+import type { TeleprompterSpeechModel } from "../runtime/types"
 import { createFollowEngine } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
 import { segmentScript } from "../utils/script-segmenter"
@@ -54,52 +55,31 @@ function getReadPositionScrollTarget(viewport: HTMLElement, targetEl: HTMLElemen
   return Math.max(0, Math.min(maxScrollTop, targetMiddle - stableAnchorTop))
 }
 
-function getIncrementalAlignmentText(text: string, previousRecognitionText: string, isFinal: boolean) {
-  const current = text.trim()
-  const previous = previousRecognitionText.trim()
-  if (!current) return ""
-  if (!previous) return current
-  if (current.startsWith(previous)) {
-    const suffix = current.slice(previous.length).trim()
-    if (isFinal && previous.length >= 2 && Array.from(suffix).length === 1) {
-      return ""
-    }
-    return suffix
-  }
-  if (!isFinal && previous.startsWith(current)) {
-    return ""
-  }
-
-  // ASR interim revisions are replacements, not append-only chunks. When the
-  // replacement is ambiguous, wait for the final result instead of double-counting.
-  return isFinal ? current : ""
-}
-
 export function TeleprompterPage() {
   const showExperimentalInsights = shouldShowTeleprompterExperimentalInsights()
+  const speechRuntime = useMemo(() => createDefaultTeleprompterSpeechRuntime(), [])
 
   const [mode, setMode] = useState<TeleprompterMode>("follow-read")
-  const [script, setScript] = useState("")
-  const [scriptDraft, setScriptDraft] = useState("")
-  const [isEditingScript, setIsEditingScript] = useState(false)
+  const {
+    script,
+    scriptDraft,
+    isEditingScript,
+    hydrateScript,
+    replaceScript,
+    beginEditing,
+    commitDraft,
+    setScriptDraft,
+  } = useTeleprompterDocumentSession()
   const [fontSize, setFontSize] = useState(44)
   const [lineHeight, setLineHeight] = useState(1.65)
   const [enablePrediction, setEnablePrediction] = useState(false)
   const [speechProvider, setSpeechProvider] = useState<SpeechProvider>("web-speech")
-  const [followStatus, setFollowStatus] = useState<FollowStatus>("idle")
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [readOffset, setReadOffset] = useState(0)
-  const [confidence, setConfidence] = useState(0)
-  const [isOnScript, setIsOnScript] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [finalTranscript, setFinalTranscript] = useState("")
-  const [interimTranscript, setInterimTranscript] = useState("")
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [showSherpa] = useState(() => isTauriDesktop())
+  const [showSherpa] = useState(() => speechRuntime.supportsSherpa())
   const [sherpaReady, setSherpaReady] = useState(false)
   const [sherpaBusy, setSherpaBusy] = useState(false)
   const [sherpaLoading, setSherpaLoading] = useState(false)
-  const [sherpaModels, setSherpaModels] = useState<SherpaModel[]>([])
+  const [sherpaModels, setSherpaModels] = useState<TeleprompterSpeechModel[]>([])
   const [selectedSherpaModelId, setSelectedSherpaModelId] = useState<string | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<Record<string, { percentage: number; downloadedText: string; totalText: string }>>({})
   const [autoScrollViewOptions, setAutoScrollViewOptions] = useState<AutoScrollViewOptions>({
@@ -121,12 +101,7 @@ export function TeleprompterPage() {
   const prompterViewportRef = useRef<HTMLDivElement | null>(null)
   const segmentRefs = useRef<Array<HTMLParagraphElement | null>>([])
   const animationFrameRef = useRef<number | null>(null)
-  const processedResultRef = useRef<object | null>(null)
-  const interimAlignmentTextRef = useRef("")
   const scrollTargetRef = useRef<number | null>(null)
-  const storageHydratedRef = useRef(false)
-  const storageSaveTimerRef = useRef<number | null>(null)
-  const lastSavedStorageSnapshotRef = useRef<string | null>(null)
   const userScrollingRef = useRef(false)
   const userScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pausedScrollTopRef = useRef<number | null>(null)
@@ -149,16 +124,46 @@ export function TeleprompterPage() {
 
   const speech = useSpeechRecognition({
     provider: speechProvider,
+    createTranscriber: speechRuntime.createTranscriber,
   })
   const segments = useMemo(() => segmentScript(script), [script])
   const followEngine = useMemo(() => script ? createFollowEngine(script, segments, { enablePrediction }) : null, [script, segments, enablePrediction])
-
-  const displayTranscript = `${finalTranscript.slice(-160)}${interimTranscript}`.trim()
   const canFollow = segments.length > 0
   const installedSherpaModels = useMemo(
     () => sherpaModels.filter((model) => model.installed),
     [sherpaModels],
   )
+  const {
+    followStatus,
+    currentIndex,
+    readOffset,
+    confidence,
+    isOnScript,
+    message,
+    finalTranscript,
+    interimTranscript,
+    clearRecognitionSession,
+    resetPosition,
+    startFollowing,
+    pauseFollowing,
+    resumeFollowing,
+    stopFollowing,
+    returnToStart,
+    calibrateToCharacter,
+    setCurrentIndex,
+    setReadOffset,
+    setConfidence,
+    setIsOnScript,
+    setMessage,
+    setFollowStatus,
+  } = useFollowReadSession({
+    speech,
+    followEngine,
+    canFollow,
+    speechProvider,
+    hasInstalledSherpaModel: installedSherpaModels.length > 0,
+  })
+  const displayTranscript = `${finalTranscript.slice(-160)}${interimTranscript}`.trim()
   const isMicActive = speech.status === "listening"
   const visibleCurrentIndex = Math.min(currentIndex, Math.max(segments.length - 1, 0))
   const isFollowAnimationActive = mode === "follow-read" && followStatus !== "idle"
@@ -167,12 +172,20 @@ export function TeleprompterPage() {
   const scrollReadOffset = Math.max(0, Math.min(readOffset, script.length))
   const visibleStatus: FollowStatus = speech.error ? "failed" : followStatus
   const visibleMessage = message ?? speech.error
-  const storageSnapshot = useMemo(
-    () => JSON.stringify({ script, scriptDraft }),
-    [script, scriptDraft],
-  )
+  const handleHydrateDocument = useCallback((persisted: { script: string; scriptDraft: string }) => {
+    hydrateScript(persisted.script, persisted.scriptDraft)
+  }, [hydrateScript])
+  usePersistedTeleprompterDocument({
+    snapshot: {
+      script,
+      scriptDraft,
+    },
+    readDocument: readTeleprompterStorage,
+    writeDocument: writeTeleprompterStorage,
+    onHydrate: handleHydrateDocument,
+  })
 
-  const syncSherpaModels = useCallback((models: SherpaModel[]) => {
+  const syncSherpaModels = useCallback((models: TeleprompterSpeechModel[]) => {
     setSherpaModels(models)
     setSelectedSherpaModelId((current) => {
       if (current && models.some((model) => model.id === current)) {
@@ -185,66 +198,59 @@ export function TeleprompterPage() {
   }, [])
 
   const refreshSherpaModels = useCallback(async () => {
-    if (!isTauriDesktop()) {
+    if (!speechRuntime.supportsSherpa()) {
       return
     }
 
     setSherpaLoading(true)
     try {
-      const models = await listSherpaModels()
+      const models = await speechRuntime.listSherpaModels()
       syncSherpaModels(models)
     } catch (error) {
       setMessage(`Sherpa 模型列表加载失败: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setSherpaLoading(false)
     }
-  }, [syncSherpaModels])
+  }, [speechRuntime, syncSherpaModels])
 
   useEffect(() => {
-    if (!isTauriDesktop()) return
-    checkSherpaRunning()
+    if (!speechRuntime.supportsSherpa()) return
+    speechRuntime.checkSherpaReady()
       .then(setSherpaReady)
       .catch(() => setSherpaReady(false))
     const refreshTimer = window.setTimeout(() => {
       void refreshSherpaModels()
     }, 0)
     return () => window.clearTimeout(refreshTimer)
-  }, [refreshSherpaModels])
+  }, [refreshSherpaModels, speechRuntime])
 
   useEffect(() => {
-    if (!isTauriDesktop()) return
+    if (!speechRuntime.supportsSherpa()) return
 
     let unlistenProgress: (() => void) | null = null
     let unlistenInstalled: (() => void) | null = null
     let unlistenFailed: (() => void) | null = null
 
     const setupListeners = async () => {
-      const { listen } = await import("@tauri-apps/api/event")
+      unlistenProgress = await speechRuntime.subscribeSherpaModelProgress((event) => {
+        const { modelId, percentage, downloaded, total, status } = event
+        const { downloadedText, totalText } = createDownloadProgressView(downloaded, total)
 
-      unlistenProgress = await listen<{ modelId: string; percentage: number; downloaded: number; total: number; status?: string }>(
-        "sherpa-download-progress",
-        (event) => {
-          const { modelId, percentage, downloaded, total, status } = event.payload
-          const downloadedText = (downloaded / 1024 / 1024).toFixed(1) + " MB"
-          const totalText = (total / 1024 / 1024).toFixed(1) + " MB"
+        setDownloadProgress((prev) => ({
+          ...prev,
+          [modelId]: {
+            percentage,
+            downloadedText,
+            totalText,
+            status: status || "downloading",
+          },
+        }))
 
-          setDownloadProgress((prev) => ({
-            ...prev,
-            [modelId]: {
-              percentage,
-              downloadedText,
-              totalText,
-              status: status || "downloading"
-            }
-          }))
+        speechRuntime.notifySherpaDownloadProgress(modelId, percentage, downloaded, total)
+      })
 
-          notificationStore.updateProgress(modelId, percentage, downloaded, total)
-        }
-      )
-
-      unlistenInstalled = await listen<string>("sherpa-model-installed", (event) => {
+      unlistenInstalled = await speechRuntime.subscribeSherpaModelInstalled((modelId) => {
         void refreshSherpaModels()
-        const modelId = event.payload
 
         setDownloadProgress((prev) => {
           const next = { ...prev }
@@ -253,26 +259,23 @@ export function TeleprompterPage() {
         })
 
         const modelName = sherpaModelsRef.current.find((m) => m.id === modelId)?.name || modelId
-        notificationStore.completeNotification(modelId, true, `模型 ${modelName} 下载并激活成功！`)
+        speechRuntime.notifySherpaDownloadCompleted(modelId, modelName)
       })
 
-      unlistenFailed = await listen<{ modelId: string; error: string }>(
-        "sherpa-model-download-failed",
-        (event) => {
-          void refreshSherpaModels()
-          const { modelId, error } = event.payload
+      unlistenFailed = await speechRuntime.subscribeSherpaModelDownloadFailed((event) => {
+        void refreshSherpaModels()
+        const { modelId, error } = event
 
-          setDownloadProgress((prev) => {
-            const next = { ...prev }
-            delete next[modelId]
-            return next
-          })
+        setDownloadProgress((prev) => {
+          const next = { ...prev }
+          delete next[modelId]
+          return next
+        })
 
-          const modelName = sherpaModelsRef.current.find((m) => m.id === modelId)?.name || modelId
-          notificationStore.completeNotification(modelId, false, `模型 ${modelName} 下载失败: ${error}`)
-          setMessage(`模型 ${modelName} 下载失败: ${error}`)
-        }
-      )
+        const modelName = sherpaModelsRef.current.find((m) => m.id === modelId)?.name || modelId
+        speechRuntime.notifySherpaDownloadFailed(modelId, modelName, error)
+        setMessage(`模型 ${modelName} 下载失败: ${error}`)
+      })
     }
 
     void setupListeners()
@@ -282,75 +285,11 @@ export function TeleprompterPage() {
       if (unlistenInstalled) unlistenInstalled()
       if (unlistenFailed) unlistenFailed()
     }
-  }, [refreshSherpaModels])
+  }, [refreshSherpaModels, speechRuntime])
 
   useEffect(() => {
     segmentRefs.current = segmentRefs.current.slice(0, segments.length)
   }, [segments.length])
-
-  useEffect(() => {
-    let cancelled = false
-
-    const hydratePersistedScript = async () => {
-      const persisted = await readTeleprompterStorage()
-      if (cancelled) {
-        return
-      }
-
-      storageHydratedRef.current = true
-      if (!persisted) {
-        return
-      }
-
-      lastSavedStorageSnapshotRef.current = JSON.stringify({
-        script: persisted.script,
-        scriptDraft: persisted.scriptDraft,
-      })
-
-      setScript((current) => current || persisted.script)
-      setScriptDraft((current) => current || persisted.scriptDraft)
-    }
-
-    void hydratePersistedScript()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!storageHydratedRef.current) {
-      return
-    }
-
-    if (storageSaveTimerRef.current !== null) {
-      clearTimeout(storageSaveTimerRef.current)
-      storageSaveTimerRef.current = null
-    }
-
-    if (storageSnapshot === lastSavedStorageSnapshotRef.current) {
-      return
-    }
-
-    storageSaveTimerRef.current = window.setTimeout(() => {
-      storageSaveTimerRef.current = null
-      if (storageSnapshot === lastSavedStorageSnapshotRef.current) {
-        return
-      }
-
-      void (async () => {
-        await writeTeleprompterStorage({ script, scriptDraft })
-        lastSavedStorageSnapshotRef.current = storageSnapshot
-      })()
-    }, 300)
-
-    return () => {
-      if (storageSaveTimerRef.current !== null) {
-        clearTimeout(storageSaveTimerRef.current)
-        storageSaveTimerRef.current = null
-      }
-    }
-  }, [script, scriptDraft, storageSnapshot])
 
   useEffect(() => {
     if (mode !== "auto-scroll") return
@@ -407,14 +346,6 @@ export function TeleprompterPage() {
     }
     scrollTargetRef.current = null
   }, [])
-
-  const clearRecognitionSession = useCallback(() => {
-    processedResultRef.current = null
-    interimAlignmentTextRef.current = ""
-    setFinalTranscript("")
-    setInterimTranscript("")
-    speech.clearResult()
-  }, [speech])
 
   const animateScrollTo = useCallback((target: number) => {
     const viewport = prompterViewportRef.current
@@ -478,23 +409,6 @@ export function TeleprompterPage() {
 
   useEffect(() => cancelScrollAnimation, [cancelScrollAnimation])
 
-  const resetScriptPosition = useCallback(() => {
-    followEngine?.reset()
-    setCurrentIndex(0)
-    setReadOffset(0)
-    setConfidence(0)
-    setIsOnScript(false)
-    setMessage(null)
-    clearRecognitionSession()
-  }, [clearRecognitionSession, followEngine])
-
-  const replaceScript = (nextScript: string) => {
-    setScript(nextScript)
-    setScriptDraft(nextScript)
-    setIsEditingScript(false)
-    resetScriptPosition()
-  }
-
   const handlePrompterPaste = (event: ClipboardEvent<HTMLDivElement>) => {
     const pastedText = event.clipboardData.getData("text/plain").trim()
     if (!pastedText) {
@@ -502,7 +416,9 @@ export function TeleprompterPage() {
     }
 
     event.preventDefault()
-    replaceScript(pastedText)
+    replaceScript(pastedText, {
+      onReplaced: () => resetPosition(),
+    })
   }
 
   const handleDraftScriptChange = (nextScript: string) => {
@@ -510,72 +426,26 @@ export function TeleprompterPage() {
   }
 
   const beginScriptEditing = () => {
-    speech.stop()
-    speech.clearError()
-    clearRecognitionSession()
-    setFollowStatus("idle")
-    setCurrentIndex(0)
-    setReadOffset(0)
-    setConfidence(0)
-    setIsOnScript(false)
-    setMessage(null)
-    setScriptDraft(script)
-    setIsEditingScript(true)
+    beginEditing({
+      onBeforeEdit: () => {
+        speech.stop()
+        speech.clearError()
+        clearRecognitionSession()
+        setFollowStatus("idle")
+        setCurrentIndex(0)
+        setReadOffset(0)
+        setConfidence(0)
+        setIsOnScript(false)
+        setMessage(null)
+      },
+    })
   }
 
   const commitDraftScript = () => {
-    const nextScript = scriptDraft.trim()
-    if (!nextScript) {
-      return
-    }
-    if (nextScript === script) {
-      setIsEditingScript(false)
-      return
-    }
-    replaceScript(nextScript)
+    commitDraft({
+      onCommitted: () => resetPosition(),
+    })
   }
-
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!speech.lastResult || followStatus === "paused" || followStatus === "idle") {
-      return
-    }
-
-    if (processedResultRef.current === speech.lastResult) {
-      return
-    }
-    processedResultRef.current = speech.lastResult
-
-    if (speech.lastResult.isFinal) {
-      setFinalTranscript((prev) => `${prev}${speech.lastResult!.text}`.slice(-320))
-      setInterimTranscript("")
-    } else {
-      setInterimTranscript(speech.lastResult.text)
-    }
-
-    if (!followEngine) return
-    const alignmentText = getIncrementalAlignmentText(
-      speech.lastResult.text,
-      interimAlignmentTextRef.current,
-      speech.lastResult.isFinal,
-    )
-    interimAlignmentTextRef.current = speech.lastResult.isFinal ? "" : speech.lastResult.text.trim()
-    if (!alignmentText) return
-
-    const update = followEngine.push(
-      alignmentText,
-      speech.lastResult.isFinal,
-      speech.lastResult.timestamps,
-    )
-
-    setConfidence(update.confidence)
-    setIsOnScript(update.isOnScript)
-    setCurrentIndex(update.segmentIndex)
-    setReadOffset(update.displayReadOffset)
-    setFollowStatus(update.status)
-    setMessage(update.message ?? null)
-  }, [followEngine, followStatus, speech.lastResult])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (followStatus === "paused" || followStatus === "idle") {
@@ -625,64 +495,6 @@ export function TeleprompterPage() {
     }
   }, [followStatus, clearUserScrollLock])
 
-  const startFollowing = async () => {
-    if (!canFollow) {
-      setMessage("请先输入一篇提词稿")
-      return
-    }
-    if (speechProvider === "sherpa-onnx" && installedSherpaModels.length === 0) {
-      setMessage("暂无可用的 Sherpa ONNX 模型，请先下载模型。")
-      return
-    }
-
-    speech.clearError()
-    setMessage(null)
-    setConfidence(0)
-    followEngine?.transitionStatus({ type: "start-listening" })
-    setFollowStatus("listening")
-    await speech.start()
-  }
-
-  const pauseFollowing = () => {
-    speech.pause()
-    followEngine?.transitionStatus({ type: "pause" })
-    setFollowStatus("paused")
-  }
-
-  const resumeFollowing = async () => {
-    if (!canFollow) {
-      setMessage("请先输入一篇提词稿")
-      return
-    }
-
-    speech.clearError()
-    setMessage(null)
-    followEngine?.transitionStatus({ type: "resume" })
-    setFollowStatus("listening")
-    await speech.start()
-  }
-
-  const stopFollowing = () => {
-    speech.stop()
-    followEngine?.transitionStatus({ type: "stop" })
-    setFollowStatus("idle")
-    setConfidence(0)
-    setMessage(null)
-    clearRecognitionSession()
-  }
-
-  const returnToStart = () => {
-    followEngine?.reset()
-    speech.clearError()
-    clearRecognitionSession()
-    setCurrentIndex(0)
-    setReadOffset(0)
-    setConfidence(0)
-    setIsOnScript(false)
-    setMessage(null)
-    scrollToReadPosition(0, 0)
-  }
-
   const handleAutoScrollStop = () => {
     setCurrentIndex(0)
     setReadOffset(0)
@@ -697,22 +509,10 @@ export function TeleprompterPage() {
     setAutoScrollActiveIndex(0)
   }
 
-  const calibrateToCharacter = (selectedIndex: number, selectedOffset: number) => {
-    const update = followEngine?.jump(selectedOffset)
-    const nextStatus: FollowStatus = isMicActive
-      ? "listening"
-      : followStatus === "paused"
-        ? "paused"
-        : "idle"
-    setMessage(null)
-    setCurrentIndex(selectedIndex)
+  const handleCalibrateToCharacter = (selectedIndex: number, selectedOffset: number) => {
+    calibrateToCharacter(selectedIndex, selectedOffset, isMicActive)
     setAutoScrollActiveIndex(selectedIndex)
-    setReadOffset(selectedOffset)
     setReadOffsetSnapKey((k) => k + 1)
-    setConfidence(update?.confidence ?? 1)
-    setIsOnScript(update?.isOnScript ?? true)
-    setFollowStatus(nextStatus)
-    speech.clearError()
     clearUserScrollLock()
     pausedScrollTopRef.current = null
     scrollToReadPosition(selectedOffset, selectedIndex)
@@ -739,7 +539,7 @@ export function TeleprompterPage() {
 
     setSherpaBusy(true)
     try {
-      const models = await activateSherpaModel(selectedSherpaModelId)
+      const models = await speechRuntime.activateSherpaModel(selectedSherpaModelId)
       syncSherpaModels(models)
       setMessage(null)
     } catch (error) {
@@ -757,23 +557,17 @@ export function TeleprompterPage() {
 
     const modelName = sherpaModels.find((m) => m.id === selectedSherpaModelId)?.name || selectedSherpaModelId
 
-    notificationStore.addNotificationWithId(selectedSherpaModelId, {
-      title: "下载 Sherpa 模型",
-      description: `准备下载并激活 ${modelName}…`,
-      type: "progress",
-      percentage: 0,
-      status: "downloading",
-    })
+    speechRuntime.notifySherpaDownloadQueued(selectedSherpaModelId, modelName)
 
     setSherpaBusy(true)
     try {
-      const models = await downloadSherpaModel(selectedSherpaModelId)
+      const models = await speechRuntime.downloadSherpaModel(selectedSherpaModelId)
       syncSherpaModels(models)
     } catch (error) {
-      notificationStore.completeNotification(
+      speechRuntime.notifySherpaDownloadFailed(
         selectedSherpaModelId,
-        false,
-        `Sherpa 模型启动下载失败: ${error instanceof Error ? error.message : String(error)}`
+        modelName,
+        error instanceof Error ? error.message : String(error),
       )
       setMessage(`Sherpa 模型启动下载失败: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
@@ -855,7 +649,10 @@ export function TeleprompterPage() {
             onPauseFollowing={pauseFollowing}
             onResumeFollowing={() => void resumeFollowing()}
             onStopFollowing={stopFollowing}
-            onReturnToStart={returnToStart}
+            onReturnToStart={() => {
+              returnToStart()
+              scrollToReadPosition(0, 0)
+            }}
             onSelectSherpa={() => setSpeechProvider("sherpa-onnx")}
             onSelectWebSpeech={() => setSpeechProvider("web-speech")}
             onSelectSherpaModel={setSelectedSherpaModelId}
@@ -910,12 +707,15 @@ export function TeleprompterPage() {
           scriptDraft={scriptDraft}
           onDraftScriptChange={handleDraftScriptChange}
           onDraftScriptCommit={commitDraftScript}
-          onCalibrateToCharacter={calibrateToCharacter}
+          onCalibrateToCharacter={handleCalibrateToCharacter}
           onStartFollowing={() => void startFollowing()}
           onPauseFollowing={pauseFollowing}
           onResumeFollowing={() => void resumeFollowing()}
           onStopFollowing={stopFollowing}
-          onReturnToStart={returnToStart}
+          onReturnToStart={() => {
+            returnToStart()
+            scrollToReadPosition(0, 0)
+          }}
           onAutoScrollStart={() => autoScrollPanelRef.current?.start()}
           onAutoScrollPause={() => autoScrollPanelRef.current?.pause()}
           onAutoScrollStop={() => autoScrollPanelRef.current?.stop()}

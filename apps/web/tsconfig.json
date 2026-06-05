@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@thunder/plugin-devtools": ["../../packages/plugin-devtools/src/index.ts"],
+      "@thunder/plugin-ui": ["../../packages/plugin-ui/src/index.ts"]
     }
   },
   "include": [

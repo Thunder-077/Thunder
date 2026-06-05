@@ -4,6 +4,8 @@ import { cp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import assert from "node:assert/strict"
+// @ts-ignore node:sqlite types are provided by the Node runtime used by desktop.
+import { DatabaseSync } from "node:sqlite"
 import { c as createTar } from "tar"
 import {
   fetchDesktopPluginMarketplace,
@@ -36,6 +38,26 @@ function sha256(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex")
 }
 
+function ensureActivityLogTable(databasePath: string): void {
+  const database = new DatabaseSync(databasePath)
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS "activity_logs" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "module" TEXT NOT NULL,
+        "action" TEXT NOT NULL,
+        "title" TEXT NOT NULL,
+        "description" TEXT,
+        "metadata_json" TEXT,
+        "created_at" TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS "activity_logs_created_at_idx" ON "activity_logs"("created_at");
+    `)
+  } finally {
+    database.close()
+  }
+}
+
 async function expectRejects(fn: () => Promise<unknown>, label: string): Promise<void> {
   let rejected = false
   try {
@@ -58,7 +80,9 @@ async function main() {
     process.env.THUNDER_ENABLE_DESKTOP_PLUGINS = "1"
     process.env.THUNDER_ALLOW_UNSIGNED_PLUGINS = "1"
     process.env.THUNDER_DESKTOP_DATA_DIR = testRoot
-    process.env.DATABASE_URL = `file:${join(testRoot, "app.db")}`
+    const databasePath = join(testRoot, "app.db")
+    process.env.DATABASE_URL = `file:${databasePath}`
+    ensureActivityLogTable(databasePath)
     process.env.THUNDER_BUNDLED_PLUGIN_DIRS = resolve(workspaceRoot, "plugins", "desktop")
     delete process.env.THUNDER_PLUGIN_MARKETPLACE_URL
     delete process.env.THUNDER_PLUGIN_MARKETPLACE_TRUSTED_KEYS

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import type { SherpaModel } from "@/lib/platform"
+import type { TeleprompterSpeechModel } from "../runtime/types"
 import type { SpeechProvider } from "../transcribers"
 import type { FollowStatus } from "../utils/follow-state-machine"
 import { FollowSettingsDialog } from "./follow-settings-dialog"
@@ -25,7 +25,7 @@ type FollowStatusPanelProps = {
   sherpaReady: boolean
   sherpaBusy: boolean
   sherpaLoading: boolean
-  sherpaModels: SherpaModel[]
+  sherpaModels: TeleprompterSpeechModel[]
   selectedSherpaModelId: string | null
   downloadProgress: Record<string, { percentage: number; downloadedText: string; totalText: string; status?: string }>
   onFontSizeChange: (value: number) => void

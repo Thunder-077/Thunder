@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
-import type { SherpaModel } from "@/lib/platform"
+import type { TeleprompterSpeechModel } from "../runtime/types"
 import type { SpeechProvider } from "../transcribers"
 import { NumberStepper } from "./number-stepper"
 import { ProviderSelector } from "./provider-selector"
@@ -26,7 +26,7 @@ type FollowSettingsDialogProps = {
   sherpaReady: boolean
   sherpaBusy: boolean
   sherpaLoading: boolean
-  sherpaModels: SherpaModel[]
+  sherpaModels: TeleprompterSpeechModel[]
   selectedSherpaModelId: string | null
   downloadProgress: Record<string, { percentage: number; downloadedText: string; totalText: string; status?: string }>
   trigger: ReactElement

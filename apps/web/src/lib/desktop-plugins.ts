@@ -362,6 +362,26 @@ export async function stopDesktopPluginRuntime(pluginId: string): Promise<Deskto
   return postRuntimeAction(pluginId, "stop")
 }
 
+export async function getDesktopPluginRuntimeStatus(pluginId: string): Promise<DesktopPluginRuntimeStatus> {
+  const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/runtime`, {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+  })
+
+  const payload = (await response.json()) as {
+    ok: boolean
+    data?: DesktopPluginRuntimeStatus
+    message?: string
+  }
+
+  if (!response.ok || !payload.ok || !payload.data) {
+    throw new Error(payload.message || "插件运行时状态读取失败")
+  }
+
+  return payload.data
+}
+
 export async function invokeDesktopPluginWorker<TResult = unknown, TPayload = unknown>(
   pluginId: string,
   method: string,

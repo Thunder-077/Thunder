@@ -1,9 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useTheme } from "@/components/theme-provider"
 import {
@@ -32,6 +33,7 @@ import {
   type StorageRequestParams,
 } from "@/lib/desktop-plugin-bridge"
 import {
+  getDesktopPluginRuntimeStatus,
   getDesktopPlugin,
   getDesktopPluginEntryUrl,
   isInstalledDesktopPluginV2,
@@ -43,17 +45,55 @@ import {
 import { notificationStore } from "@/lib/notification-store"
 import { ActivityClient } from "@thunder/api-client"
 import { getRequiredPermissionForRpcMethod } from "@/lib/plugin-v2-bridge"
+import {
+  PluginDevtoolsPanel,
+  type PluginDiagnosticItem,
+  type PluginLogEntry,
+  type PluginRpcLogEntry,
+  type PluginStorageEntry,
+  type PluginWorkerStatus,
+} from "@thunder/plugin-devtools"
 
 export default function DesktopPluginPage() {
   const params = useParams<{ pluginId: string }>()
+  const searchParams = useSearchParams()
   const pluginId = params.pluginId
   const desktopEnabled = shouldLoadDesktopPlugins()
   const [plugin, setPlugin] = useState<DesktopInstalledPlugin | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [hostOrigin] = useState<string | null>(() => (typeof window === "undefined" ? null : window.location.origin))
   const [frameHeight, setFrameHeight] = useState(960)
+  const [workerStatus, setWorkerStatus] = useState<PluginWorkerStatus>({ running: false })
+  const [rpcCalls, setRpcCalls] = useState<PluginRpcLogEntry[]>([])
+  const [devLogs, setDevLogs] = useState<PluginLogEntry[]>([])
+  const [showDevtools, setShowDevtools] = useState(() => searchParams.get("devtools") === "1")
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  const previousWorkerStatusRef = useRef<string | null>(null)
   const { resolvedTheme } = useTheme()
+  const isV2Plugin = plugin ? isInstalledDesktopPluginV2(plugin) : false
+
+  const appendLog = useCallback((level: PluginLogEntry["level"], message: string) => {
+    setDevLogs((previous) => [
+      {
+        id: crypto.randomUUID(),
+        level,
+        message,
+        at: new Date().toISOString(),
+      },
+      ...previous,
+    ].slice(0, 100))
+  }, [])
+
+  const appendRpcCall = useCallback((entry: Omit<PluginRpcLogEntry, "id" | "at">) => {
+    setRpcCalls((previous) => [
+      {
+        ...entry,
+        id: crypto.randomUUID(),
+        at: new Date().toISOString(),
+      },
+      ...previous,
+    ].slice(0, 100))
+  }, [])
 
   const postBridgeResponse = useCallback(
     (targetOrigin: string, id: string, ok: boolean, data?: unknown, bridgeError?: string) => {
@@ -72,6 +112,27 @@ export default function DesktopPluginPage() {
     []
   )
 
+  const refreshWorkerStatus = useCallback(async () => {
+    if (!plugin || !isInstalledDesktopPluginV2(plugin)) {
+      setWorkerStatus({ running: false })
+      return
+    }
+
+    try {
+      const runtimeStatus = await getDesktopPluginRuntimeStatus(plugin.manifest.id)
+      setWorkerStatus({
+        running: runtimeStatus.running,
+        endpoint: runtimeStatus.endpoint,
+        lastError: runtimeStatus.lastError,
+      })
+    } catch (runtimeError) {
+      setWorkerStatus({
+        running: false,
+        lastError: runtimeError instanceof Error ? runtimeError.message : "运行时状态读取失败",
+      })
+    }
+  }, [plugin])
+
   useEffect(() => {
     if (!desktopEnabled) {
       return
@@ -86,13 +147,16 @@ export default function DesktopPluginPage() {
         if (!cancelled) setPlugin(result)
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "插件加载失败")
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "插件加载失败")
+          appendLog("error", err instanceof Error ? err.message : "插件加载失败")
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [desktopEnabled, pluginId])
+  }, [appendLog, desktopEnabled, pluginId])
 
   // Record plugin.opened activity
   useEffect(() => {
@@ -123,6 +187,44 @@ export default function DesktopPluginPage() {
   }, [hostOrigin, plugin, resolvedTheme])
 
   useEffect(() => {
+    if (!isV2Plugin) {
+      return
+    }
+
+    void refreshWorkerStatus()
+  }, [isV2Plugin, refreshWorkerStatus])
+
+  useEffect(() => {
+    if (!isV2Plugin) {
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      void refreshWorkerStatus()
+    }, 3000)
+
+    return () => window.clearInterval(timer)
+  }, [isV2Plugin, refreshWorkerStatus])
+
+  useEffect(() => {
+    const nextSignature = JSON.stringify(workerStatus)
+    if (previousWorkerStatusRef.current === null) {
+      previousWorkerStatusRef.current = nextSignature
+      return
+    }
+
+    if (previousWorkerStatusRef.current !== nextSignature) {
+      previousWorkerStatusRef.current = nextSignature
+      appendLog(
+        workerStatus.running ? "info" : "warn",
+        workerStatus.running
+          ? `worker 已连接${workerStatus.endpoint ? `: ${workerStatus.endpoint}` : ""}`
+          : `worker 未运行${workerStatus.lastError ? `: ${workerStatus.lastError}` : ""}`,
+      )
+    }
+  }, [appendLog, workerStatus])
+
+  useEffect(() => {
     if (!plugin || !hostOrigin) return
     const currentPlugin = plugin
     const entryUrl = getDesktopPluginEntryUrl(currentPlugin)
@@ -146,6 +248,7 @@ export default function DesktopPluginPage() {
       }
 
       try {
+        const startedAt = performance.now()
         if (isInstalledDesktopPluginV2(currentPlugin)) {
           const requiredPermission = getRequiredPermissionForRpcMethod(request.method)
           if (requiredPermission && !currentPlugin.manifest.permissions.includes(requiredPermission)) {
@@ -160,12 +263,25 @@ export default function DesktopPluginPage() {
 
         if (request.method === "plugin.getManifest") {
           postBridgeResponse(frameOrigin, request.id, true, currentPlugin.manifest)
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: request.params,
+            result: currentPlugin.manifest,
+          })
           return
         }
 
         if (request.method === "layout.setFrameHeight") {
           const params = request.params as LayoutRequestParams | null
           setFrameHeight(normalizePluginFrameHeight(params?.height))
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: request.params,
+          })
           return
         }
 
@@ -210,6 +326,16 @@ export default function DesktopPluginPage() {
             headers: Object.fromEntries(response.headers.entries()),
             data,
           })
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: request.params,
+            result: {
+              status: response.status,
+              ok: response.ok,
+            },
+          })
           return
         }
 
@@ -232,6 +358,13 @@ export default function DesktopPluginPage() {
             throw new Error(payload.message || "插件网络代理请求失败")
           }
           postBridgeResponse(frameOrigin, request.id, true, payload.data)
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: request.params,
+            result: payload.data,
+          })
           return
         }
 
@@ -250,8 +383,16 @@ export default function DesktopPluginPage() {
           }
 
           const result = await invokeDesktopPluginWorker(currentPlugin.manifest.id, params.method, params.payload)
+          await refreshWorkerStatus()
           postBridgeResponse(frameOrigin, request.id, true, {
             ok: true,
+            result,
+          })
+          appendRpcCall({
+            method: `${request.method}:${params.method}`,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: params.payload,
             result,
           })
           return
@@ -268,6 +409,12 @@ export default function DesktopPluginPage() {
             title: params?.title?.trim() || currentPlugin.manifest.name,
             description: params?.description?.trim() || "",
           })
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: request.params,
+          })
           return
         }
 
@@ -280,6 +427,13 @@ export default function DesktopPluginPage() {
             true,
             getPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key)
           )
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: request.params,
+            result: getPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key),
+          })
           return
         }
 
@@ -288,6 +442,12 @@ export default function DesktopPluginPage() {
           const key = normalizeStorageKey(params?.key)
           setPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key, params?.value)
           postBridgeResponse(frameOrigin, request.id, true)
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: request.params,
+          })
           return
         }
 
@@ -296,17 +456,35 @@ export default function DesktopPluginPage() {
           const key = normalizeStorageKey(params?.key)
           removePluginStorageValue(window.localStorage, currentPlugin.manifest.id, key)
           postBridgeResponse(frameOrigin, request.id, true)
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: request.params,
+          })
           return
         }
 
         if (request.method === "storage.keys") {
-          postBridgeResponse(frameOrigin, request.id, true, listPluginStorageKeys(window.localStorage, currentPlugin.manifest.id))
+          const keys = listPluginStorageKeys(window.localStorage, currentPlugin.manifest.id)
+          postBridgeResponse(frameOrigin, request.id, true, keys)
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            result: keys,
+          })
           return
         }
 
         if (request.method === "storage.clear") {
           clearPluginStorage(window.localStorage, currentPlugin.manifest.id)
           postBridgeResponse(frameOrigin, request.id, true)
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+          })
           return
         }
 
@@ -326,11 +504,25 @@ export default function DesktopPluginPage() {
             metadataJson: params?.metadata ? JSON.stringify(params.metadata) : undefined,
           })
           postBridgeResponse(frameOrigin, request.id, true)
+          appendRpcCall({
+            method: request.method,
+            status: "ok",
+            durationMs: Math.round(performance.now() - startedAt),
+            payload: request.params,
+          })
           return
         }
 
         throw new Error(`未知插件 Host API: ${request.method}`)
       } catch (err) {
+        appendRpcCall({
+          method: request.method,
+          status: "error",
+          durationMs: 0,
+          payload: request.params,
+          errorMessage: err instanceof Error ? err.message : "插件 Host API 调用失败",
+        })
+        appendLog("error", err instanceof Error ? err.message : "插件 Host API 调用失败")
         postBridgeResponse(
           frameOrigin,
           request.id,
@@ -343,7 +535,7 @@ export default function DesktopPluginPage() {
 
     window.addEventListener("message", handleBridgeMessage)
     return () => window.removeEventListener("message", handleBridgeMessage)
-  }, [hostOrigin, plugin, postBridgeResponse])
+  }, [appendLog, appendRpcCall, hostOrigin, plugin, postBridgeResponse, refreshWorkerStatus])
 
   if (!desktopEnabled) {
     return (
@@ -396,13 +588,47 @@ export default function DesktopPluginPage() {
   const frameSandbox = isPluginFrameOriginIsolated(frameUrl, hostOrigin)
     ? "allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
     : "allow-forms allow-modals allow-popups allow-scripts"
+  const storageKeys = listPluginStorageKeys(window.localStorage, plugin.manifest.id)
+  const storageEntries: PluginStorageEntry[] = storageKeys.map((key) => ({
+    key,
+    value: getPluginStorageValue(window.localStorage, plugin.manifest.id, key),
+  }))
+  const diagnostics: PluginDiagnosticItem[] = [
+    {
+      label: "Plugin Route",
+      value: plugin.route,
+    },
+    {
+      label: "Frame Origin Isolation",
+      value: isPluginFrameOriginIsolated(frameUrl, hostOrigin) ? "isolated" : "shared-origin",
+      tone: isPluginFrameOriginIsolated(frameUrl, hostOrigin) ? "default" : "warning",
+    },
+    {
+      label: "Frame Height",
+      value: `${frameHeight}px`,
+    },
+    {
+      label: "Host Origin",
+      value: hostOrigin,
+    },
+  ]
 
   return (
-    <div className="min-h-0">
+    <div className="min-h-0 space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <PageHeader title={plugin.manifest.name} />
+        {isV2Plugin ? (
+          <Button variant="outline" size="sm" onClick={() => setShowDevtools((previous) => !previous)}>
+            {showDevtools ? "隐藏 Devtools" : "显示 Devtools"}
+          </Button>
+        ) : null}
+      </div>
+
       <iframe
         ref={iframeRef}
         title={plugin.manifest.name}
         src={frameUrl}
+        onLoad={() => appendLog("info", "插件 iframe 已加载")}
         allow="microphone; fullscreen"
         allowFullScreen
         sandbox={frameSandbox}
@@ -410,6 +636,22 @@ export default function DesktopPluginPage() {
         className="block w-full border-0 bg-transparent"
         style={{ height: `${frameHeight}px` }}
       />
+
+      {isV2Plugin && showDevtools ? (
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <PluginDevtoolsPanel
+              manifest={plugin.manifest}
+              permissions={plugin.manifest.permissions}
+              rpcCalls={rpcCalls}
+              workerStatus={workerStatus}
+              logs={devLogs}
+              storage={storageEntries}
+              diagnostics={diagnostics}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }

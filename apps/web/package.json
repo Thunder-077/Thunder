@@ -21,6 +21,7 @@
     "@tauri-apps/api": "^2.11.0",
     "@thunder/api-client": "workspace:*",
     "@thunder/core": "workspace:*",
+    "@thunder/plugin-devtools": "workspace:*",
     "@thunder/plugin-sdk": "workspace:*",
     "@thunder/teleprompter-core": "workspace:*",
     "@thunder/emby": "workspace:*",

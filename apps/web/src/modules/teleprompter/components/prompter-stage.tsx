@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type Key
 import { Check, Maximize2, Minimize2, PencilLine, Pause, Play, RotateCcw, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { TeleprompterDocumentEditor } from "../../../../../../packages/teleprompter-ui/src/index"
 import type { ScriptSegment } from "../utils/script-segmenter"
 import { getSegmentTextStartOffset } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
@@ -225,16 +226,15 @@ export function PrompterStage({
         )}
       >
         {segments.length === 0 || isEditingScript ? (
-          <div className="mx-auto flex min-h-full w-full max-w-5xl items-center justify-center">
-            <textarea
-              value={scriptDraft}
-              onChange={(event) => onDraftScriptChange(event.target.value)}
-              onBlur={onDraftScriptCommit}
-              onKeyDown={handleDraftKeyDown}
-              placeholder="点击这里输入或粘贴提词稿。"
-              className="min-h-[60vh] w-full resize-none border-0 bg-transparent text-center text-lg font-medium leading-9 text-slate-200 outline-none placeholder:text-slate-500"
-            />
-          </div>
+          <TeleprompterDocumentEditor
+            value={scriptDraft}
+            onChange={onDraftScriptChange}
+            onBlur={onDraftScriptCommit}
+            onKeyDown={handleDraftKeyDown}
+            placeholder="点击这里输入或粘贴提词稿。"
+            wrapperClassName="mx-auto flex min-h-full w-full max-w-5xl items-center justify-center"
+            textareaClassName="min-h-[60vh] w-full resize-none border-0 bg-transparent text-center text-lg font-medium leading-9 text-slate-200 outline-none placeholder:text-slate-500"
+          />
         ) : (
           <div
             className="mx-auto flex w-full max-w-5xl flex-col justify-start font-serif tracking-wide"

@@ -10,6 +10,31 @@
 
 Web 端不加载运行时插件。Web 端只使用构建期可用模块。
 
+## CLI 工作流
+
+`packages/plugin-cli` 现在提供基础的 v2 开发者链路：
+
+```bash
+pnpm --dir packages/plugin-cli exec tsx src/index.ts create my-plugin
+pnpm --dir packages/plugin-cli exec tsx src/index.ts build /abs/path/to/my-plugin
+pnpm --dir packages/plugin-cli exec tsx src/index.ts pack /abs/path/to/my-plugin
+```
+
+当前行为：
+
+- `create`: 生成 `trusted-app` 模板，包含 `plugin.json`、`src/index.tsx`、`src/worker.ts`
+- `build`: 校验 manifest v2，构建 `dist/index.html`、`dist/index.js`、`dist/worker.js`
+- `pack`: 先构建，再输出 `artifacts/{id}-{version}.tar.gz`
+- `dev`: 会先构建，再自动复用或拉起 `pnpm dev:desktop`，把当前插件安装到本地开发宿主并启动 trusted runtime；同时自动打开 `?devtools=1` 插件页面，并忽略 `dist/` 产物变更带来的无效重装
+
+当前 `dev` 仍有边界：
+
+- 它还没有自动打开页面或自动切换到独立 Devtools 窗口
+- 构建变更后的插件同步目前走重新安装 + runtime 启动，不是更细粒度的 worker supervisor 热替换
+- Devtools 现阶段内嵌在插件详情页里，覆盖 manifest、permissions、RPC、worker status、logs、storage、diagnostics
+
+这一套链路当前面向 monorepo 内部开发验证，依赖 workspace 里的公开包源码解析；真正的外部 npm 分发还没完成。
+
 ## 最小目录结构
 
 Thunder 当前支持两种桌面插件开发模式：
@@ -109,7 +134,14 @@ v2 示例：
     "name": "Thunder"
   },
   "icon": "ScrollText",
-  "permissions": ["storage", "notifications", "activity", "native-runtime"],
+  "permissions": [
+    "storage",
+    "notifications",
+    "activity",
+    "microphone",
+    "native-runtime",
+    "filesystem:plugin-data"
+  ],
   "contributes": {
     "sidebar": {
       "title": "提词器",
@@ -357,6 +389,14 @@ POST /api/v1/desktop/plugins/v2/install/local
 ```
 
 当前仓库内的示例包见 `plugins-v2/teleprompter`。
+
+它现在除了最小的 `definePlugin()` / `defineWorker()` 结构外，还覆盖了：
+
+- 插件私有文稿持久化
+- shared teleprompter core / UI 抽取后的复用
+- trusted worker 下的 Sherpa 模型列表、下载、激活
+- 插件侧麦克风 PCM -> trusted worker -> Desktop speech bridge 的本地链路
+- `apps/api/src/plugins/plugin-v2-e2e.test.ts` 中的安装、UI 资源读取、runtime 启停和 `worker.invoke` 验证
 
 ## 打包与签名
 

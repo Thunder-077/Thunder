@@ -12,7 +12,14 @@
     "name": "Thunder"
   },
   "icon": "ScrollText",
-  "permissions": ["storage", "notifications", "activity", "native-runtime"],
+  "permissions": [
+    "storage",
+    "notifications",
+    "activity",
+    "microphone",
+    "native-runtime",
+    "filesystem:plugin-data"
+  ],
   "contributes": {
     "sidebar": {
       "title": "提词器",

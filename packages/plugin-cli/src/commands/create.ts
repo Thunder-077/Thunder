@@ -42,7 +42,10 @@ function createTrustedAppTemplate(pluginName: string): GeneratedPluginFiles {
   return {
     "plugin.json": replaceTemplateTokens(readTemplateFile("trusted-app", "plugin.json"), pluginName),
     "package.json": replaceTemplateTokens(readTemplateFile("trusted-app", "package.json"), pluginName),
-    "src/index.tsx": readTemplateFile("trusted-app", "src", "index.tsx"),
+    "src/index.tsx": replaceTemplateTokens(
+      readTemplateFile("trusted-app", "src", "index.tsx"),
+      pluginName,
+    ),
     "src/worker.ts": readTemplateFile("trusted-app", "src", "worker.ts"),
   }
 }
