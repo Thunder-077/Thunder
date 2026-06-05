@@ -3,6 +3,10 @@ export type {
   ThunderPluginPermission as DesktopPluginPermission,
   ThunderPluginManifest as DesktopPluginManifest,
 } from "@thunder/plugin-sdk"
+export type {
+  ThunderPluginManifestV2 as DesktopPluginManifestV2,
+  ThunderPluginPermission as DesktopPluginPermissionV2,
+} from "@thunder/plugin-schema"
 
 export interface DesktopPluginInstallRecord {
   id: string
@@ -25,6 +29,14 @@ export interface InstalledDesktopPlugin {
   record: DesktopPluginInstallRecord
   route: string
   webEntryUrl: string
+  installed: true
+}
+
+export interface InstalledDesktopPluginV2 {
+  manifest: import("@thunder/plugin-schema").ThunderPluginManifestV2
+  pluginRoot: string
+  route: string
+  uiEntryUrl: string | null
   installed: true
 }
 

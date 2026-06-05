@@ -26,6 +26,9 @@ importers:
       '@thunder/emby':
         specifier: workspace:*
         version: link:../../modules/emby
+      '@thunder/plugin-schema':
+        specifier: workspace:*
+        version: link:../../packages/plugin-schema
       '@thunder/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
@@ -315,6 +318,22 @@ importers:
         specifier: ^2.9.0
         version: 2.10.1
     devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/plugin-host-runtime:
+    dependencies:
+      '@thunder/plugin-schema':
+        specifier: workspace:*
+        version: link:../plugin-schema
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
       typescript:
         specifier: ^5
         version: 5.9.3

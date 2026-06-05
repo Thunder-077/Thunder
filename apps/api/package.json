@@ -17,9 +17,10 @@
   "dependencies": {
     "@hono/node-server": "^1.14.1",
     "@thunder/contracts": "workspace:*",
-    "@thunder/plugin-sdk": "workspace:*",
     "@thunder/database": "workspace:*",
     "@thunder/emby": "workspace:*",
+    "@thunder/plugin-schema": "workspace:*",
+    "@thunder/plugin-sdk": "workspace:*",
     "@thunder/vault": "workspace:*",
     "dotenv": "^17.4.2",
     "hono": "^4.7.9",

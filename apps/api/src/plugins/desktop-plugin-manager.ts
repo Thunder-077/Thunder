@@ -14,11 +14,13 @@ import type {
   DesktopPluginMigrationRecord,
   DesktopPluginInstallRecord,
   DesktopPluginManifest,
+  DesktopPluginManifestV2,
   DesktopPluginMarketplaceIndex,
   DesktopPluginNetworkProxyRequest,
   DesktopPluginNetworkProxyResponse,
   DesktopPluginRuntimeStatus,
   InstalledDesktopPlugin,
+  InstalledDesktopPluginV2,
 } from "./desktop-plugin-types"
 import { recordActivity } from "../modules/activity/activity-service"
 
@@ -455,6 +457,21 @@ function toInstalledPlugin(
     record,
     route: `/plugins/${manifest.id}`,
     webEntryUrl: `/api/v1/desktop/plugins/${manifest.id}/web/${manifest.web.entry}?v=${encodeURIComponent(cacheKey)}`,
+    installed: true,
+  }
+}
+
+export function toInstalledPluginV2(
+  manifest: DesktopPluginManifestV2,
+  pluginRoot: string
+): InstalledDesktopPluginV2 {
+  const sidebarEntry = manifest.contributes?.sidebar?.entry ?? null
+
+  return {
+    manifest,
+    pluginRoot,
+    route: `/plugins/${manifest.id}`,
+    uiEntryUrl: sidebarEntry ? `/api/v1/desktop/plugins/${manifest.id}/ui/${sidebarEntry}` : null,
     installed: true,
   }
 }
