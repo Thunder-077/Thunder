@@ -18,10 +18,6 @@ type FollowStatusPanelProps = {
   isMicActive: boolean
   speechProvider: SpeechProvider
   speechSupported: boolean
-  isOnScript: boolean
-  confidence: number
-  displayTranscript: string
-  visibleMessage: string | null
   fontSize: number
   lineHeight: number
   enablePrediction: boolean
@@ -54,10 +50,6 @@ export function FollowStatusPanel({
   isMicActive,
   speechProvider,
   speechSupported,
-  isOnScript,
-  confidence,
-  displayTranscript,
-  visibleMessage,
   fontSize,
   lineHeight,
   enablePrediction,
@@ -165,52 +157,6 @@ export function FollowStatusPanel({
               </Button>
             )}
           />
-        </CardContent>
-      </Card>
-
-      <Card size="sm">
-        <CardContent className="space-y-2 p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-1 text-sm font-semibold text-foreground">
-              识别文本 <span className="text-xs font-normal text-muted-foreground/60">(实时)</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                状态
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    "h-5 px-2 text-[10px]",
-                    (visibleStatus === "following" || visibleStatus === "listening")
-                      ? "bg-primary/10 text-primary border-primary/20"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {statusLabels[visibleStatus]}
-                </Badge>
-              </span>
-              <span>置信度 <span className="font-semibold text-foreground">{Math.round(confidence * 100)}%</span></span>
-              <span className={cn("font-medium", isOnScript ? "text-success" : "text-muted-foreground")}>
-                {isOnScript ? "已匹配" : "等待匹配"}
-              </span>
-            </div>
-          </div>
-
-          <div className="min-h-[4.5rem] rounded-xl border border-border/40 bg-background/40 px-3 py-2 text-xs leading-normal">
-            <div className="max-h-28 overflow-y-auto select-text">
-              {displayTranscript ? (
-                <p className="text-foreground transition-all duration-300">{displayTranscript}</p>
-              ) : (
-                <p className="text-muted-foreground/50 italic">等待语音输入...</p>
-              )}
-            </div>
-          </div>
-
-          {visibleMessage && (
-            <div className="rounded-lg border border-warning/35 bg-warning/10 px-3 py-1.5 text-[11px] text-warning-foreground animate-pulse">
-              {visibleMessage}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

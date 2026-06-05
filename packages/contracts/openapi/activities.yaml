@@ -1,0 +1,105 @@
+openapi: 3.0.3
+info:
+  title: Thunder Activity API
+  version: 0.1.0
+paths:
+  /api/v1/activities:
+    get:
+      summary: List activities
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: module
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Activity list
+    post:
+      summary: Record an activity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordActivityRequest"
+      responses:
+        "201":
+          description: Activity recorded
+        "400":
+          description: Invalid request
+    delete:
+      summary: Clear all activities
+      responses:
+        "200":
+          description: Activities cleared
+  /api/v1/activities/{id}:
+    delete:
+      summary: Delete a single activity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Activity deleted
+        "404":
+          description: Activity not found
+
+components:
+  schemas:
+    ActivityRecord:
+      type: object
+      required:
+        - id
+        - module
+        - action
+        - title
+        - createdAt
+      properties:
+        id:
+          type: string
+        module:
+          type: string
+        action:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        metadataJson:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    RecordActivityRequest:
+      type: object
+      required:
+        - module
+        - action
+        - title
+      properties:
+        module:
+          type: string
+        action:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        metadataJson:
+          type: string

@@ -24,11 +24,6 @@ vault.put("/metadata", async (c) => {
   try {
     const body = await c.req.json<{ metadata: VaultMetadata }>()
     await repository.saveMetadata(body.metadata)
-    try {
-      await recordActivity({ module: "vault", action: "item.created", title: "创建了密码条目" })
-    } catch (e) {
-      console.error("[vault-api] recordActivity failed", e)
-    }
     return c.json(apiSuccess(null))
   } catch (error) {
     console.error("[vault-api] PUT /metadata failed", error)

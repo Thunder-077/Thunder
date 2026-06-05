@@ -5,7 +5,9 @@ import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { ModuleCard } from "@/components/module-card"
 import { ActivityList } from "@/components/activity-list"
+import { useDesktopPlugins } from "@/hooks/use-desktop-plugins"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
+import { buildQuickAccessModules } from "@/lib/quick-access-modules"
 import { Button } from "@/components/ui/button"
 
 const rainbowQuotes = [
@@ -68,7 +70,8 @@ function RainbowQuote() {
 
 export default function DashboardPage() {
   const registry = useModuleRegistry()
-  const modules = registry.getEnabled()
+  const desktopPlugins = useDesktopPlugins()
+  const modules = buildQuickAccessModules(registry.getEnabled(), desktopPlugins.plugins)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -191,8 +194,16 @@ export default function DashboardPage() {
 
       {/* 最近活动 */}
       <section className="min-h-0 flex-1">
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">最近活动</h2>
-        <ActivityList />
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-foreground">最近活动</h2>
+          <Link href="/activities">
+            <Button variant="ghost" size="sm" className="gap-1 text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300">
+              查看全部
+              <ArrowRight className="h-3 w-3" />
+            </Button>
+          </Link>
+        </div>
+        <ActivityList limit={5} />
       </section>
     </div>
   )

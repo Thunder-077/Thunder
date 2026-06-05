@@ -76,7 +76,7 @@ export function AutoScrollSettingsDialog({
   return (
     <Dialog>
       <DialogTrigger render={trigger} />
-      <DialogContent className="max-w-[720px] gap-0 overflow-hidden p-0 sm:max-w-[720px] bg-background" hideClose>
+      <DialogContent className="max-w-[720px] gap-0 overflow-hidden p-0 sm:max-w-[720px] bg-background">
         <DialogHeader className="gap-3 border-b border-border/70 bg-background/95 px-6 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-muted/40">

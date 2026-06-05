@@ -1526,15 +1526,21 @@ pub fn run() {
             if webview.label() != MAIN_WINDOW_LABEL {
                 return;
             }
-            if !matches!(payload.event, tauri::PageLoadEvent::Started) {
+            if !matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
                 return;
             }
             #[cfg(any(target_os = "windows", target_os = "macos"))]
             {
                 use tauri_plugin_decorum::WebviewWindowExt;
-                let _ = webview.create_overlay_titlebar();
-                #[cfg(target_os = "macos")]
-                let _ = webview.set_traffic_lights_inset(12.0, 16.0);
+                if let Some(window) = webview
+                    .window()
+                    .app_handle()
+                    .get_webview_window(webview.label())
+                {
+                    let _ = window.create_overlay_titlebar();
+                    #[cfg(target_os = "macos")]
+                    let _ = window.set_traffic_lights_inset(12.0, 16.0);
+                }
             }
         });
 

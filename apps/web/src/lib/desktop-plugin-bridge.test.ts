@@ -3,6 +3,7 @@ import {
   clearPluginStorage,
   createIsolatedPluginFrameUrl,
   ensurePluginPermission,
+  getRequiredPluginPermissionForBridgeMethod,
   getPluginStorageValue,
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
@@ -87,6 +88,11 @@ function main() {
 
   ensurePluginPermission(["webview", "plugin-storage"], "plugin-storage")
   rejects(() => ensurePluginPermission(["webview"], "plugin-storage"), "permission check must reject missing permission")
+  assert.equal(getRequiredPluginPermissionForBridgeMethod("plugin.getManifest"), null)
+  assert.equal(getRequiredPluginPermissionForBridgeMethod("runtime.request"), "local-api-proxy")
+  assert.equal(getRequiredPluginPermissionForBridgeMethod("network.request"), "network-proxy")
+  assert.equal(getRequiredPluginPermissionForBridgeMethod("storage.get"), "plugin-storage")
+  assert.equal(getRequiredPluginPermissionForBridgeMethod("activity.track"), "local-api-proxy")
 
   const localhostFrameUrl = createIsolatedPluginFrameUrl(
     "/api/v1/desktop/plugins/teleprompter/web/web/index.html",

@@ -18,12 +18,14 @@ import { useSpeechRecognition } from "../hooks/use-speech-recognition"
 import { createFollowEngine } from "../utils/follow-engine"
 import type { FollowStatus } from "../utils/follow-state-machine"
 import { segmentScript } from "../utils/script-segmenter"
+import { shouldShowTeleprompterExperimentalInsights } from "../utils/teleprompter-env"
 import {
   readTeleprompterStorage,
   writeTeleprompterStorage,
 } from "../utils/teleprompter-storage"
 import type { SpeechProvider } from "../transcribers"
 import { AutoScrollPanel, type AutoScrollPanelHandle, type AutoScrollViewOptions } from "./auto-scroll-panel"
+import { AsrDebugOverlay } from "./asr-debug-overlay"
 import { FollowStatusPanel } from "./follow-status-panel"
 import { PrompterStage } from "./prompter-stage"
 
@@ -31,6 +33,9 @@ type TeleprompterMode = "follow-read" | "auto-scroll"
 
 const READING_ANCHOR_RATIO = 1 / 3
 const TOP_EDGE_ANCHOR_BUFFER = 24
+// Keep the stage visually dominant while still reserving space for the header and controls.
+const TELEPROMPTER_PAGE_MIN_HEIGHT = "42rem"
+const TELEPROMPTER_PAGE_HEIGHT = "calc(100dvh - var(--desktop-titlebar-height, 38px) - 4rem)"
 
 function getDynamicReadingAnchorTop(viewport: HTMLElement) {
   const stableAnchorTop = viewport.clientHeight * READING_ANCHOR_RATIO
@@ -71,6 +76,8 @@ function getIncrementalAlignmentText(text: string, previousRecognitionText: stri
 }
 
 export function TeleprompterPage() {
+  const showExperimentalInsights = shouldShowTeleprompterExperimentalInsights()
+
   const [mode, setMode] = useState<TeleprompterMode>("follow-read")
   const [script, setScript] = useState("")
   const [scriptDraft, setScriptDraft] = useState("")
@@ -777,7 +784,10 @@ export function TeleprompterPage() {
   return (
     <div
       className="flex flex-col gap-4"
-      style={{ height: "calc(100dvh - var(--desktop-titlebar-height, 38px) - 8rem)" }}
+      style={{
+        minHeight: TELEPROMPTER_PAGE_MIN_HEIGHT,
+        height: TELEPROMPTER_PAGE_HEIGHT,
+      }}
     >
       <PageHeader title="提词器" />
 
@@ -828,10 +838,6 @@ export function TeleprompterPage() {
             isMicActive={isMicActive}
             speechProvider={speechProvider}
             speechSupported={speech.isSupported}
-            isOnScript={isOnScript}
-            confidence={confidence}
-            displayTranscript={displayTranscript}
-            visibleMessage={visibleMessage}
             fontSize={fontSize}
             lineHeight={lineHeight}
             enablePrediction={enablePrediction}
@@ -916,6 +922,17 @@ export function TeleprompterPage() {
           onAutoScrollReset={() => autoScrollPanelRef.current?.reset()}
         />
       </div>
+
+      {showExperimentalInsights && mode === "follow-read" && (
+        <AsrDebugOverlay
+          visibleStatus={visibleStatus}
+          speechSupported={speech.isSupported}
+          isOnScript={isOnScript}
+          confidence={confidence}
+          displayTranscript={displayTranscript}
+          visibleMessage={visibleMessage}
+        />
+      )}
     </div>
   )
 }

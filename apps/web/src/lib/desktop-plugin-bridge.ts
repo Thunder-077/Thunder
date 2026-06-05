@@ -39,10 +39,25 @@ export type StorageRequestParams = {
 
 type PluginStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">
 
+const BRIDGE_METHOD_PERMISSIONS: Partial<Record<string, DesktopPluginPermission>> = {
+  "runtime.request": "local-api-proxy",
+  "network.request": "network-proxy",
+  "storage.get": "plugin-storage",
+  "storage.set": "plugin-storage",
+  "storage.remove": "plugin-storage",
+  "storage.keys": "plugin-storage",
+  "storage.clear": "plugin-storage",
+  "activity.track": "local-api-proxy",
+}
+
 export function ensurePluginPermission(permissions: DesktopPluginPermission[], permission: DesktopPluginPermission): void {
   if (!permissions.includes(permission)) {
     throw new Error(`插件未声明 ${permission} 权限`)
   }
+}
+
+export function getRequiredPluginPermissionForBridgeMethod(method: string): DesktopPluginPermission | null {
+  return BRIDGE_METHOD_PERMISSIONS[method] ?? null
 }
 
 function getIsolatedLoopbackHostname(hostname: string): string | null {

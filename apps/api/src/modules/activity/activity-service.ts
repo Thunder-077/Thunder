@@ -1,5 +1,7 @@
 import { prisma } from "@thunder/database"
 
+export const MAX_ACTIVITY_LOGS = 200
+
 export interface RecordActivityParams {
   module: string
   action: string
@@ -32,6 +34,17 @@ function generateId(): string {
   return crypto.randomUUID()
 }
 
+export function getOverflowActivityIds(
+  records: Array<Pick<ActivityLogRecord, "id">>,
+  maxActivityLogs = MAX_ACTIVITY_LOGS
+): string[] {
+  if (records.length <= maxActivityLogs) {
+    return []
+  }
+
+  return records.slice(maxActivityLogs).map((record) => record.id)
+}
+
 export async function recordActivity(params: RecordActivityParams): Promise<ActivityLogRecord> {
   const id = generateId()
   const createdAt = now()
@@ -46,6 +59,24 @@ export async function recordActivity(params: RecordActivityParams): Promise<Acti
       createdAt,
     },
   })
+
+  // Keep recent activity bounded so the dashboard remains lightweight
+  // and the desktop SQLite database does not grow without limit.
+  const overflowRecords = await prisma.activityLog.findMany({
+    select: { id: true },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  })
+  const overflowIds = getOverflowActivityIds(overflowRecords)
+  if (overflowIds.length > 0) {
+    await prisma.activityLog.deleteMany({
+      where: {
+        id: {
+          in: overflowIds,
+        },
+      },
+    })
+  }
+
   return { id, module: params.module, action: params.action, title: params.title, description: params.description ?? null, metadataJson: params.metadataJson ?? null, createdAt }
 }
 

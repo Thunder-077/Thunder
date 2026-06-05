@@ -13,6 +13,7 @@ import {
   clearPluginStorage,
   createIsolatedPluginFrameUrl,
   ensurePluginPermission,
+  getRequiredPluginPermissionForBridgeMethod,
   getPluginStorageValue,
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
@@ -137,6 +138,11 @@ export default function DesktopPluginPage() {
       }
 
       try {
+        const requiredPermission = getRequiredPluginPermissionForBridgeMethod(request.method)
+        if (requiredPermission) {
+          ensurePluginPermission(currentPlugin.manifest.permissions, requiredPermission)
+        }
+
         if (request.method === "plugin.getManifest") {
           postBridgeResponse(frameOrigin, request.id, true, currentPlugin.manifest)
           return
@@ -149,8 +155,6 @@ export default function DesktopPluginPage() {
         }
 
         if (request.method === "runtime.request") {
-          ensurePluginPermission(currentPlugin.manifest.permissions, "local-api-proxy")
-
           const params = request.params as RuntimeRequestParams | null
           const rawPath = normalizeRuntimeRequestPath(params?.path)
           const method = normalizeRuntimeRequestMethod(params?.method)
@@ -192,7 +196,6 @@ export default function DesktopPluginPage() {
         }
 
         if (request.method === "network.request") {
-          ensurePluginPermission(currentPlugin.manifest.permissions, "network-proxy")
           const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(currentPlugin.manifest.id)}/network`, {
             method: "POST",
             headers: {
@@ -229,7 +232,6 @@ export default function DesktopPluginPage() {
         }
 
         if (request.method === "storage.get") {
-          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
           const params = request.params as StorageRequestParams | null
           const key = normalizeStorageKey(params?.key)
           postBridgeResponse(
@@ -242,7 +244,6 @@ export default function DesktopPluginPage() {
         }
 
         if (request.method === "storage.set") {
-          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
           const params = request.params as StorageRequestParams | null
           const key = normalizeStorageKey(params?.key)
           setPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key, params?.value)
@@ -251,7 +252,6 @@ export default function DesktopPluginPage() {
         }
 
         if (request.method === "storage.remove") {
-          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
           const params = request.params as StorageRequestParams | null
           const key = normalizeStorageKey(params?.key)
           removePluginStorageValue(window.localStorage, currentPlugin.manifest.id, key)
@@ -260,13 +260,11 @@ export default function DesktopPluginPage() {
         }
 
         if (request.method === "storage.keys") {
-          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
           postBridgeResponse(frameOrigin, request.id, true, listPluginStorageKeys(window.localStorage, currentPlugin.manifest.id))
           return
         }
 
         if (request.method === "storage.clear") {
-          ensurePluginPermission(currentPlugin.manifest.permissions, "plugin-storage")
           clearPluginStorage(window.localStorage, currentPlugin.manifest.id)
           postBridgeResponse(frameOrigin, request.id, true)
           return
