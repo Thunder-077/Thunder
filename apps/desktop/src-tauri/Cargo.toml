@@ -1,6 +1,6 @@
 [package]
 name = "thunder-desktop"
-version = "0.1.0"
+version = "0.1.1"
 description = "Thunder desktop shell"
 authors = ["Thunder"]
 edition = "2021"
