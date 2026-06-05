@@ -22,6 +22,7 @@ import type {
   InstalledDesktopPlugin,
   InstalledDesktopPluginV2,
 } from "./desktop-plugin-types"
+import { parseThunderPluginManifest } from "@thunder/plugin-schema"
 import { recordActivity } from "../modules/activity/activity-service"
 
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
@@ -390,6 +391,36 @@ async function readManifest(pluginRoot: string): Promise<DesktopPluginManifest> 
   return manifest
 }
 
+async function readManifestVersion(pluginRoot: string): Promise<number> {
+  const manifest = await readJsonFile<{ manifestVersion?: unknown }>(join(pluginRoot, "plugin.json"))
+  return typeof manifest.manifestVersion === "number" ? manifest.manifestVersion : 0
+}
+
+async function readManifestV2(pluginRoot: string): Promise<DesktopPluginManifestV2> {
+  const manifest = parseThunderPluginManifest(await readJsonFile(join(pluginRoot, "plugin.json")))
+
+  const sidebarEntry = manifest.contributes?.sidebar?.entry
+  if (sidebarEntry) {
+    assertRelativeAssetPath(sidebarEntry, "插件 contributes.sidebar.entry")
+    const uiEntryPath = resolve(pluginRoot, sidebarEntry)
+    await assertPathInside(pluginRoot, uiEntryPath)
+    if (!(await pathExists(uiEntryPath))) {
+      throw new DesktopPluginError("插件 contributes.sidebar.entry 指向的文件不存在")
+    }
+  }
+
+  if (manifest.runtime?.entry) {
+    assertRelativeAssetPath(manifest.runtime.entry, "插件 runtime.entry")
+    const runtimeEntryPath = resolve(pluginRoot, manifest.runtime.entry)
+    await assertPathInside(pluginRoot, runtimeEntryPath)
+    if (!(await pathExists(runtimeEntryPath))) {
+      throw new DesktopPluginError("插件 runtime.entry 指向的文件不存在")
+    }
+  }
+
+  return manifest
+}
+
 async function assertPathInside(root: string, target: string): Promise<void> {
   const normalizedRoot = resolve(root)
   const normalizedTarget = resolve(target)
@@ -463,7 +494,9 @@ function toInstalledPlugin(
 
 export function toInstalledPluginV2(
   manifest: DesktopPluginManifestV2,
-  pluginRoot: string
+  pluginRoot: string,
+  installedAt?: string,
+  updatedAt?: string,
 ): InstalledDesktopPluginV2 {
   const sidebarEntry = manifest.contributes?.sidebar?.entry ?? null
 
@@ -472,6 +505,8 @@ export function toInstalledPluginV2(
     pluginRoot,
     route: `/plugins/${manifest.id}`,
     uiEntryUrl: sidebarEntry ? `/api/v1/desktop/plugins/${manifest.id}/ui/${sidebarEntry}` : null,
+    installedAt,
+    updatedAt,
     installed: true,
   }
 }
@@ -498,6 +533,49 @@ export async function listInstalledDesktopPlugins(): Promise<InstalledDesktopPlu
   return plugins.sort((a, b) => (a.manifest.order ?? 1000) - (b.manifest.order ?? 1000))
 }
 
+export async function listInstalledDesktopPluginsV2(): Promise<InstalledDesktopPluginV2[]> {
+  if (!isDesktopPluginRuntimeEnabled()) return []
+  await ensureDirs()
+  const { pluginsDir } = getPluginDirs()
+  const entries = await readdir(pluginsDir, { withFileTypes: true }).catch(() => [])
+  const plugins: InstalledDesktopPluginV2[] = []
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const pluginRoot = join(pluginsDir, entry.name)
+    try {
+      if ((await readManifestVersion(pluginRoot)) !== 2) {
+        continue
+      }
+
+      const manifest = await readManifestV2(pluginRoot)
+      const installRecord = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json")).catch(() => null)
+
+      plugins.push(
+        toInstalledPluginV2(
+          manifest,
+          pluginRoot,
+          installRecord?.installedAt,
+          installRecord?.updatedAt,
+        ),
+      )
+    } catch (error) {
+      console.warn("[desktop-plugins] ignored invalid v2 plugin", entry.name, error)
+    }
+  }
+
+  return plugins.sort((a, b) => a.manifest.name.localeCompare(b.manifest.name))
+}
+
+export async function listInstalledDesktopPluginRecords(): Promise<Array<InstalledDesktopPlugin | InstalledDesktopPluginV2>> {
+  const [legacyPlugins, v2Plugins] = await Promise.all([
+    listInstalledDesktopPlugins(),
+    listInstalledDesktopPluginsV2(),
+  ])
+
+  return [...legacyPlugins, ...v2Plugins].sort((left, right) => left.manifest.name.localeCompare(right.manifest.name))
+}
+
 export async function getInstalledDesktopPlugin(id: string): Promise<InstalledDesktopPlugin> {
   assertPluginId(id)
   if (!isDesktopPluginRuntimeEnabled()) {
@@ -513,6 +591,37 @@ export async function getInstalledDesktopPlugin(id: string): Promise<InstalledDe
   } catch {
     throw new DesktopPluginError("插件未安装", 404)
   }
+}
+
+export async function getInstalledDesktopPluginRecord(
+  id: string,
+): Promise<InstalledDesktopPlugin | InstalledDesktopPluginV2> {
+  assertPluginId(id)
+  if (!isDesktopPluginRuntimeEnabled()) {
+    throw new DesktopPluginError("插件未安装", 404)
+  }
+
+  await ensureDirs()
+  const { pluginsDir } = getPluginDirs()
+  const pluginRoot = join(pluginsDir, id)
+  const manifestVersion = await readManifestVersion(pluginRoot).catch(() => 0)
+
+  if (manifestVersion === 2) {
+    try {
+      const manifest = await readManifestV2(pluginRoot)
+      const installRecord = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json")).catch(() => null)
+      return toInstalledPluginV2(
+        manifest,
+        pluginRoot,
+        installRecord?.installedAt,
+        installRecord?.updatedAt,
+      )
+    } catch {
+      throw new DesktopPluginError("插件未安装", 404)
+    }
+  }
+
+  return getInstalledDesktopPlugin(id)
 }
 
 async function installLocalDesktopPluginInternal(
@@ -715,6 +824,42 @@ export async function readDesktopPluginAsset(id: string, assetPathParts: string[
     contentType,
     contentSecurityPolicy:
       plugin.manifest.web.contentSecurityPolicy ??
+      "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'",
+  }
+}
+
+export async function readDesktopPluginUiAsset(id: string, assetPathParts: string[]): Promise<StaticPluginAsset> {
+  const plugin = await getInstalledDesktopPluginRecord(id)
+  if (!("uiEntryUrl" in plugin)) {
+    throw new DesktopPluginError("插件未声明 v2 UI 入口", 404)
+  }
+
+  const sidebarEntry = plugin.manifest.contributes?.sidebar?.entry
+  if (!sidebarEntry) {
+    throw new DesktopPluginError("插件未声明 v2 UI 入口", 404)
+  }
+
+  const { pluginsDir } = getPluginDirs()
+  const pluginRoot = join(pluginsDir, id)
+  const requestedAsset = assetPathParts.join("/")
+  const resolvedAssetPath = resolve(pluginRoot, requestedAsset)
+  await assertPathInside(pluginRoot, resolvedAssetPath)
+
+  const sidebarRoot = dirname(resolve(pluginRoot, sidebarEntry))
+  if (!isPathInside(resolvedAssetPath, sidebarRoot) && resolvedAssetPath !== resolve(pluginRoot, sidebarEntry)) {
+    throw new DesktopPluginError("插件 UI 资源路径越界", 403)
+  }
+
+  const bytes = await readFile(resolvedAssetPath).catch(() => null)
+  if (!bytes) {
+    throw new DesktopPluginError("插件 UI 资源不存在", 404)
+  }
+
+  const contentType = STATIC_CONTENT_TYPES[extname(resolvedAssetPath).toLowerCase()] ?? "application/octet-stream"
+  return {
+    bytes,
+    contentType,
+    contentSecurityPolicy:
       "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'",
   }
 }

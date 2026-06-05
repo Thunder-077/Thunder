@@ -1,0 +1,14 @@
+const V2_BRIDGE_METHOD_PERMISSIONS: Record<string, string> = {
+  "storage.get": "storage",
+  "storage.set": "storage",
+  "storage.remove": "storage",
+  "storage.keys": "storage",
+  "storage.clear": "storage",
+  "notifications.show": "notifications",
+  "activity.record": "activity",
+  "worker.invoke": "native-runtime",
+}
+
+export function getRequiredPermissionForRpcMethod(method: string): string | null {
+  return V2_BRIDGE_METHOD_PERMISSIONS[method] ?? null
+}

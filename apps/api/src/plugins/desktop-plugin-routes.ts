@@ -4,12 +4,14 @@ import {
   fetchDesktopPluginMarketplace,
   getDesktopPluginRuntimeStatus,
   getInstalledDesktopPlugin,
+  getInstalledDesktopPluginRecord,
   installLocalDesktopPlugin,
   installBundledDesktopPlugin,
   installPackagedDesktopPlugin,
   isDesktopPluginRuntimeEnabled,
-  listInstalledDesktopPlugins,
+  listInstalledDesktopPluginRecords,
   readDesktopPluginAsset,
+  readDesktopPluginUiAsset,
   resolveDesktopPluginApiProxyTarget,
   requestDesktopPluginNetworkProxy,
   runDesktopPluginMigrations,
@@ -72,7 +74,7 @@ function jsonError(error: unknown): Response {
 }
 
 desktopPlugins.get("/", async (c) => {
-  const plugins = await listInstalledDesktopPlugins()
+  const plugins = await listInstalledDesktopPluginRecords()
   return c.json({ ok: true, data: { enabled: isDesktopPluginRuntimeEnabled(), plugins } })
 })
 
@@ -87,7 +89,7 @@ desktopPlugins.get("/marketplace", async (c) => {
 
 desktopPlugins.get("/:id", async (c) => {
   try {
-    const plugin = await getInstalledDesktopPlugin(c.req.param("id"))
+    const plugin = await getInstalledDesktopPluginRecord(c.req.param("id"))
     return c.json({ ok: true, data: plugin })
   } catch (error) {
     return jsonError(error)
@@ -241,6 +243,40 @@ desktopPlugins.get("/:id/web/*", async (c) => {
     }
     const rawPath = c.req.path.split(`/api/v1/desktop/plugins/${id}/web/`)[1] ?? ""
     const asset = await readDesktopPluginAsset(
+      id,
+      rawPath
+        .split("/")
+        .map((part) => decodeURIComponent(part))
+        .filter(Boolean)
+    )
+
+    return new Response(new Uint8Array(asset.bytes), {
+      headers: {
+        "content-type": asset.contentType,
+        "cache-control": "no-store, max-age=0",
+        pragma: "no-cache",
+        expires: "0",
+        "content-security-policy": asset.contentSecurityPolicy ?? "",
+        "x-content-type-options": "nosniff",
+      },
+    })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.get("/:id/ui/*", async (c) => {
+  try {
+    const id = c.req.param("id")
+    if (!id) {
+      return new Response(JSON.stringify({ ok: false, message: "插件 id 不能为空" }), {
+        status: 400,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      })
+    }
+
+    const rawPath = c.req.path.split(`/api/v1/desktop/plugins/${id}/ui/`)[1] ?? ""
+    const asset = await readDesktopPluginUiAsset(
       id,
       rawPath
         .split("/")

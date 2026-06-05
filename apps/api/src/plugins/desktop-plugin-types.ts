@@ -37,6 +37,8 @@ export interface InstalledDesktopPluginV2 {
   pluginRoot: string
   route: string
   uiEntryUrl: string | null
+  installedAt?: string
+  updatedAt?: string
   installed: true
 }
 

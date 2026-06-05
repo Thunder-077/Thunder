@@ -40,10 +40,11 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
+  getDesktopPluginInstalledAt,
   listDesktopPlugins,
   shouldLoadDesktopPlugins,
   uninstallDesktopPlugin,
-  type InstalledDesktopPlugin,
+  type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
 import {
   DropdownMenu,
@@ -318,7 +319,7 @@ const categories = [
 
 export default function InstalledPluginsPage() {
   const router = useRouter()
-  const [realPlugins, setRealPlugins] = useState<InstalledDesktopPlugin[]>([])
+  const [realPlugins, setRealPlugins] = useState<DesktopInstalledPlugin[]>([])
   const [mockPlugins, setMockPlugins] = useState<MockPlugin[]>(mockPluginsData)
   const [disabledPluginIds, setDisabledPluginIds] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -396,7 +397,7 @@ export default function InstalledPluginsPage() {
       downloadsRaw: 3500,
       rating: "4.9",
       ratingCount: 18,
-      installedDate: p.record.installedAt ? p.record.installedAt.split("T")[0] : "2024-05-25",
+      installedDate: getDesktopPluginInstalledAt(p)?.split("T")[0] ?? "2024-05-25",
       icon: ScrollText,
       iconClassName: "bg-gradient-to-br from-emerald-500 to-emerald-700 text-primary-foreground shadow-md",
       tags: ["提词器", "效率", "语音跟读", "生产力"],

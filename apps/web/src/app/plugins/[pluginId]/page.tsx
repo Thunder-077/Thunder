@@ -33,18 +33,21 @@ import {
 } from "@/lib/desktop-plugin-bridge"
 import {
   getDesktopPlugin,
+  getDesktopPluginEntryUrl,
+  isInstalledDesktopPluginV2,
   shouldLoadDesktopPlugins,
   startDesktopPluginRuntime,
-  type InstalledDesktopPlugin,
+  type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
 import { notificationStore } from "@/lib/notification-store"
 import { ActivityClient } from "@thunder/api-client"
+import { getRequiredPermissionForRpcMethod } from "@/lib/plugin-v2-bridge"
 
 export default function DesktopPluginPage() {
   const params = useParams<{ pluginId: string }>()
   const pluginId = params.pluginId
   const desktopEnabled = shouldLoadDesktopPlugins()
-  const [plugin, setPlugin] = useState<InstalledDesktopPlugin | null>(null)
+  const [plugin, setPlugin] = useState<DesktopInstalledPlugin | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [hostOrigin] = useState<string | null>(() => (typeof window === "undefined" ? null : window.location.origin))
   const [frameHeight, setFrameHeight] = useState(960)
@@ -76,7 +79,7 @@ export default function DesktopPluginPage() {
     let cancelled = false
     getDesktopPlugin(pluginId)
       .then(async (result) => {
-        if (result.manifest.api?.runtime) {
+        if (!isInstalledDesktopPluginV2(result) && result.manifest.api?.runtime) {
           await startDesktopPluginRuntime(result.manifest.id)
         }
         if (!cancelled) setPlugin(result)
@@ -108,7 +111,9 @@ export default function DesktopPluginPage() {
   // Push theme changes to the plugin iframe
   useEffect(() => {
     if (!plugin || !hostOrigin) return
-    const frameUrl = createIsolatedPluginFrameUrl(plugin.webEntryUrl, hostOrigin)
+    const entryUrl = getDesktopPluginEntryUrl(plugin)
+    if (!entryUrl) return
+    const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
     const frameOrigin = new URL(frameUrl).origin
     iframeRef.current?.contentWindow?.postMessage(
       { source: "thunder-host", type: "theme.change", theme: resolvedTheme },
@@ -119,7 +124,9 @@ export default function DesktopPluginPage() {
   useEffect(() => {
     if (!plugin || !hostOrigin) return
     const currentPlugin = plugin
-    const frameUrl = createIsolatedPluginFrameUrl(currentPlugin.webEntryUrl, hostOrigin)
+    const entryUrl = getDesktopPluginEntryUrl(currentPlugin)
+    if (!entryUrl) return
+    const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
     const frameOrigin = new URL(frameUrl).origin
 
     async function handleBridgeMessage(event: MessageEvent) {
@@ -138,9 +145,16 @@ export default function DesktopPluginPage() {
       }
 
       try {
-        const requiredPermission = getRequiredPluginPermissionForBridgeMethod(request.method)
-        if (requiredPermission) {
-          ensurePluginPermission(currentPlugin.manifest.permissions, requiredPermission)
+        if (isInstalledDesktopPluginV2(currentPlugin)) {
+          const requiredPermission = getRequiredPermissionForRpcMethod(request.method)
+          if (requiredPermission && !currentPlugin.manifest.permissions.includes(requiredPermission)) {
+            throw new Error(`插件未声明 ${requiredPermission} 权限`)
+          }
+        } else {
+          const requiredPermission = getRequiredPluginPermissionForBridgeMethod(request.method)
+          if (requiredPermission) {
+            ensurePluginPermission(currentPlugin.manifest.permissions, requiredPermission)
+          }
         }
 
         if (request.method === "plugin.getManifest") {
@@ -155,6 +169,9 @@ export default function DesktopPluginPage() {
         }
 
         if (request.method === "runtime.request") {
+          if (isInstalledDesktopPluginV2(currentPlugin)) {
+            throw new Error("manifest v2 插件不支持 runtime.request，请改用 worker.invoke")
+          }
           const params = request.params as RuntimeRequestParams | null
           const rawPath = normalizeRuntimeRequestPath(params?.path)
           const method = normalizeRuntimeRequestMethod(params?.method)
@@ -217,7 +234,7 @@ export default function DesktopPluginPage() {
           return
         }
 
-        if (request.method === "notification.add") {
+        if (request.method === "notification.add" || request.method === "notifications.show") {
           const params = request.params as {
             type?: "info" | "success" | "error"
             title?: string
@@ -270,7 +287,7 @@ export default function DesktopPluginPage() {
           return
         }
 
-        if (request.method === "activity.track") {
+        if (request.method === "activity.track" || request.method === "activity.record") {
           const params = request.params as {
             action?: string
             title?: string
@@ -337,7 +354,22 @@ export default function DesktopPluginPage() {
     return <div className="h-[calc(100vh-4rem)] min-h-0 overflow-hidden rounded-md bg-muted/20" />
   }
 
-  const frameUrl = createIsolatedPluginFrameUrl(plugin.webEntryUrl, hostOrigin)
+  const entryUrl = getDesktopPluginEntryUrl(plugin)
+  if (!entryUrl) {
+    return (
+      <div>
+        <PageHeader title={plugin.manifest.name} />
+        <Card>
+          <CardContent className="flex items-start gap-3 p-5 text-sm text-muted-foreground">
+            <AlertTriangle className="mt-0.5 h-4 w-4 text-destructive" />
+            <span>插件未声明可加载的 UI 入口</span>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
   const frameSandbox = isPluginFrameOriginIsolated(frameUrl, hostOrigin)
     ? "allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
     : "allow-forms allow-modals allow-popups allow-scripts"

@@ -28,13 +28,13 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
+  type DesktopInstalledPlugin,
   installBundledDesktopPlugin,
   installPackagedDesktopPlugin,
   listDesktopPluginMarketplace,
   listDesktopPlugins,
   shouldLoadDesktopPlugins,
   type DesktopPluginMarketplaceEntry,
-  type InstalledDesktopPlugin,
 } from "@/lib/desktop-plugins"
 import { cn } from "@/lib/utils"
 
@@ -191,7 +191,7 @@ function marketplaceEntryToVisual(entry: DesktopPluginMarketplaceEntry): PluginV
 
 export default function DesktopPluginMarketplacePage() {
   const router = useRouter()
-  const [installed, setInstalled] = useState<InstalledDesktopPlugin[]>([])
+  const [installed, setInstalled] = useState<DesktopInstalledPlugin[]>([])
   const [marketplace, setMarketplace] = useState<DesktopPluginMarketplaceEntry[]>([])
   const [message, setMessage] = useState<string | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)

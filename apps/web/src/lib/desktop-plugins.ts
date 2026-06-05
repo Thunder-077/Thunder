@@ -6,6 +6,31 @@ export const DESKTOP_PLUGINS_CHANGED_EVENT = "thunder:desktop-plugins-changed"
 export type DesktopPluginPermission = ThunderPluginPermission
 export type DesktopPluginManifest = ThunderPluginManifest
 
+export interface DesktopPluginManifestV2 {
+  manifestVersion: 2
+  id: string
+  name: string
+  version: string
+  description: string
+  kind: "sandboxed" | "trusted"
+  icon: string
+  author: {
+    name: string
+    url?: string
+  }
+  permissions: string[]
+  contributes: {
+    sidebar?: {
+      title: string
+      icon: string
+      entry: string
+    }
+  }
+  runtime?: {
+    entry: string
+  }
+}
+
 export interface InstalledDesktopPlugin {
   manifest: DesktopPluginManifest
   record: {
@@ -28,6 +53,18 @@ export interface InstalledDesktopPlugin {
   installed: true
 }
 
+export interface InstalledDesktopPluginV2 {
+  manifest: DesktopPluginManifestV2
+  pluginRoot: string
+  route: string
+  uiEntryUrl: string | null
+  installedAt?: string
+  updatedAt?: string
+  installed: true
+}
+
+export type DesktopInstalledPlugin = InstalledDesktopPlugin | InstalledDesktopPluginV2
+
 export interface DesktopPluginMigrationResult {
   pluginId: string
   applied: Array<{ name: string; sha256: string; appliedAt: string }>
@@ -48,7 +85,7 @@ export interface DesktopPluginRuntimeStatus {
 
 export interface DesktopPluginListResponse {
   enabled: boolean
-  plugins: InstalledDesktopPlugin[]
+  plugins: DesktopInstalledPlugin[]
 }
 
 export interface DesktopPluginMarketplaceEntry {
@@ -120,7 +157,7 @@ export async function listDesktopPlugins(): Promise<DesktopPluginListResponse> {
   return payload.data
 }
 
-export async function getDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
+export async function getDesktopPlugin(pluginId: string): Promise<DesktopInstalledPlugin> {
   const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}`, {
     credentials: "same-origin",
     cache: "no-store",
@@ -132,7 +169,7 @@ export async function getDesktopPlugin(pluginId: string): Promise<InstalledDeskt
 
   const payload = (await response.json()) as {
     ok: boolean
-    data?: InstalledDesktopPlugin
+    data?: DesktopInstalledPlugin
     message?: string
   }
 
@@ -141,6 +178,18 @@ export async function getDesktopPlugin(pluginId: string): Promise<InstalledDeskt
   }
 
   return payload.data
+}
+
+export function isInstalledDesktopPluginV2(plugin: DesktopInstalledPlugin): plugin is InstalledDesktopPluginV2 {
+  return plugin.manifest.manifestVersion === 2
+}
+
+export function getDesktopPluginEntryUrl(plugin: DesktopInstalledPlugin): string | null {
+  return isInstalledDesktopPluginV2(plugin) ? plugin.uiEntryUrl : plugin.webEntryUrl
+}
+
+export function getDesktopPluginInstalledAt(plugin: DesktopInstalledPlugin): string | undefined {
+  return isInstalledDesktopPluginV2(plugin) ? plugin.installedAt : plugin.record.installedAt
 }
 
 export async function listDesktopPluginMarketplace(): Promise<DesktopPluginMarketplaceIndex> {
