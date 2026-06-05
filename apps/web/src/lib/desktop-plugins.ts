@@ -100,7 +100,7 @@ export interface DesktopPluginMarketplaceEntry {
     name: string
     url?: string
   }
-  permissions: DesktopPluginPermission[]
+  permissions: string[]
   source?: "package" | "bundled"
   packageUrl?: string
   packageSha256?: string
@@ -240,6 +240,30 @@ export async function installLocalDesktopPlugin(sourcePath: string): Promise<Ins
   return payload.data
 }
 
+export async function installLocalDesktopPluginV2(pluginPath: string): Promise<InstalledDesktopPluginV2> {
+  const response = await fetch("/api/v1/desktop/plugins/v2/install/local", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ pluginPath }),
+  })
+
+  const payload = (await response.json()) as {
+    ok: boolean
+    data?: InstalledDesktopPluginV2
+    message?: string
+  }
+
+  if (!response.ok || !payload.ok || !payload.data) {
+    throw new Error(payload.message || "插件安装失败")
+  }
+
+  notifyDesktopPluginsChanged()
+  return payload.data
+}
+
 export async function installPackagedDesktopPlugin(
   entry: DesktopPluginMarketplaceEntry
 ): Promise<InstalledDesktopPlugin> {
@@ -366,6 +390,23 @@ export async function invokeDesktopPluginWorker<TResult = unknown, TPayload = un
   }
 
   return data.data.result
+}
+
+const DESKTOP_PLUGIN_PERMISSION_LABELS: Record<string, string> = {
+  webview: "渲染插件界面",
+  "plugin-storage": "保存插件私有数据",
+  "local-api-proxy": "访问插件本地后端",
+  "network-proxy": "访问受控 HTTPS 网络代理",
+  storage: "保存插件私有数据",
+  notifications: "显示通知",
+  activity: "记录活动",
+  microphone: "使用麦克风",
+  "filesystem:plugin-data": "写入插件数据目录",
+  "native-runtime": "运行本地高权限代码",
+}
+
+export function describeDesktopPluginPermission(permission: string): string {
+  return DESKTOP_PLUGIN_PERMISSION_LABELS[permission] ?? permission
 }
 
 async function postRuntimeAction(pluginId: string, action: "start" | "stop"): Promise<DesktopPluginRuntimeStatus> {

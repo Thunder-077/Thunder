@@ -54,22 +54,23 @@ async function main() {
   await rm(testRoot, { recursive: true, force: true })
   await mkdir(testRoot, { recursive: true })
 
-  process.env.THUNDER_ENABLE_DESKTOP_PLUGINS = "1"
-  process.env.THUNDER_ALLOW_UNSIGNED_PLUGINS = "1"
-  process.env.THUNDER_DESKTOP_DATA_DIR = testRoot
-  process.env.DATABASE_URL = `file:${join(testRoot, "app.db")}`
-  process.env.THUNDER_BUNDLED_PLUGIN_DIRS = resolve(workspaceRoot, "plugins", "desktop")
-  delete process.env.THUNDER_PLUGIN_MARKETPLACE_URL
-  delete process.env.THUNDER_PLUGIN_MARKETPLACE_TRUSTED_KEYS
+  try {
+    process.env.THUNDER_ENABLE_DESKTOP_PLUGINS = "1"
+    process.env.THUNDER_ALLOW_UNSIGNED_PLUGINS = "1"
+    process.env.THUNDER_DESKTOP_DATA_DIR = testRoot
+    process.env.DATABASE_URL = `file:${join(testRoot, "app.db")}`
+    process.env.THUNDER_BUNDLED_PLUGIN_DIRS = resolve(workspaceRoot, "plugins", "desktop")
+    delete process.env.THUNDER_PLUGIN_MARKETPLACE_URL
+    delete process.env.THUNDER_PLUGIN_MARKETPLACE_TRUSTED_KEYS
 
-  const bundledMarketplace = await fetchDesktopPluginMarketplace()
-  assert.deepEqual(
-    bundledMarketplace.plugins.map((plugin) => ({ id: plugin.id, source: plugin.source })),
-    [{ id: "teleprompter", source: "bundled" }]
-  )
-  const bundled = await installBundledDesktopPlugin("teleprompter")
-  assert.equal(bundled.record.source, "bundled")
-  await uninstallDesktopPlugin("teleprompter")
+    const bundledMarketplace = await fetchDesktopPluginMarketplace()
+    assert.deepEqual(
+      bundledMarketplace.plugins.map((plugin) => ({ id: plugin.id, source: plugin.source })),
+      [{ id: "teleprompter", source: "bundled" }]
+    )
+    const bundled = await installBundledDesktopPlugin("teleprompter")
+    assert.equal(bundled.record.source, "bundled")
+    await uninstallDesktopPlugin("teleprompter")
 
   const unknownPermissionDir = join(testRoot, "hello-unknown-permission")
   await cp(examplePlugin, unknownPermissionDir, { recursive: true })
@@ -216,43 +217,49 @@ async function main() {
   assert.equal(packaged.manifest.id, "hello-plugin")
   await uninstallDesktopPlugin("hello-plugin")
 
-  const indexBase = {
-    version: 1 as const,
-    generatedAt: "2026-01-01T00:00:00.000Z",
-    plugins: [],
-  }
-  const indexSignature = sign(null, Buffer.from(stableJson(indexBase)), privateKey).toString("base64")
-  let body: unknown = indexBase
-  const server = createServer((_, response) => {
-    response.setHeader("content-type", "application/json")
-    response.end(JSON.stringify(body))
-  })
-  await new Promise<void>((resolveServer) => server.listen(0, "127.0.0.1", resolveServer))
-  const address = server.address()
-  assert.equal(typeof address, "object")
-  const port = address && typeof address === "object" ? address.port : 0
-  process.env.THUNDER_PLUGIN_MARKETPLACE_URL = `http://127.0.0.1:${port}/index.json`
-  process.env.THUNDER_PLUGIN_MARKETPLACE_TRUSTED_KEYS = JSON.stringify([
-    { keyId: "test", publicKey: publicKey.export({ type: "spki", format: "pem" }) },
-  ])
-  await expectRejects(() => fetchDesktopPluginMarketplace(), "unsigned marketplace index must be denied")
-  body = {
-    ...indexBase,
-    signature: {
-      keyId: "test",
-      algorithm: "ed25519",
-      signature: indexSignature,
-    },
-  }
-  const index = await fetchDesktopPluginMarketplace()
-  assert.deepEqual(
-    index.plugins.map((plugin) => ({ id: plugin.id, source: plugin.source })),
-    [{ id: "teleprompter", source: "bundled" }]
-  )
-  await new Promise<void>((resolveClose) => server.close(() => resolveClose()))
+    const indexBase = {
+      version: 1 as const,
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      plugins: [],
+    }
+    const indexSignature = sign(null, Buffer.from(stableJson(indexBase)), privateKey).toString("base64")
+    let body: unknown = indexBase
+    const server = createServer((_, response) => {
+      response.setHeader("content-type", "application/json")
+      response.end(JSON.stringify(body))
+    })
 
-  await rm(testRoot, { recursive: true, force: true })
-  console.log("[desktop-plugins] tests passed")
+    try {
+      await new Promise<void>((resolveServer) => server.listen(0, "127.0.0.1", resolveServer))
+      const address = server.address()
+      assert.equal(typeof address, "object")
+      const port = address && typeof address === "object" ? address.port : 0
+      process.env.THUNDER_PLUGIN_MARKETPLACE_URL = `http://127.0.0.1:${port}/index.json`
+      process.env.THUNDER_PLUGIN_MARKETPLACE_TRUSTED_KEYS = JSON.stringify([
+        { keyId: "test", publicKey: publicKey.export({ type: "spki", format: "pem" }) },
+      ])
+      await expectRejects(() => fetchDesktopPluginMarketplace(), "unsigned marketplace index must be denied")
+      body = {
+        ...indexBase,
+        signature: {
+          keyId: "test",
+          algorithm: "ed25519",
+          signature: indexSignature,
+        },
+      }
+      const index = await fetchDesktopPluginMarketplace()
+      assert.deepEqual(
+        index.plugins.map((plugin) => ({ id: plugin.id, source: plugin.source })),
+        [{ id: "teleprompter", source: "bundled" }]
+      )
+    } finally {
+      await new Promise<void>((resolveClose) => server.close(() => resolveClose()))
+    }
+
+    console.log("[desktop-plugins] tests passed")
+  } finally {
+    await rm(testRoot, { recursive: true, force: true }).catch(() => undefined)
+  }
 }
 
 main().catch((error) => {

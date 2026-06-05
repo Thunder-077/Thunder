@@ -12,6 +12,11 @@ Web 端不加载运行时插件。Web 端只使用构建期可用模块。
 
 ## 最小目录结构
 
+Thunder 当前支持两种桌面插件开发模式：
+
+- v1: iframe + 本地 Node API runtime
+- v2: public SDK + trusted worker/runtime
+
 ```text
 my-plugin/
   plugin.json
@@ -40,6 +45,8 @@ my-plugin/
 可以参考 `examples/desktop-plugins/hello`。
 
 ## Manifest
+
+### Manifest v1
 
 每个插件必须在根目录提供 `plugin.json`：
 
@@ -83,12 +90,49 @@ my-plugin/
 - `api.runtime.entry` 必须指向插件目录内的 Node 入口文件。
 - `migrations.sqlite` 必须指向插件目录内的 SQLite 迁移目录。
 
+### Manifest v2
+
+v2 示例：
+
+```json
+{
+  "manifestVersion": 2,
+  "id": "teleprompter",
+  "name": "提词器",
+  "version": "0.1.0",
+  "description": "桌面提词器插件",
+  "kind": "trusted",
+  "engines": {
+    "thunder": "^2.0.0"
+  },
+  "author": {
+    "name": "Thunder"
+  },
+  "icon": "ScrollText",
+  "permissions": ["storage", "notifications", "activity", "native-runtime"],
+  "contributes": {
+    "sidebar": {
+      "title": "提词器",
+      "icon": "ScrollText",
+      "entry": "dist/index.html"
+    }
+  },
+  "runtime": {
+    "entry": "dist/worker.js"
+  }
+}
+```
+
 可用权限：
 
 - `webview`: 允许插件页面在 sandbox iframe 中渲染。
 - `local-api-proxy`: 允许 Thunder 代理访问插件本地后端。
 - `plugin-storage`: 允许插件通过 Browser SDK 使用宿主提供的插件私有键值存储。
 - `network-proxy`: 允许插件通过 Browser SDK 使用后端受控 HTTPS 网络代理。
+- `storage`: v2 插件私有键值存储。
+- `notifications`: v2 插件显示通知。
+- `activity`: v2 插件记录活动。
+- `native-runtime`: 允许 trusted worker/runtime。
 
 插件安装后默认启用。当前阶段不提供单独的 trust / untrust 按钮，也不做每个动作级别的动态授权弹窗；用户安装插件即表示允许该插件使用 Manifest 中声明的平台能力。
 
@@ -136,9 +180,32 @@ const result = await thunder.runtime.post("tasks/run", { input: "hello" })
 const remoteStatus = await thunder.network.get("https://api.example.com/status")
 await thunder.storage.set("view-mode", "compact")
 const viewMode = await thunder.storage.get<string>("view-mode")
+const result = await thunder.worker.invoke("speech.transcribe", { text: "hello world" })
 ```
 
 浏览器 SDK 通过 `postMessage` 与宿主页通信。插件页面不要硬编码 `/api/v1/desktop/plugins/{pluginId}/api/*`，也不要直接访问 Tauri、Prisma、内置模块源码或主应用内部状态。`thunder.network` 需要 Manifest 声明 `network-proxy` 权限，只允许受控 HTTPS 请求；`thunder.storage` 需要 Manifest 声明 `plugin-storage` 权限，存储会按插件 id 命名空间隔离。
+
+如果你开发的是 v2 trusted 插件，前端应优先通过 `thunder.worker.invoke()` 调用本地能力，而不是继续走 v1 的 `runtime.request`。
+
+## Trusted worker
+
+v2 trusted runtime 通过 `@thunder/plugin-sdk/worker` 导出 handler：
+
+```ts
+import { defineWorker } from "@thunder/plugin-sdk/worker"
+
+export default defineWorker({
+  handlers: {
+    async "speech.transcribe"(payload) {
+      return {
+        normalized: String(payload?.text ?? "").trim(),
+      }
+    },
+  },
+})
+```
+
+trusted runtime 由平台托管，并通过 pipe RPC 暴露给宿主页。它不是公开 HTTP 服务，不应该自己绑定任意端口。
 
 ## 前端页面
 
@@ -282,6 +349,14 @@ E:\Code\Thunder\examples\desktop-plugins\hello
 6. 按需运行迁移、打开插件页面。插件页面会自动启动声明的运行时。
 
 开发期间修改插件文件后，可以重新本地安装同一路径。平台会停止旧运行时，并用新目录替换已安装插件。
+
+v2 插件本地安装 API：
+
+```text
+POST /api/v1/desktop/plugins/v2/install/local
+```
+
+当前仓库内的示例包见 `plugins-v2/teleprompter`。
 
 ## 打包与签名
 

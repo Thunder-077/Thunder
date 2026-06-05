@@ -9,7 +9,7 @@
     "build:desktop-bundle": "node ./scripts/build-desktop-bundle.mjs",
     "package:desktop-plugin": "node ./scripts/package-desktop-plugin.mjs",
     "build:plugin-marketplace": "node ./scripts/build-plugin-marketplace.mjs",
-    "test:plugins": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/api exec tsx src/plugins/desktop-plugin-manager.test.ts && pnpm exec tsx src/plugins/desktop-plugin-routes.test.ts",
+    "test:plugins": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/api exec tsx src/plugins/desktop-plugin-manager.test.ts && pnpm exec tsx src/plugins/desktop-plugin-routes.test.ts && pnpm exec tsx src/plugins/plugin-v2-e2e.test.ts",
     "start": "node dist/index.js",
     "deploy:cf": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --filter @thunder/database db:generate && wrangler deploy",
     "typecheck": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/api exec tsc --noEmit"

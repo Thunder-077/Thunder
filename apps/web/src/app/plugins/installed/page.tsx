@@ -40,7 +40,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
+  describeDesktopPluginPermission,
   getDesktopPluginInstalledAt,
+  isInstalledDesktopPluginV2,
   listDesktopPlugins,
   shouldLoadDesktopPlugins,
   uninstallDesktopPlugin,
@@ -76,6 +78,8 @@ type MockPlugin = {
   detailedDescription: string
   features: string[]
   compatibility: string
+  permissions?: string[]
+  sourceType?: "mock" | "desktop"
 }
 
 const mockPluginsData: MockPlugin[] = [
@@ -364,12 +368,12 @@ export default function InstalledPluginsPage() {
   }
 
   const uninstallPlugin = async (pluginId: string) => {
-    // If it's a real plugin, perform real uninstall
-    if (pluginId === "teleprompter") {
+    const realPlugin = realPlugins.find((plugin) => plugin.manifest.id === pluginId)
+    if (realPlugin) {
       try {
-        await uninstallDesktopPlugin("teleprompter")
-        setRealPlugins((prev) => prev.filter((p) => p.manifest.id !== "teleprompter"))
-        triggerToast("提词器 插件已成功卸载")
+        await uninstallDesktopPlugin(pluginId)
+        setRealPlugins((prev) => prev.filter((p) => p.manifest.id !== pluginId))
+        triggerToast(`${realPlugin.manifest.name} 插件已成功卸载`)
       } catch (err) {
         triggerToast("卸载失败: " + (err instanceof Error ? err.message : "未知错误"))
       }
@@ -400,16 +404,28 @@ export default function InstalledPluginsPage() {
       installedDate: getDesktopPluginInstalledAt(p)?.split("T")[0] ?? "2024-05-25",
       icon: ScrollText,
       iconClassName: "bg-gradient-to-br from-emerald-500 to-emerald-700 text-primary-foreground shadow-md",
-      tags: ["提词器", "效率", "语音跟读", "生产力"],
-      detailedDescription: "大字提词、语音跟读与自动定位。专为视频录制、直播、演讲等场景设计的智能提词器插件，支持语音识别跟读与滚动条定位。",
-      features: [
-        "自适应大字滚动提词",
-        "智能语音跟读与自动定位",
-        "支持自定义字体大小、颜色与滚动速度",
-        "可悬浮窗口运行，配合其他录屏软件使用",
-        "支持本地存储和快捷导入文稿",
+      tags: [
+        isInstalledDesktopPluginV2(p) ? "Manifest v2" : "Manifest v1",
+        isInstalledDesktopPluginV2(p) ? (p.manifest.kind === "trusted" ? "Trusted Runtime" : "Sandboxed Runtime") : "Node Runtime",
+        ...p.manifest.permissions.slice(0, 2).map(describeDesktopPluginPermission),
       ],
-      compatibility: "1.0.0+",
+      detailedDescription: p.manifest.description,
+      features: isInstalledDesktopPluginV2(p)
+        ? [
+            "通过公开 Plugin SDK 注册界面与命令",
+            "通过 trusted worker/runtime 执行本地能力",
+            "支持 Host Bridge 存储、通知与活动记录",
+            "支持 worker.invoke 方式调用受控本地逻辑",
+          ]
+        : [
+            "通过 sandbox iframe 加载插件前端界面",
+            "通过本地 API runtime 提供后端能力",
+            "支持 Host Bridge 存储与网络代理",
+            "支持受控 SQLite 迁移和升级替换",
+          ],
+      compatibility: isInstalledDesktopPluginV2(p) ? "^2.0.0" : "1.0.0+",
+      permissions: [...p.manifest.permissions],
+      sourceType: "desktop",
     }))
 
     return [...mockPlugins, ...convertedReal]
@@ -1075,14 +1091,30 @@ export default function InstalledPluginsPage() {
                     <span className="text-muted-foreground/80">兼容性</span>
                     <span className="font-semibold text-foreground">{selectedPlugin.compatibility}</span>
                   </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground/80">插件 ID</span>
-                    <span className="font-mono text-[11px] text-foreground bg-gray-50 dark:bg-gray-900/60 px-1 rounded-sm border border-border/40">{selectedPlugin.id}</span>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground/80">插件 ID</span>
+                  <span className="font-mono text-[11px] text-foreground bg-gray-50 dark:bg-gray-900/60 px-1 rounded-sm border border-border/40">{selectedPlugin.id}</span>
+                </div>
+              </div>
+
+              {selectedPlugin.permissions && selectedPlugin.permissions.length > 0 && (
+                <div className="mt-5 border-t border-border/50 pt-5">
+                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">权限</h3>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {selectedPlugin.permissions.map((permission) => (
+                      <span
+                        key={permission}
+                        className="rounded-md border border-border/60 bg-background px-2 py-1 text-[11px] text-muted-foreground"
+                      >
+                        {describeDesktopPluginPermission(permission)}
+                      </span>
+                    ))}
                   </div>
                 </div>
+              )}
 
-                {/* Features & description content */}
-                <div className="mt-5 border-t border-border/50 pt-5">
+              {/* Features & description content */}
+              <div className="mt-5 border-t border-border/50 pt-5">
                   <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">插件描述</h3>
                   <p className="mt-2 text-xs text-muted-foreground/90 leading-relaxed">
                     {selectedPlugin.detailedDescription}

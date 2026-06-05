@@ -24,7 +24,14 @@ AppData/com.thunder.desktop/
 
 ## Manifest
 
-每个插件必须提供 `plugin.json`：
+Thunder 当前同时支持两套桌面插件 manifest：
+
+- `manifestVersion: 1`: 传统 iframe + Node API runtime
+- `manifestVersion: 2`: 新的 public SDK + trusted worker/runtime
+
+### Manifest v1
+
+每个 v1 插件必须提供 `plugin.json`：
 
 ```json
 {
@@ -49,6 +56,37 @@ AppData/com.thunder.desktop/
 }
 ```
 
+### Manifest v2
+
+v2 示例：
+
+```json
+{
+  "manifestVersion": 2,
+  "id": "teleprompter",
+  "name": "提词器",
+  "version": "0.1.0",
+  "description": "桌面提词器插件",
+  "kind": "trusted",
+  "engines": {
+    "thunder": "^2.0.0"
+  },
+  "author": { "name": "Thunder" },
+  "icon": "ScrollText",
+  "permissions": ["storage", "notifications", "activity", "native-runtime"],
+  "contributes": {
+    "sidebar": {
+      "title": "提词器",
+      "icon": "ScrollText",
+      "entry": "dist/index.html"
+    }
+  },
+  "runtime": {
+    "entry": "dist/worker.js"
+  }
+}
+```
+
 生产环境会拒绝未签名插件。受信任的 Ed25519 公钥通过 `THUNDER_PLUGIN_TRUSTED_KEYS` 配置：
 
 ```json
@@ -62,7 +100,7 @@ AppData/com.thunder.desktop/
 
 本地开发可以通过 `THUNDER_ALLOW_UNSIGNED_PLUGINS=1` 安装未签名插件。
 
-Manifest 权限只接受平台已知权限。声明 `web.entry` 的插件必须包含 `webview`；声明 `api` 的插件必须包含 `local-api-proxy`。
+Manifest 权限只接受平台已知权限。v1 声明 `web.entry` 的插件必须包含 `webview`；声明 `api` 的插件必须包含 `local-api-proxy`。v2 `sandboxed` 插件不能声明 `native-runtime`。
 
 插件市场索引也可以签名。如果配置了 `THUNDER_PLUGIN_MARKETPLACE_TRUSTED_KEYS`，市场 JSON 必须包含顶层 Ed25519 `signature` 字段，签名内容为移除 `signature` 字段后的索引 payload。如果没有配置该变量，Thunder 会回退使用 `THUNDER_PLUGIN_TRUSTED_KEYS`。
 
@@ -131,9 +169,12 @@ const status = await thunder.runtime.get("status")
 const remote = await thunder.network.get("https://api.example.com/status")
 await thunder.storage.set("view-mode", "compact")
 const viewMode = await thunder.storage.get<string>("view-mode")
+const workerResult = await thunder.worker.invoke("speech.transcribe", { text: "hello" })
 ```
 
 Browser SDK 不直接暴露平台 URL。它通过 sandbox iframe 内的 `postMessage` Host Bridge 发起请求，宿主页负责绑定插件身份、校验消息来源和权限，再调用平台内部 API。
+
+v2 trusted runtime 的 worker 入口使用 `@thunder/plugin-sdk/worker` 导出 handler map。详细设计见 `docs/plugin-platform-v2.md`。
 
 ## 启用模型
 
@@ -176,19 +217,24 @@ GET    /api/v1/desktop/plugins
 GET    /api/v1/desktop/plugins/marketplace
 GET    /api/v1/desktop/plugins/:id
 POST   /api/v1/desktop/plugins/install/local
+POST   /api/v1/desktop/plugins/v2/install/local
 POST   /api/v1/desktop/plugins/install/package
 POST   /api/v1/desktop/plugins/install/bundled
 POST   /api/v1/desktop/plugins/:id/migrations/run
 DELETE /api/v1/desktop/plugins/:id
 GET    /api/v1/desktop/plugins/:id/web/*
+GET    /api/v1/desktop/plugins/:id/ui/*
 *      /api/v1/desktop/plugins/:id/api/*
 POST   /api/v1/desktop/plugins/:id/network
+POST   /api/v1/desktop/plugins/:id/worker/invoke
 GET    /api/v1/desktop/plugins/:id/runtime
 POST   /api/v1/desktop/plugins/:id/runtime/start
 POST   /api/v1/desktop/plugins/:id/runtime/stop
 ```
 
 `install/package` 接收一个签名 `.tar.gz` 包 URL，校验 package sha256，解压到 staging 目录，校验 Manifest，验证签名，然后原子替换已安装插件目录。
+
+`v2/install/local` 接收本地已解压目录，校验 manifest v2、静态 UI 入口和 trusted runtime 入口，然后原子安装到插件目录。
 
 `install/bundled` 接收内置插件 id，只会从 `THUNDER_BUNDLED_PLUGIN_DIRS` 或默认内置插件目录中查找并安装该插件。
 
@@ -228,6 +274,7 @@ POST   /api/v1/desktop/plugins/:id/runtime/stop
 | `storage.remove` | `plugin-storage` | 删除当前插件命名空间下的单个 key |
 | `storage.keys` | `plugin-storage` | 列出当前插件命名空间下的 key |
 | `storage.clear` | `plugin-storage` | 清空当前插件命名空间 |
+| `worker.invoke` | `native-runtime` | 调用 v2 trusted runtime 的 worker handler |
 
 平台内部 HTTP API 仍保留给宿主、桌面壳和诊断使用；插件 iframe 不应直接依赖这些 URL。
 
@@ -253,6 +300,8 @@ pnpm test:plugins
 ```
 
 该测试覆盖本地安装、静态资源、SQLite 迁移、受控 Node 运行时、API 代理、升级/降级安装、审计日志、签名包安装和签名插件市场索引。
+
+v2 额外验证见 `docs/plugin-platform-v2.md` 与 `apps/api/src/plugins/plugin-v2-e2e.test.ts`。
 
 ## 官方提词器插件
 
