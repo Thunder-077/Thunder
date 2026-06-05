@@ -8,6 +8,7 @@ import {
   installLocalDesktopPlugin,
   installBundledDesktopPlugin,
   installPackagedDesktopPlugin,
+  installPackagedPluginV2,
   isDesktopPluginRuntimeEnabled,
   listInstalledDesktopPluginRecords,
   readDesktopPluginAsset,
@@ -122,6 +123,30 @@ desktopPlugins.post("/install/local", async (c) => {
       sourcePath: body.sourcePath,
       expectedSha256: body.expectedSha256,
       signature: body.signature,
+    })
+    return c.json({ ok: true, data: plugin }, 201)
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.post("/v2/install/local", async (c) => {
+  try {
+    const body = (await c.req.json().catch(() => null)) as
+      | {
+          pluginPath?: string
+        }
+      | null
+
+    if (!body?.pluginPath) {
+      return new Response(JSON.stringify({ ok: false, message: "pluginPath 不能为空" }), {
+        status: 400,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      })
+    }
+
+    const plugin = await installPackagedPluginV2({
+      pluginPath: body.pluginPath,
     })
     return c.json({ ok: true, data: plugin }, 201)
   } catch (error) {

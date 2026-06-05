@@ -74,6 +74,10 @@ interface InstallLocalPluginInternalOptions extends InstallLocalPluginOptions {
   source?: DesktopPluginInstallRecord["source"]
 }
 
+export interface InstallLocalPluginV2Options {
+  pluginPath: string
+}
+
 export interface InstallPackagePluginOptions {
   packageUrl: string
   packageSha256: string
@@ -626,6 +630,15 @@ export async function getInstalledDesktopPluginRecord(
   return getInstalledDesktopPlugin(id)
 }
 
+export async function getInstalledPluginV2(id: string): Promise<InstalledDesktopPluginV2> {
+  const plugin = await getInstalledDesktopPluginRecord(id)
+  if (!isInstalledDesktopPluginRecordV2(plugin)) {
+    throw new DesktopPluginError("插件不是 manifest v2", 404)
+  }
+
+  return plugin
+}
+
 function isInstalledDesktopPluginRecordV2(
   plugin: InstalledDesktopPlugin | InstalledDesktopPluginV2
 ): plugin is InstalledDesktopPluginV2 {
@@ -706,6 +719,64 @@ async function installLocalDesktopPluginInternal(
 
 export async function installLocalDesktopPlugin(options: InstallLocalPluginOptions): Promise<InstalledDesktopPlugin> {
   return installLocalDesktopPluginInternal(options)
+}
+
+export async function installPackagedPluginV2(
+  options: InstallLocalPluginV2Options
+): Promise<InstalledDesktopPluginV2> {
+  if (!isDesktopPluginRuntimeEnabled()) {
+    throw new DesktopPluginError("插件系统仅在桌面端启用", 403)
+  }
+
+  await ensureDirs()
+  const sourcePath = resolve(options.pluginPath)
+  const sourceStat = await stat(sourcePath).catch(() => null)
+  if (!sourceStat?.isDirectory()) {
+    throw new DesktopPluginError("pluginPath 必须是已解压的 v2 插件目录")
+  }
+
+  const manifest = await readManifestV2(sourcePath)
+  await assertNoSymlinks(sourcePath)
+
+  const { pluginsDir, stagingDir } = getPluginDirs()
+  const targetDir = join(pluginsDir, manifest.id)
+  const stageDir = join(stagingDir, `${manifest.id}-v2-${Date.now()}`)
+  const previousPlugin = await getInstalledDesktopPluginRecord(manifest.id).catch(() => null)
+
+  await rm(stageDir, { recursive: true, force: true })
+  await cp(sourcePath, stageDir, { recursive: true, dereference: true })
+
+  const now = new Date().toISOString()
+  const installRecord: DesktopPluginInstallRecord = {
+    id: manifest.id,
+    version: manifest.version,
+    installedAt: now,
+    updatedAt: now,
+    source: "local-directory",
+    sourceRef: sourcePath,
+    manifestSha256: sha256(await readFile(join(sourcePath, "plugin.json"))),
+  }
+
+  await writeFile(join(stageDir, ".thunder-install.json"), `${JSON.stringify(installRecord, null, 2)}\n`, "utf8")
+  if (previousPlugin) {
+    await stopDesktopPluginRuntime(manifest.id)
+  }
+  await rm(targetDir, { recursive: true, force: true })
+  await cp(stageDir, targetDir, { recursive: true, dereference: true })
+  await rm(stageDir, { recursive: true, force: true })
+
+  await appendAudit(previousPlugin ? "plugin.v2.upgraded" : "plugin.v2.installed", {
+    pluginId: manifest.id,
+    version: manifest.version,
+    sourceRef: sourcePath,
+  })
+
+  return toInstalledPluginV2(
+    manifest,
+    targetDir,
+    installRecord.installedAt,
+    installRecord.updatedAt,
+  )
 }
 
 export async function installBundledDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
