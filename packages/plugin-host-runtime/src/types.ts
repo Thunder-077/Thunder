@@ -41,6 +41,7 @@ export interface PluginRuntimeStatus {
   pluginId: string
   kind: ThunderPluginManifestV2["kind"]
   running: boolean
+  endpoint?: string
 }
 
 export interface SandboxedPluginRuntime {
@@ -53,4 +54,5 @@ export interface TrustedPluginRuntimeSupervisor {
   start(plugin: RegisteredPlugin): Promise<PluginRuntimeStatus>
   stop(pluginId: string): Promise<PluginRuntimeStatus>
   getStatus(pluginId: string): PluginRuntimeStatus
+  getEndpoint(pluginId: string): string | null
 }

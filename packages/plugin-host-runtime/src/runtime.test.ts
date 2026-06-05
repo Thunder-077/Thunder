@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
+  createPipeClient,
   createPluginInstaller,
   createPluginRegistry,
   createPluginStorage,
@@ -84,17 +85,41 @@ assert.deepEqual(sandboxedStatus, {
 })
 assert.equal((await sandboxedRuntime.stop("teleprompter")).running, false)
 
-const trustedRuntime = createTrustedRuntimeSupervisor()
+const trustedRuntime = createTrustedRuntimeSupervisor({
+  handleRpc(plugin, method, payload) {
+    return {
+      pluginId: plugin.manifest.id,
+      method,
+      payload,
+    }
+  },
+})
 const trustedStatus = await trustedRuntime.start({
   manifest,
   pluginRoot: join(root, "plugins", "teleprompter"),
 })
-assert.deepEqual(trustedStatus, {
-  pluginId: "teleprompter",
-  kind: "trusted",
-  running: true,
+assert.equal(trustedStatus.pluginId, "teleprompter")
+assert.equal(trustedStatus.kind, "trusted")
+assert.equal(trustedStatus.running, true)
+assert.equal(typeof trustedStatus.endpoint, "string")
+assert.equal(trustedRuntime.getEndpoint("teleprompter"), trustedStatus.endpoint ?? null)
+
+const trustedClient = await createPipeClient(trustedStatus.endpoint ?? "")
+const trustedRpcResult = await trustedClient.invoke<{
+  pluginId: string
+  method: string
+  payload: { text: string }
+}>("speech.transcribe", {
+  text: "hello",
 })
+assert.deepEqual(trustedRpcResult, {
+  pluginId: "teleprompter",
+  method: "speech.transcribe",
+  payload: { text: "hello" },
+})
+await trustedClient.close()
 assert.equal((await trustedRuntime.stop("teleprompter")).running, false)
+assert.equal(trustedRuntime.getEndpoint("teleprompter"), null)
 
 const symlinkRoot = mkdtempSync(join(tmpdir(), "thunder-plugin-host-symlink-"))
 const symlinkPluginDir = join(symlinkRoot, "teleprompter")
