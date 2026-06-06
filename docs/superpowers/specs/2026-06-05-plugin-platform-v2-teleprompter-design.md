@@ -22,6 +22,7 @@ This design defines a full plugin platform rewrite and uses teleprompter as the 
 - Force teleprompter to consume only public plugin APIs, even when its internals are incubated inside the Thunder monorepo.
 - Replace loopback runtime HTTP with a proper trusted worker model over named pipes or domain sockets.
 - Deliver a real external developer workflow with `create/dev/build/pack/publish`.
+- **v2 plugin mechanism will ultimately become the sole plugin mechanism for this project, fully replacing the v1 plugin mechanism.** Once all v2 plugin work is complete, delete all v1 plugin mechanism code (the plugin marketplace UI pages should be retained and reused).
 
 ## Non-Goals
 
@@ -364,6 +365,8 @@ Devtools: ready
 
 ### Devtools
 
+> **Note: plugin-devtools is not a first-priority feature.** Do not implement plugin-devtools functionality for now. Any half-finished existing work may be kept as-is. Resume plugin-devtools implementation only when explicitly requested.
+
 The first release of plugin Devtools must include:
 
 - Manifest
@@ -425,6 +428,8 @@ This supports the incubation strategy: the monorepo may still host shared code, 
 
 The teleprompter plugin is not a demo. It must ship with enough quality and completeness to be considered commercially usable inside Thunder Desktop.
 
+**The v2 teleprompter plugin UI must match the Web teleprompter module (`apps/web/src/modules/teleprompter`) in every detail — page layout, interactions, and overall user experience must be fully consistent.** The plugin UI is not a validation skeleton; it must reach the same commercial quality as the Web module.
+
 Required product capabilities:
 
 - large-font teleprompter display
@@ -462,7 +467,7 @@ The platform itself must deliver:
 - frontend and worker public SDKs
 - permission model and install confirmation UI
 - `thunder dev`, `thunder build`, `thunder pack`
-- plugin Devtools basics
+- plugin Devtools basics (**deferred — not first priority; existing partial work may be kept; resume only when explicitly requested**)
 - plugin-private storage
 - plugin-private data directory access
 - logging and diagnostics foundations

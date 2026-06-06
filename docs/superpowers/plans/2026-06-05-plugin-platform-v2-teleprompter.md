@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build Thunder Plugin Platform v2 for Desktop with `sandboxed` and `trusted` plugin execution, and migrate teleprompter onto the new public plugin APIs as the first commercial-grade plugin.
+**Goal:** Build Thunder Plugin Platform v2 for Desktop with `sandboxed` and `trusted` plugin execution, and migrate teleprompter onto the new public plugin APIs as the first commercial-grade plugin. **v2 plugin mechanism will ultimately become the sole plugin mechanism for this project, fully replacing the v1 plugin mechanism.** Once all v2 plugin work is complete, delete all v1 plugin mechanism code (the plugin marketplace UI pages should be retained and reused).
 
 **Architecture:** Introduce a new plugin platform stack in parallel with the legacy runtime, centered on `plugin-schema`, public SDKs, host-managed worker RPC over named pipes or domain sockets, CLI-driven developer workflow, and a teleprompter migration that consumes only the new platform surfaces. Keep the first production path desktop-only, forbid plugin access to the main app database, and use teleprompter to validate the public package, install, devtools, and upgrade flow end to end.
 
@@ -40,7 +40,7 @@
 - Create: `packages/plugin-host-runtime/src/rpc/pipe-server.ts`
 - Create: `packages/plugin-host-runtime/src/rpc/pipe-client.ts`
 - Create: `packages/plugin-host-runtime/src/runtime.test.ts`
-- Create: `packages/plugin-devtools/package.json`
+- Create: `packages/plugin-devtools/package.json` (**plugin-devtools is not first priority — deferred; existing partial work may be kept; resume only when explicitly requested**)
 - Create: `packages/plugin-devtools/tsconfig.json`
 - Create: `packages/plugin-devtools/src/index.ts`
 - Create: `packages/plugin-devtools/src/plugin-devtools-panel.tsx`
@@ -933,6 +933,8 @@ git commit -m "refactor: extract teleprompter core logic package"
 
 ### Task 8: Build the New Teleprompter v2 Plugin UI and Trusted Worker
 
+**The v2 teleprompter plugin UI must match the Web teleprompter module (`apps/web/src/modules/teleprompter`) in every detail — page layout, interactions, and overall user experience must be fully consistent.** The plugin UI is not a validation skeleton; it must reach the same commercial quality as the Web module. `TeleprompterPanel` and its child components should reference the Web module implementation, maintaining consistency in visuals, layout, animations, keyboard shortcuts, and interaction flows.
+
 **Files:**
 - Create: `plugins-v2/teleprompter/package.json`
 - Create: `plugins-v2/teleprompter/plugin.json`
@@ -1095,3 +1097,6 @@ git commit -m "feat: finish plugin platform v2 packaging and verification"
 - Spec coverage: the plan covers manifest v2, public SDKs, trusted worker RPC, developer CLI, host runtime, teleprompter extraction, teleprompter v2 migration, packaging, permissions, docs, and verification. The intentionally deferred marketplace backend and web-hosted plugins remain out of scope.
 - Placeholder scan: no task uses TBD or “implement later”; every task names concrete files, tests, commands, and minimal code shapes.
 - Type consistency: the plan consistently uses `ThunderPluginManifestV2`, `definePlugin`, `defineWorker`, `native-runtime`, and the teleprompter v2 package naming across later tasks.
+- V1 replacement: v2 plugin mechanism will ultimately become the sole plugin mechanism, fully replacing v1. All v1 code will be deleted once v2 is complete (plugin marketplace UI pages retained and reused).
+- Teleprompter UI parity: the v2 teleprompter plugin UI must match the Web module experience in every detail — it is not a validation skeleton.
+- Plugin devtools: plugin-devtools is not first priority — do not implement new devtools functionality; existing partial work may be kept; resume only when explicitly requested.
