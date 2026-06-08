@@ -42,7 +42,6 @@ import { cn } from "@/lib/utils"
 import {
   describeDesktopPluginPermission,
   getDesktopPluginInstalledAt,
-  isInstalledDesktopPluginV2,
   listDesktopPlugins,
   shouldLoadDesktopPlugins,
   uninstallDesktopPlugin,
@@ -405,25 +404,18 @@ export default function InstalledPluginsPage() {
       icon: ScrollText,
       iconClassName: "bg-gradient-to-br from-emerald-500 to-emerald-700 text-primary-foreground shadow-md",
       tags: [
-        isInstalledDesktopPluginV2(p) ? "Manifest v2" : "Manifest v1",
-        isInstalledDesktopPluginV2(p) ? (p.manifest.kind === "trusted" ? "Trusted Runtime" : "Sandboxed Runtime") : "Node Runtime",
+        "正式插件",
+        p.manifest.kind === "trusted" ? "Trusted Runtime" : "Sandboxed Runtime",
         ...p.manifest.permissions.slice(0, 2).map(describeDesktopPluginPermission),
       ],
       detailedDescription: p.manifest.description,
-      features: isInstalledDesktopPluginV2(p)
-        ? [
-            "通过公开 Plugin SDK 注册界面与命令",
-            "通过 trusted worker/runtime 执行本地能力",
-            "支持 Host Bridge 存储、通知与活动记录",
-            "支持 worker.invoke 方式调用受控本地逻辑",
-          ]
-        : [
-            "通过 sandbox iframe 加载插件前端界面",
-            "通过本地 API runtime 提供后端能力",
-            "支持 Host Bridge 存储与网络代理",
-            "支持受控 SQLite 迁移和升级替换",
-          ],
-      compatibility: isInstalledDesktopPluginV2(p) ? "^2.0.0" : "1.0.0+",
+      features: [
+        "通过公开 Plugin SDK 注册界面与命令",
+        "通过 trusted worker/runtime 执行本地能力",
+        "支持 Host Bridge 存储、通知与活动记录",
+        "支持 worker.invoke 方式调用受控本地逻辑",
+      ],
+      compatibility: "^2.0.0",
       permissions: [...p.manifest.permissions],
       sourceType: "desktop",
     }))

@@ -58,6 +58,8 @@ export interface ThunderPluginManifestV2 {
   runtime?: ThunderPluginRuntime;
 }
 
+export type ThunderPluginManifest = ThunderPluginManifestV2;
+
 function assertManifest(
   condition: unknown,
   message: string,

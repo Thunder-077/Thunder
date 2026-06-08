@@ -4,7 +4,7 @@ export type {
   ThunderPluginManifest as DesktopPluginManifest,
 } from "@thunder/plugin-sdk"
 export type {
-  ThunderPluginManifestV2 as DesktopPluginManifestV2,
+  ThunderPluginManifest as DesktopPluginManifestV2,
   ThunderPluginPermission as DesktopPluginPermissionV2,
 } from "@thunder/plugin-schema"
 
@@ -33,7 +33,7 @@ export interface InstalledDesktopPlugin {
 }
 
 export interface InstalledDesktopPluginV2 {
-  manifest: import("@thunder/plugin-schema").ThunderPluginManifestV2
+  manifest: import("@thunder/plugin-schema").ThunderPluginManifest
   pluginRoot: string
   route: string
   uiEntryUrl: string | null
@@ -88,7 +88,7 @@ export interface DesktopPluginMarketplaceEntry {
     name: string
     url?: string
   }
-  permissions: import("@thunder/plugin-sdk").ThunderPluginPermission[]
+  permissions: string[]
   source?: "package" | "bundled"
   packageUrl?: string
   packageSha256?: string

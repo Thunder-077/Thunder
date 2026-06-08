@@ -1,6 +1,5 @@
 import type { ModuleManifest } from "@thunder/core"
 import {
-  isInstalledDesktopPluginV2,
   type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
 
@@ -11,8 +10,8 @@ export function desktopPluginToModuleManifest(plugin: DesktopInstalledPlugin): M
     description: plugin.manifest.description,
     icon: plugin.manifest.icon,
     route: plugin.route,
-    category: isInstalledDesktopPluginV2(plugin) ? "tools" : plugin.manifest.category,
-    order: isInstalledDesktopPluginV2(plugin) ? 1000 : (plugin.manifest.order ?? 1000),
+    category: "tools",
+    order: 1000,
     enabled: true,
     platforms: ["desktop" as const],
   }

@@ -1,28 +1,47 @@
-import type { ThunderPluginManifest, ThunderPluginPermission } from "@thunder/plugin-sdk"
 import { isTauriDesktop } from "@/lib/platform"
 
 export const DESKTOP_PLUGINS_CHANGED_EVENT = "thunder:desktop-plugins-changed"
 
-export type DesktopPluginPermission = ThunderPluginPermission
-export type DesktopPluginManifest = ThunderPluginManifest
+export type DesktopPluginPermission = string
 
-export interface DesktopPluginManifestV2 {
-  manifestVersion: 2
+export interface DesktopPluginManifest {
+  manifestVersion: number
   id: string
   name: string
   version: string
   description: string
-  kind: "sandboxed" | "trusted"
-  icon: string
+  kind?: "sandboxed" | "trusted"
+  category?: string
+  order?: number
+  engines?: {
+    thunder: string
+  }
   author: {
     name: string
+    email?: string
     url?: string
   }
-  permissions: string[]
-  contributes: {
+  icon: string
+  permissions: DesktopPluginPermission[]
+  web?: {
+    entry: string
+    contentSecurityPolicy?: string
+  }
+  api?: {
+    baseUrl?: string
+    healthPath?: string
+    runtime?: {
+      kind: "node"
+      entry: string
+      args?: string[]
+      portEnv?: string
+      env?: Record<string, string>
+    }
+  }
+  contributes?: {
     sidebar?: {
       title: string
-      icon: string
+      icon?: string
       entry: string
     }
   }
@@ -33,7 +52,8 @@ export interface DesktopPluginManifestV2 {
 
 export interface InstalledDesktopPlugin {
   manifest: DesktopPluginManifest
-  record: {
+  pluginRoot?: string
+  record?: {
     id: string
     version: string
     installedAt: string
@@ -49,21 +69,14 @@ export interface InstalledDesktopPlugin {
     }
   }
   route: string
-  webEntryUrl: string
-  installed: true
-}
-
-export interface InstalledDesktopPluginV2 {
-  manifest: DesktopPluginManifestV2
-  pluginRoot: string
-  route: string
-  uiEntryUrl: string | null
+  webEntryUrl?: string
+  uiEntryUrl?: string | null
   installedAt?: string
   updatedAt?: string
   installed: true
 }
 
-export type DesktopInstalledPlugin = InstalledDesktopPlugin | InstalledDesktopPluginV2
+export type DesktopInstalledPlugin = InstalledDesktopPlugin
 
 export interface DesktopPluginMigrationResult {
   pluginId: string
@@ -181,16 +194,12 @@ export async function getDesktopPlugin(pluginId: string): Promise<DesktopInstall
   return payload.data
 }
 
-export function isInstalledDesktopPluginV2(plugin: DesktopInstalledPlugin): plugin is InstalledDesktopPluginV2 {
-  return plugin.manifest.manifestVersion === 2
-}
-
 export function getDesktopPluginEntryUrl(plugin: DesktopInstalledPlugin): string | null {
-  return isInstalledDesktopPluginV2(plugin) ? plugin.uiEntryUrl : plugin.webEntryUrl
+  return plugin.uiEntryUrl ?? null
 }
 
 export function getDesktopPluginInstalledAt(plugin: DesktopInstalledPlugin): string | undefined {
-  return isInstalledDesktopPluginV2(plugin) ? plugin.installedAt : plugin.record.installedAt
+  return plugin.installedAt ?? plugin.record?.installedAt
 }
 
 export async function listDesktopPluginMarketplace(): Promise<DesktopPluginMarketplaceIndex> {
@@ -216,32 +225,8 @@ export async function listDesktopPluginMarketplace(): Promise<DesktopPluginMarke
   return payload.data
 }
 
-export async function installLocalDesktopPlugin(sourcePath: string): Promise<InstalledDesktopPlugin> {
+export async function installLocalDesktopPlugin(pluginPath: string): Promise<InstalledDesktopPlugin> {
   const response = await fetch("/api/v1/desktop/plugins/install/local", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ sourcePath }),
-  })
-
-  const payload = (await response.json()) as {
-    ok: boolean
-    data?: InstalledDesktopPlugin
-    message?: string
-  }
-
-  if (!response.ok || !payload.ok || !payload.data) {
-    throw new Error(payload.message || "插件安装失败")
-  }
-
-  notifyDesktopPluginsChanged()
-  return payload.data
-}
-
-export async function installLocalDesktopPluginV2(pluginPath: string): Promise<InstalledDesktopPluginV2> {
-  const response = await fetch("/api/v1/desktop/plugins/v2/install/local", {
     method: "POST",
     credentials: "same-origin",
     headers: {
@@ -252,7 +237,7 @@ export async function installLocalDesktopPluginV2(pluginPath: string): Promise<I
 
   const payload = (await response.json()) as {
     ok: boolean
-    data?: InstalledDesktopPluginV2
+    data?: InstalledDesktopPlugin
     message?: string
   }
 
@@ -413,10 +398,6 @@ export async function invokeDesktopPluginWorker<TResult = unknown, TPayload = un
 }
 
 const DESKTOP_PLUGIN_PERMISSION_LABELS: Record<string, string> = {
-  webview: "渲染插件界面",
-  "plugin-storage": "保存插件私有数据",
-  "local-api-proxy": "访问插件本地后端",
-  "network-proxy": "访问受控 HTTPS 网络代理",
   storage: "保存插件私有数据",
   notifications: "显示通知",
   activity: "记录活动",

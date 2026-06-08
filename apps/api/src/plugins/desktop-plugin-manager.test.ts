@@ -93,7 +93,7 @@ async function main() {
       [{ id: "teleprompter", source: "bundled" }]
     )
     const bundled = await installBundledDesktopPlugin("teleprompter")
-    assert.equal(bundled.record.source, "bundled")
+    assert.equal(bundled.manifest.kind, "trusted")
     await uninstallDesktopPlugin("teleprompter")
 
   const unknownPermissionDir = join(testRoot, "hello-unknown-permission")

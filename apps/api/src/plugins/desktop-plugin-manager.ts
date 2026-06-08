@@ -172,6 +172,10 @@ function getBundledPluginRoots(): string[] {
   const cwd = process.cwd()
   const candidates = [
     ...configuredRoots,
+    join(cwd, "plugins-v2"),
+    join(cwd, "runtime", "plugins-v2"),
+    join(cwd, "..", "plugins-v2"),
+    join(cwd, "..", "..", "plugins-v2"),
     join(cwd, "plugins", "desktop"),
     join(cwd, "runtime", "plugins", "desktop"),
     join(cwd, "..", "plugins", "desktop"),
@@ -779,12 +783,15 @@ export async function installPackagedPluginV2(
   )
 }
 
-export async function installBundledDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
+export async function installBundledDesktopPlugin(pluginId: string): Promise<InstalledDesktopPluginV2> {
   const sourcePath = await findBundledPluginSource(pluginId)
-  const plugin = await installLocalDesktopPluginInternal({
-    sourcePath,
-    allowUnsignedBundled: true,
-    source: "bundled",
+  const manifestVersion = await readManifestVersion(sourcePath)
+  if (manifestVersion !== 2) {
+    throw new DesktopPluginError("内置插件必须升级到正式插件 manifest 后才能安装", 501)
+  }
+
+  const plugin = await installPackagedPluginV2({
+    pluginPath: sourcePath,
   })
   await appendAudit("plugin.bundled-installed", {
     pluginId: plugin.manifest.id,
@@ -1525,17 +1532,22 @@ async function listBundledMarketplaceEntries(): Promise<DesktopPluginMarketplace
       if (!entry.isDirectory()) continue
       const sourcePath = resolve(root, entry.name)
       if (!isPathInside(sourcePath, root)) continue
-      const manifest = await readManifest(sourcePath).catch(() => null)
+      if ((await readManifestVersion(sourcePath).catch(() => 0)) !== 2) {
+        continue
+      }
+      const manifest = await readManifestV2(sourcePath).catch(() => null)
       if (!manifest) continue
-      if (!(await pathExists(join(sourcePath, manifest.web.entry)))) continue
+      const sidebarEntry = manifest.contributes?.sidebar?.entry
+      if (!sidebarEntry) continue
+      if (!(await pathExists(join(sourcePath, sidebarEntry)))) continue
       entries.push({
         id: manifest.id,
         name: manifest.name,
         version: manifest.version,
-        description: manifest.description,
-        icon: manifest.icon,
-        category: manifest.category,
-        author: manifest.author,
+        description: manifest.description ?? "",
+        icon: manifest.icon ?? "Package",
+        category: "tools",
+        author: manifest.author ?? { name: "Thunder" },
         permissions: manifest.permissions,
         source: "bundled",
       })

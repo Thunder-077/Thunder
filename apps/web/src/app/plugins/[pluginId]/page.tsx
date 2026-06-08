@@ -8,43 +8,32 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useTheme } from "@/components/theme-provider"
 import {
-  type LayoutRequestParams,
   PLUGIN_BRIDGE_REQUEST_SOURCE,
   PLUGIN_BRIDGE_VERSION,
   clearPluginStorage,
   createIsolatedPluginFrameUrl,
-  ensurePluginPermission,
   getRequiredPluginPermissionForBridgeMethod,
   getPluginStorageValue,
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
   listPluginStorageKeys,
   normalizePluginFrameHeight,
-  normalizeRuntimeRequestMethod,
-  normalizeRuntimeRequestPath,
   normalizeStorageKey,
   removePluginStorageValue,
-  sanitizeNetworkRequestParams,
-  sanitizeRuntimeRequestHeaders,
   setPluginStorageValue,
-  type NetworkRequestParams,
   type PluginBridgeRequest,
-  type RuntimeRequestParams,
   type StorageRequestParams,
 } from "@/lib/desktop-plugin-bridge"
 import {
   getDesktopPluginRuntimeStatus,
   getDesktopPlugin,
   getDesktopPluginEntryUrl,
-  isInstalledDesktopPluginV2,
   shouldLoadDesktopPlugins,
-  startDesktopPluginRuntime,
   invokeDesktopPluginWorker,
   type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
 import { notificationStore } from "@/lib/notification-store"
 import { ActivityClient } from "@thunder/api-client"
-import { getRequiredPermissionForRpcMethod } from "@/lib/plugin-v2-bridge"
 import {
   PluginDevtoolsPanel,
   type PluginDiagnosticItem,
@@ -70,7 +59,6 @@ export default function DesktopPluginPage() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previousWorkerStatusRef = useRef<string | null>(null)
   const { resolvedTheme } = useTheme()
-  const isV2Plugin = plugin ? isInstalledDesktopPluginV2(plugin) : false
 
   const appendLog = useCallback((level: PluginLogEntry["level"], message: string) => {
     setDevLogs((previous) => [
@@ -113,7 +101,7 @@ export default function DesktopPluginPage() {
   )
 
   const refreshWorkerStatus = useCallback(async () => {
-    if (!plugin || !isInstalledDesktopPluginV2(plugin)) {
+    if (!plugin) {
       setWorkerStatus({ running: false })
       return
     }
@@ -140,10 +128,7 @@ export default function DesktopPluginPage() {
 
     let cancelled = false
     getDesktopPlugin(pluginId)
-      .then(async (result) => {
-        if (!isInstalledDesktopPluginV2(result) && result.manifest.api?.runtime) {
-          await startDesktopPluginRuntime(result.manifest.id)
-        }
+      .then((result) => {
         if (!cancelled) setPlugin(result)
       })
       .catch((err) => {
@@ -187,24 +172,16 @@ export default function DesktopPluginPage() {
   }, [hostOrigin, plugin, resolvedTheme])
 
   useEffect(() => {
-    if (!isV2Plugin) {
-      return
-    }
-
     void refreshWorkerStatus()
-  }, [isV2Plugin, refreshWorkerStatus])
+  }, [refreshWorkerStatus])
 
   useEffect(() => {
-    if (!isV2Plugin) {
-      return
-    }
-
     const timer = window.setInterval(() => {
       void refreshWorkerStatus()
     }, 3000)
 
     return () => window.clearInterval(timer)
-  }, [isV2Plugin, refreshWorkerStatus])
+  }, [refreshWorkerStatus])
 
   useEffect(() => {
     const nextSignature = JSON.stringify(workerStatus)
@@ -249,16 +226,9 @@ export default function DesktopPluginPage() {
 
       try {
         const startedAt = performance.now()
-        if (isInstalledDesktopPluginV2(currentPlugin)) {
-          const requiredPermission = getRequiredPermissionForRpcMethod(request.method)
-          if (requiredPermission && !currentPlugin.manifest.permissions.includes(requiredPermission)) {
-            throw new Error(`插件未声明 ${requiredPermission} 权限`)
-          }
-        } else {
-          const requiredPermission = getRequiredPluginPermissionForBridgeMethod(request.method)
-          if (requiredPermission) {
-            ensurePluginPermission(currentPlugin.manifest.permissions, requiredPermission)
-          }
+        const requiredPermission = getRequiredPluginPermissionForBridgeMethod(request.method)
+        if (requiredPermission && !currentPlugin.manifest.permissions.includes(requiredPermission)) {
+          throw new Error(`插件未声明 ${requiredPermission} 权限`)
         }
 
         if (request.method === "plugin.getManifest") {
@@ -274,7 +244,7 @@ export default function DesktopPluginPage() {
         }
 
         if (request.method === "layout.setFrameHeight") {
-          const params = request.params as LayoutRequestParams | null
+          const params = request.params as { height?: number } | null
           setFrameHeight(normalizePluginFrameHeight(params?.height))
           appendRpcCall({
             method: request.method,
@@ -285,94 +255,7 @@ export default function DesktopPluginPage() {
           return
         }
 
-        if (request.method === "runtime.request") {
-          if (isInstalledDesktopPluginV2(currentPlugin)) {
-            throw new Error("manifest v2 插件不支持 runtime.request，请改用 worker.invoke")
-          }
-          const params = request.params as RuntimeRequestParams | null
-          const rawPath = normalizeRuntimeRequestPath(params?.path)
-          const method = normalizeRuntimeRequestMethod(params?.method)
-          const headers = sanitizeRuntimeRequestHeaders(params?.headers)
-          const hasBody =
-            method !== "GET" &&
-            method !== "HEAD" &&
-            params !== null &&
-            typeof params === "object" &&
-            Object.prototype.hasOwnProperty.call(params, "body")
-
-          // Keep empty POSTs body-less so plugin runtimes do not try to parse a fake JSON payload.
-          if (!hasBody) {
-            headers.delete("content-type")
-          }
-
-          const response = await fetch(
-            `/api/v1/desktop/plugins/${encodeURIComponent(currentPlugin.manifest.id)}/api/${rawPath}`,
-            {
-              method,
-              headers,
-              body: hasBody ? JSON.stringify(params.body) : undefined,
-              cache: params?.cache ?? "no-store",
-              // Runtime requests are issued by the host page, so they must carry the
-              // current session cookie or middleware will reject them as anonymous.
-              credentials: "same-origin",
-            }
-          )
-
-          const contentType = response.headers.get("content-type") ?? ""
-          const data = contentType.includes("application/json") ? await response.json() : await response.text()
-          postBridgeResponse(frameOrigin, request.id, true, {
-            status: response.status,
-            ok: response.ok,
-            headers: Object.fromEntries(response.headers.entries()),
-            data,
-          })
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-            result: {
-              status: response.status,
-              ok: response.ok,
-            },
-          })
-          return
-        }
-
-        if (request.method === "network.request") {
-          const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(currentPlugin.manifest.id)}/network`, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-            },
-            body: JSON.stringify(sanitizeNetworkRequestParams(request.params as NetworkRequestParams | null)),
-            cache: "no-store",
-            credentials: "same-origin",
-          })
-          const payload = (await response.json()) as {
-            ok?: boolean
-            data?: unknown
-            message?: string
-          }
-          if (!response.ok || !payload.ok) {
-            throw new Error(payload.message || "插件网络代理请求失败")
-          }
-          postBridgeResponse(frameOrigin, request.id, true, payload.data)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-            result: payload.data,
-          })
-          return
-        }
-
         if (request.method === "worker.invoke") {
-          if (!isInstalledDesktopPluginV2(currentPlugin)) {
-            throw new Error("仅 manifest v2 插件支持 worker.invoke")
-          }
-
           const params = request.params as {
             method?: string
             payload?: unknown
@@ -617,11 +500,9 @@ export default function DesktopPluginPage() {
     <div className="min-h-0 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <PageHeader title={plugin.manifest.name} />
-        {isV2Plugin ? (
-          <Button variant="outline" size="sm" onClick={() => setShowDevtools((previous) => !previous)}>
-            {showDevtools ? "隐藏 Devtools" : "显示 Devtools"}
-          </Button>
-        ) : null}
+        <Button variant="outline" size="sm" onClick={() => setShowDevtools((previous) => !previous)}>
+          {showDevtools ? "隐藏 Devtools" : "显示 Devtools"}
+        </Button>
       </div>
 
       <iframe
@@ -637,7 +518,7 @@ export default function DesktopPluginPage() {
         style={{ height: `${frameHeight}px` }}
       />
 
-      {isV2Plugin && showDevtools ? (
+      {showDevtools ? (
         <Card>
           <CardContent className="space-y-4 p-5">
             <PluginDevtoolsPanel
