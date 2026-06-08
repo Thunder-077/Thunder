@@ -1,11 +1,17 @@
 export type {
-  ThunderPluginCategory as DesktopPluginCategory,
   ThunderPluginPermission as DesktopPluginPermission,
   ThunderPluginManifest as DesktopPluginManifest,
-} from "@thunder/plugin-sdk"
-export type {
   ThunderPluginManifest as DesktopPluginSchemaManifest,
 } from "@thunder/plugin-schema"
+
+export type DesktopPluginCategory =
+  | "productivity"
+  | "security"
+  | "ai"
+  | "notes"
+  | "tools"
+  | "dashboard"
+  | "other"
 
 export interface DesktopPluginInstallRecord {
   id: string
@@ -74,7 +80,7 @@ export interface DesktopPluginMarketplaceEntry {
   version: string
   description: string
   icon: string
-  category: import("@thunder/plugin-sdk").ThunderPluginCategory
+  category: DesktopPluginCategory
   author: {
     name: string
     url?: string

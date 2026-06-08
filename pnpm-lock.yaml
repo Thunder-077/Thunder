@@ -121,6 +121,9 @@ importers:
       '@thunder/plugin-devtools':
         specifier: workspace:*
         version: link:../../packages/plugin-devtools
+      '@thunder/plugin-schema':
+        specifier: workspace:*
+        version: link:../../packages/plugin-schema
       '@thunder/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
@@ -524,28 +527,6 @@ importers:
       '@types/react':
         specifier: ^19
         version: 19.2.14
-      typescript:
-        specifier: ^5
-        version: 5.9.3
-
-  plugins-v2/teleprompter:
-    dependencies:
-      '@thunder/plugin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/plugin-sdk
-      react:
-        specifier: ^19.2.4
-        version: 19.2.4
-    devDependencies:
-      '@types/node':
-        specifier: ^20
-        version: 20.19.39
-      '@types/react':
-        specifier: ^19.2.4
-        version: 19.2.14
-      tsx:
-        specifier: ^4.19.4
-        version: 4.21.0
       typescript:
         specifier: ^5
         version: 5.9.3

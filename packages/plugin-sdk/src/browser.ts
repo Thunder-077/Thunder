@@ -1,4 +1,4 @@
-import type { ThunderPluginManifestLike } from "./index"
+import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
 type BridgeMethod =
   | "plugin.getManifest"
@@ -83,7 +83,7 @@ type ThemeChangeCallback = (theme: "light" | "dark") => void
 
 export interface ThunderBrowserPluginClient {
   plugin: {
-    getManifest(): Promise<ThunderPluginManifestLike>
+    getManifest(): Promise<ThunderPluginManifest>
     setFrameHeight(height: number): void
   }
   theme: {
@@ -250,7 +250,7 @@ function normalizeThunderPluginWorkerMethod(method: string): string {
 export function createThunderPluginClient(): ThunderBrowserPluginClient {
   return {
     plugin: {
-      getManifest: () => postHostMessage<ThunderPluginManifestLike>("plugin.getManifest"),
+      getManifest: () => postHostMessage<ThunderPluginManifest>("plugin.getManifest"),
       setFrameHeight: (height: number) => {
         if (!Number.isFinite(height)) {
           throw new Error("Thunder plugin frame height is invalid")
