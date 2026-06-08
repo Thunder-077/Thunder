@@ -7,10 +7,10 @@ import assert from "node:assert/strict"
 import { DatabaseSync } from "node:sqlite"
 import {
   fetchDesktopPluginMarketplace,
-  getInstalledPluginV2,
+  getInstalledPlugin,
   installBundledDesktopPlugin,
-  installPackagedPluginV2,
-  listInstalledDesktopPluginsV2,
+  installPackagedPlugin,
+  listInstalledDesktopPlugins,
   readDesktopPluginUiAsset,
   uninstallDesktopPlugin,
 } from "./desktop-plugin-manager"
@@ -50,7 +50,7 @@ function ensureActivityLogTable(databasePath: string): void {
 
 async function main() {
   const workspaceRoot = resolve(process.cwd(), "..", "..")
-  const testRoot = resolve(workspaceRoot, ".thunder-plugin-manager-v2-test")
+  const testRoot = resolve(workspaceRoot, ".thunder-plugin-manager-test")
 
   await rm(testRoot, { recursive: true, force: true })
   await mkdir(testRoot, { recursive: true })
@@ -105,14 +105,14 @@ async function main() {
       "utf8",
     )
 
-    const installed = await installPackagedPluginV2({ pluginPath: stagedPluginRoot })
+    const installed = await installPackagedPlugin({ pluginPath: stagedPluginRoot })
     assert.equal(installed.manifest.id, "teleprompter")
 
-    const plugins = await listInstalledDesktopPluginsV2()
+    const plugins = await listInstalledDesktopPlugins()
     assert.equal(plugins.length, 1)
     assert.equal(plugins[0]?.manifest.id, "teleprompter")
 
-    const storedPlugin = await getInstalledPluginV2("teleprompter")
+    const storedPlugin = await getInstalledPlugin("teleprompter")
     assert.equal(storedPlugin.uiEntryUrl?.includes("/api/v1/desktop/plugins/teleprompter/ui/"), true)
 
     const uiAsset = await readDesktopPluginUiAsset("teleprompter", ["dist", "index.html"])

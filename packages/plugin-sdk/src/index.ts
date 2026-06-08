@@ -1,11 +1,7 @@
 export type {
-  ThunderPluginAuthor as ThunderPluginAuthorV2,
   ThunderPluginCommandContribution,
   ThunderPluginContributes,
   ThunderPluginKind,
-  ThunderPluginManifestV2,
-  ThunderPluginPermission as ThunderPluginPermissionV2,
-  ThunderPluginRuntime as ThunderPluginRuntimeV2,
   ThunderPluginSettingContribution,
   ThunderPluginSidebarContribution,
 } from "@thunder/plugin-schema"
@@ -87,7 +83,7 @@ export interface ThunderPluginManifest {
 
 export type ThunderPluginManifestLike =
   | ThunderPluginManifest
-  | import("@thunder/plugin-schema").ThunderPluginManifestV2
+  | import("@thunder/plugin-schema").ThunderPluginManifest
 
 export interface ThunderPluginRuntimeEnv {
   THUNDER_PLUGIN_ID: string

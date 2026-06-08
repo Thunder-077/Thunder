@@ -3,11 +3,11 @@ import {
   DesktopPluginError,
   fetchDesktopPluginMarketplace,
   getDesktopPluginRuntimeStatus,
-  getInstalledPluginV2,
+  getInstalledPlugin,
   installBundledDesktopPlugin,
-  installPackagedPluginV2,
+  installPackagedPlugin,
   isDesktopPluginRuntimeEnabled,
-  listInstalledDesktopPluginsV2,
+  listInstalledDesktopPlugins,
   readDesktopPluginUiAsset,
   startDesktopPluginRuntime,
   uninstallDesktopPlugin,
@@ -57,7 +57,7 @@ function jsonError(error: unknown): Response {
 }
 
 desktopPlugins.get("/", async (c) => {
-  const plugins = await listInstalledDesktopPluginsV2()
+  const plugins = await listInstalledDesktopPlugins()
   return c.json({ ok: true, data: { enabled: isDesktopPluginRuntimeEnabled(), plugins } })
 })
 
@@ -72,7 +72,7 @@ desktopPlugins.get("/marketplace", async (c) => {
 
 desktopPlugins.get("/:id", async (c) => {
   try {
-    const plugin = await getInstalledPluginV2(c.req.param("id"))
+    const plugin = await getInstalledPlugin(c.req.param("id"))
     return c.json({ ok: true, data: plugin })
   } catch (error) {
     return jsonError(error)
@@ -94,7 +94,7 @@ desktopPlugins.post("/install/local", async (c) => {
       })
     }
 
-    const plugin = await installPackagedPluginV2({
+    const plugin = await installPackagedPlugin({
       pluginPath: body.pluginPath,
     })
     return c.json({ ok: true, data: plugin }, 201)

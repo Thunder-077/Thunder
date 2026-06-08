@@ -5,8 +5,8 @@ import { cp, mkdir, rm, writeFile } from "node:fs/promises"
 import { DatabaseSync } from "node:sqlite"
 import {
   getDesktopPluginRuntimeStatus,
-  getInstalledPluginV2,
-  installPackagedPluginV2,
+  getInstalledPlugin,
+  installPackagedPlugin,
   invokeDesktopPluginWorker,
   readDesktopPluginUiAsset,
   startDesktopPluginRuntime,
@@ -36,7 +36,7 @@ function ensureActivityLogTable(databasePath: string): void {
 
 async function main() {
   const workspaceRoot = resolve(process.cwd(), "..", "..")
-  const testRoot = resolve(workspaceRoot, ".thunder-plugin-v2-test")
+  const testRoot = resolve(workspaceRoot, ".thunder-plugin-e2e-test")
 
   await rm(testRoot, { recursive: true, force: true })
   await mkdir(testRoot, { recursive: true })
@@ -74,7 +74,7 @@ async function main() {
       "utf8",
     )
 
-    const plugin = await installPackagedPluginV2({
+    const plugin = await installPackagedPlugin({
       pluginPath: stagedPluginRoot,
     })
 
@@ -82,7 +82,7 @@ async function main() {
     assert.equal(plugin.manifest.kind, "trusted")
     assert.equal(plugin.manifest.permissions.includes("native-runtime"), true)
 
-    const installedPlugin = await getInstalledPluginV2("teleprompter")
+    const installedPlugin = await getInstalledPlugin("teleprompter")
     assert.equal(installedPlugin.manifest.id, "teleprompter")
     assert.equal(installedPlugin.uiEntryUrl?.includes("/api/v1/desktop/plugins/teleprompter/ui/"), true)
     assert.equal(installedPlugin.manifest.permissions.includes("microphone"), true)

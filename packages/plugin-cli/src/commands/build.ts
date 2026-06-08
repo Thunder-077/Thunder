@@ -4,13 +4,13 @@ import { dirname, join, relative, resolve } from "node:path"
 import { build, context, type BuildContext, type BuildOptions } from "esbuild"
 import {
   parseThunderPluginManifest,
-  type ThunderPluginManifestV2,
+  type ThunderPluginManifest,
 } from "../../../plugin-schema/src/index"
 
 export interface PluginProject {
   rootDir: string
   manifestPath: string
-  manifest: ThunderPluginManifestV2
+  manifest: ThunderPluginManifest
 }
 
 export interface BuildPluginOptions {

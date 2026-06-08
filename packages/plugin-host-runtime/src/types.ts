@@ -1,19 +1,19 @@
-import type { ThunderPluginManifestV2 } from "@thunder/plugin-schema"
+import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
 export interface LoadedPluginManifest {
-  manifest: ThunderPluginManifestV2
+  manifest: ThunderPluginManifest
   pluginRoot: string
   manifestPath: string
 }
 
 export interface RegisteredPlugin {
-  manifest: ThunderPluginManifestV2
+  manifest: ThunderPluginManifest
   pluginRoot: string
 }
 
 export interface PluginRegistry {
   readonly root: string
-  register(pluginRoot: string, manifest: ThunderPluginManifestV2): RegisteredPlugin
+  register(pluginRoot: string, manifest: ThunderPluginManifest): RegisteredPlugin
   get(id: string): RegisteredPlugin | null
   has(id: string): boolean
   list(): RegisteredPlugin[]
@@ -27,7 +27,7 @@ export interface PluginStorage {
 }
 
 export interface PluginInstallResult {
-  manifest: ThunderPluginManifestV2
+  manifest: ThunderPluginManifest
   pluginRoot: string
 }
 
@@ -39,7 +39,7 @@ export interface PluginInstaller {
 
 export interface PluginRuntimeStatus {
   pluginId: string
-  kind: ThunderPluginManifestV2["kind"]
+  kind: ThunderPluginManifest["kind"]
   running: boolean
   endpoint?: string
 }

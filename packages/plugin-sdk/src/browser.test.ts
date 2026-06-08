@@ -2,8 +2,8 @@ import assert from "node:assert/strict"
 import {
   createPluginApi,
   definePlugin,
-  type ThunderPluginManifestV2,
 } from "./index"
+import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 import {
   createThunderPluginClient,
   normalizeThunderPluginRuntimePath,
@@ -288,7 +288,7 @@ async function main() {
   await storageClearPromise
 
   const manifestPromise = thunder.plugin.getManifest()
-  const manifest: ThunderPluginManifestV2 = {
+  const manifest: ThunderPluginManifest = {
     manifestVersion: 2,
     id: "teleprompter",
     name: "Teleprompter",

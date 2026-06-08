@@ -6,10 +6,10 @@ import { createPipeClient, createTrustedRuntimeSupervisor } from "@thunder/plugi
 import { parseThunderPluginManifest } from "@thunder/plugin-schema"
 import type {
   DesktopPluginInstallRecord,
-  DesktopPluginManifestV2,
+  DesktopPluginSchemaManifest,
   DesktopPluginMarketplaceIndex,
   DesktopPluginRuntimeStatus,
-  InstalledDesktopPluginV2,
+  InstalledDesktopPlugin,
 } from "./desktop-plugin-types"
 import { recordActivity } from "../modules/activity/activity-service"
 
@@ -39,7 +39,7 @@ export class DesktopPluginError extends Error {
   }
 }
 
-export interface InstallLocalPluginV2Options {
+export interface InstallLocalPluginOptions {
   pluginPath: string
 }
 
@@ -190,7 +190,7 @@ async function readManifestVersion(pluginRoot: string): Promise<number> {
   return typeof manifest.manifestVersion === "number" ? manifest.manifestVersion : 0
 }
 
-async function readManifestV2(pluginRoot: string): Promise<DesktopPluginManifestV2> {
+async function readManifest(pluginRoot: string): Promise<DesktopPluginSchemaManifest> {
   const manifest = parseThunderPluginManifest(await readJsonFile(join(pluginRoot, "plugin.json")))
   const sidebarEntry = manifest.contributes?.sidebar?.entry
 
@@ -219,12 +219,12 @@ function sha256(buffer: Buffer | string): string {
   return createHash("sha256").update(buffer).digest("hex")
 }
 
-export function toInstalledPluginV2(
-  manifest: DesktopPluginManifestV2,
+export function toInstalledPlugin(
+  manifest: DesktopPluginSchemaManifest,
   pluginRoot: string,
   installedAt?: string,
   updatedAt?: string,
-): InstalledDesktopPluginV2 {
+): InstalledDesktopPlugin {
   const sidebarEntry = manifest.contributes?.sidebar?.entry ?? null
 
   return {
@@ -238,13 +238,13 @@ export function toInstalledPluginV2(
   }
 }
 
-export async function listInstalledDesktopPluginsV2(): Promise<InstalledDesktopPluginV2[]> {
+export async function listInstalledDesktopPlugins(): Promise<InstalledDesktopPlugin[]> {
   if (!isDesktopPluginRuntimeEnabled()) return []
 
   await ensureDirs()
   const { pluginsDir } = getPluginDirs()
   const entries = await readdir(pluginsDir, { withFileTypes: true }).catch(() => [])
-  const plugins: InstalledDesktopPluginV2[] = []
+  const plugins: InstalledDesktopPlugin[] = []
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
@@ -253,9 +253,9 @@ export async function listInstalledDesktopPluginsV2(): Promise<InstalledDesktopP
       if ((await readManifestVersion(pluginRoot)) !== 2) {
         continue
       }
-      const manifest = await readManifestV2(pluginRoot)
+      const manifest = await readManifest(pluginRoot)
       const installRecord = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json")).catch(() => null)
-      plugins.push(toInstalledPluginV2(manifest, pluginRoot, installRecord?.installedAt, installRecord?.updatedAt))
+      plugins.push(toInstalledPlugin(manifest, pluginRoot, installRecord?.installedAt, installRecord?.updatedAt))
     } catch (error) {
       console.warn("[desktop-plugins] ignored invalid plugin", entry.name, error)
     }
@@ -264,7 +264,7 @@ export async function listInstalledDesktopPluginsV2(): Promise<InstalledDesktopP
   return plugins.sort((a, b) => a.manifest.name.localeCompare(b.manifest.name))
 }
 
-export async function getInstalledPluginV2(id: string): Promise<InstalledDesktopPluginV2> {
+export async function getInstalledPlugin(id: string): Promise<InstalledDesktopPlugin> {
   assertPluginId(id)
   if (!isDesktopPluginRuntimeEnabled()) {
     throw new DesktopPluginError("插件未安装", 404)
@@ -278,17 +278,17 @@ export async function getInstalledPluginV2(id: string): Promise<InstalledDesktop
   }
 
   try {
-    const manifest = await readManifestV2(pluginRoot)
+    const manifest = await readManifest(pluginRoot)
     const installRecord = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json")).catch(() => null)
-    return toInstalledPluginV2(manifest, pluginRoot, installRecord?.installedAt, installRecord?.updatedAt)
+    return toInstalledPlugin(manifest, pluginRoot, installRecord?.installedAt, installRecord?.updatedAt)
   } catch {
     throw new DesktopPluginError("插件未安装", 404)
   }
 }
 
-export async function installPackagedPluginV2(
-  options: InstallLocalPluginV2Options,
-): Promise<InstalledDesktopPluginV2> {
+export async function installPackagedPlugin(
+  options: InstallLocalPluginOptions,
+): Promise<InstalledDesktopPlugin> {
   if (!isDesktopPluginRuntimeEnabled()) {
     throw new DesktopPluginError("插件系统仅在桌面端启用", 403)
   }
@@ -304,13 +304,13 @@ export async function installPackagedPluginV2(
     throw new DesktopPluginError("当前只支持正式插件 manifest")
   }
 
-  const manifest = await readManifestV2(sourcePath)
+  const manifest = await readManifest(sourcePath)
   await assertNoSymlinks(sourcePath)
 
   const { pluginsDir, stagingDir } = getPluginDirs()
   const targetDir = join(pluginsDir, manifest.id)
   const stageDir = join(stagingDir, `${manifest.id}-${Date.now()}`)
-  const previousPlugin = await getInstalledPluginV2(manifest.id).catch(() => null)
+  const previousPlugin = await getInstalledPlugin(manifest.id).catch(() => null)
 
   await rm(stageDir, { recursive: true, force: true })
   await cp(sourcePath, stageDir, { recursive: true, dereference: true })
@@ -351,7 +351,7 @@ export async function installPackagedPluginV2(
     console.error("[plugin-activity] Failed to record activity", error)
   }
 
-  return toInstalledPluginV2(manifest, targetDir, installRecord.installedAt, installRecord.updatedAt)
+  return toInstalledPlugin(manifest, targetDir, installRecord.installedAt, installRecord.updatedAt)
 }
 
 async function findBundledPluginSource(pluginId: string): Promise<string> {
@@ -368,9 +368,9 @@ async function findBundledPluginSource(pluginId: string): Promise<string> {
   throw new DesktopPluginError("内置插件不存在或未随应用打包", 404)
 }
 
-export async function installBundledDesktopPlugin(pluginId: string): Promise<InstalledDesktopPluginV2> {
+export async function installBundledDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
   const sourcePath = await findBundledPluginSource(pluginId)
-  const plugin = await installPackagedPluginV2({ pluginPath: sourcePath })
+  const plugin = await installPackagedPlugin({ pluginPath: sourcePath })
 
   await appendAudit("plugin.bundled-installed", {
     pluginId: plugin.manifest.id,
@@ -398,7 +398,7 @@ export async function uninstallDesktopPlugin(id: string): Promise<void> {
   const { pluginsDir } = getPluginDirs()
   const targetDir = join(pluginsDir, id)
   await assertPathInside(pluginsDir, targetDir)
-  const plugin = await getInstalledPluginV2(id).catch(() => null)
+  const plugin = await getInstalledPlugin(id).catch(() => null)
   await rm(targetDir, { recursive: true, force: true })
 
   await appendAudit("plugin.uninstalled", {
@@ -418,7 +418,7 @@ export async function uninstallDesktopPlugin(id: string): Promise<void> {
 }
 
 export async function readDesktopPluginUiAsset(id: string, assetPathParts: string[]): Promise<StaticPluginAsset> {
-  const plugin = await getInstalledPluginV2(id)
+  const plugin = await getInstalledPlugin(id)
   const sidebarEntry = plugin.manifest.contributes?.sidebar?.entry
   if (!sidebarEntry) {
     throw new DesktopPluginError("插件未声明 UI 入口", 404)
@@ -446,7 +446,7 @@ export async function readDesktopPluginUiAsset(id: string, assetPathParts: strin
   }
 }
 
-async function startTrustedDesktopPluginRuntime(plugin: InstalledDesktopPluginV2): Promise<DesktopPluginRuntimeStatus> {
+async function startTrustedDesktopPluginRuntime(plugin: InstalledDesktopPlugin): Promise<DesktopPluginRuntimeStatus> {
   if (plugin.manifest.kind !== "trusted") {
     throw new DesktopPluginError("当前仅支持 trusted runtime", 501)
   }
@@ -473,7 +473,7 @@ async function startTrustedDesktopPluginRuntime(plugin: InstalledDesktopPluginV2
 }
 
 export async function startDesktopPluginRuntime(id: string): Promise<DesktopPluginRuntimeStatus> {
-  const plugin = await getInstalledPluginV2(id)
+  const plugin = await getInstalledPlugin(id)
   return startTrustedDesktopPluginRuntime(plugin)
 }
 
@@ -502,7 +502,7 @@ export async function invokeDesktopPluginWorker(
   method: string,
   payload: unknown,
 ): Promise<unknown> {
-  const plugin = await getInstalledPluginV2(id)
+  const plugin = await getInstalledPlugin(id)
   if (plugin.manifest.kind !== "trusted") {
     throw new DesktopPluginError("当前仅支持 trusted worker.invoke", 501)
   }
@@ -535,7 +535,7 @@ async function listBundledMarketplaceEntries(): Promise<DesktopPluginMarketplace
       if (!isPathInside(sourcePath, root)) continue
       if ((await readManifestVersion(sourcePath).catch(() => 0)) !== 2) continue
 
-      const manifest = await readManifestV2(sourcePath).catch(() => null)
+      const manifest = await readManifest(sourcePath).catch(() => null)
       const sidebarEntry = manifest?.contributes?.sidebar?.entry
       if (!manifest || !sidebarEntry) continue
       if (!(await pathExists(join(sourcePath, sidebarEntry)))) continue

@@ -55,7 +55,7 @@ const server = createServer((request, response) => {
     return
   }
 
-  if (request.url === "/api/v1/desktop/plugins/v2/install/local" && request.method === "POST") {
+  if (request.url === "/api/v1/desktop/plugins/install/local" && request.method === "POST") {
     installRequests += 1
     response.writeHead(201, { "content-type": "application/json" })
     response.end(JSON.stringify({ ok: true, data: { installed: true } }))
@@ -99,7 +99,7 @@ const hostReady = await waitForCondition(
   50,
 )
 assert.equal(hostReady, true)
-await client.installLocalPluginV2(pluginRoot)
+await client.installLocalPlugin(pluginRoot)
 await client.startRuntime("teleprompter")
 assert.equal(installRequests, 1)
 assert.equal(startRequests, 1)

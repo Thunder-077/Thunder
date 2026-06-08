@@ -41,7 +41,7 @@ export interface ThunderPluginRuntime {
   entry: string;
 }
 
-export interface ThunderPluginManifestV2 {
+export interface ThunderPluginManifest {
   manifestVersion: 2;
   id: string;
   name: string;
@@ -58,7 +58,6 @@ export interface ThunderPluginManifestV2 {
   runtime?: ThunderPluginRuntime;
 }
 
-export type ThunderPluginManifest = ThunderPluginManifestV2;
 
 function assertManifest(
   condition: unknown,
@@ -281,7 +280,7 @@ function validateKindPermissions(
 
 export function parseThunderPluginManifest(
   input: unknown,
-): ThunderPluginManifestV2 {
+): ThunderPluginManifest {
   assertManifest(isRecord(input), "manifest must be an object");
   assertManifest(input.manifestVersion === 2, "manifestVersion must be 2");
   assertManifest(typeof input.id === "string" && input.id.length > 0, "id is required");

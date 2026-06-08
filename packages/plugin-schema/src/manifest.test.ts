@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 
 import {
   parseThunderPluginManifest,
-  type ThunderPluginManifestV2,
+  type ThunderPluginManifest,
 } from "./manifest";
 
-const trustedManifest: ThunderPluginManifestV2 = {
+const trustedManifest: ThunderPluginManifest = {
   manifestVersion: 2,
   id: "teleprompter",
   name: "Teleprompter",

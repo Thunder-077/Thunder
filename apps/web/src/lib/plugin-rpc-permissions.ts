@@ -1,4 +1,4 @@
-const V2_BRIDGE_METHOD_PERMISSIONS: Record<string, string> = {
+const RPC_METHOD_PERMISSIONS: Record<string, string> = {
   "storage.get": "storage",
   "storage.set": "storage",
   "storage.remove": "storage",
@@ -10,5 +10,5 @@ const V2_BRIDGE_METHOD_PERMISSIONS: Record<string, string> = {
 }
 
 export function getRequiredPermissionForRpcMethod(method: string): string | null {
-  return V2_BRIDGE_METHOD_PERMISSIONS[method] ?? null
+  return RPC_METHOD_PERMISSIONS[method] ?? null
 }

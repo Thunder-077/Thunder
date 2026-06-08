@@ -1,5 +1,5 @@
 import { resolve } from "node:path"
-import type { ThunderPluginManifestV2 } from "@thunder/plugin-schema"
+import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 import type { PluginRegistry, RegisteredPlugin } from "./types"
 
 export function createPluginRegistry(root: string): PluginRegistry {
@@ -8,7 +8,7 @@ export function createPluginRegistry(root: string): PluginRegistry {
 
   return {
     root: normalizedRoot,
-    register(pluginRoot: string, manifest: ThunderPluginManifestV2) {
+    register(pluginRoot: string, manifest: ThunderPluginManifest) {
       const plugin = {
         pluginRoot: resolve(pluginRoot),
         manifest,

@@ -16,7 +16,7 @@ const WORKER_STATUS_POLL_INTERVAL_MS = 3000
 
 export interface DesktopDevHostClient {
   getRuntimeStatus(pluginId: string): Promise<{ running: boolean; endpoint?: string; lastError?: string }>
-  installLocalPluginV2(pluginPath: string): Promise<void>
+  installLocalPlugin(pluginPath: string): Promise<void>
   startRuntime(pluginId: string): Promise<void>
 }
 
@@ -46,8 +46,8 @@ function createDesktopDevHostClient(apiBaseUrl: string): DesktopDevHostClient {
       const payload = await readJsonOrThrow(response, "桌面插件 runtime 状态读取失败")
       return payload.data as { running: boolean; endpoint?: string; lastError?: string }
     },
-    async installLocalPluginV2(pluginPath) {
-      const response = await fetch(`${apiBaseUrl}/api/v1/desktop/plugins/v2/install/local`, {
+    async installLocalPlugin(pluginPath) {
+      const response = await fetch(`${apiBaseUrl}/api/v1/desktop/plugins/install/local`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -138,7 +138,7 @@ async function installAndStartPlugin(
   project: PluginProject,
   log: (message: string) => void,
 ): Promise<void> {
-  await client.installLocalPluginV2(project.rootDir)
+  await client.installLocalPlugin(project.rootDir)
   log("Install: synced")
 
   if (project.manifest.runtime) {
