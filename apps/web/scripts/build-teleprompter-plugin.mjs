@@ -9,9 +9,10 @@ const scriptDir = dirname(fileURLToPath(import.meta.url))
 const webRoot = resolve(scriptDir, "..")
 const workspaceRoot = resolve(webRoot, "..", "..")
 const pluginRoot = resolve(workspaceRoot, "plugins", "desktop", "teleprompter")
-const webOutDir = resolve(pluginRoot, "web")
+const webOutDir = resolve(pluginRoot, "dist")
 const assetsOutDir = resolve(webOutDir, "assets")
 const entryPoint = resolve(pluginRoot, "src", "index.tsx")
+const workerEntryPoint = resolve(pluginRoot, "src", "worker.ts")
 const cssOutput = resolve(assetsOutDir, "main.css")
 const globalsCss = resolve(webRoot, "src", "app", "globals.css")
 const pluginUiRoot = resolve(workspaceRoot, "packages", "plugin-ui", "src")
@@ -28,7 +29,7 @@ await build({
   entryPoints: [entryPoint],
   bundle: true,
   platform: "browser",
-  format: "esm",
+  format: "iife",
   target: ["es2020"],
   outfile: resolve(assetsOutDir, "main.js"),
   absWorkingDir: webRoot,
@@ -73,6 +74,27 @@ const processedCss = await postcss([tailwindcss()]).process(rawCss, {
   to: cssOutput,
 })
 await writeFile(cssOutput, processedCss.css, "utf8")
+
+await build({
+  entryPoints: [workerEntryPoint],
+  outfile: resolve(webOutDir, "worker.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: ["node20"],
+  absWorkingDir: webRoot,
+  nodePaths: [resolve(webRoot, "node_modules"), resolve(workspaceRoot, "node_modules")],
+  sourcemap: false,
+  minify: process.env.NODE_ENV === "production",
+  alias: {
+    "@thunder/plugin-sdk/worker": resolve(workspaceRoot, "packages", "plugin-sdk", "src", "worker.ts"),
+    "@thunder/plugin-sdk-worker": resolve(workspaceRoot, "packages", "plugin-sdk-worker", "src", "index.ts"),
+  },
+  define: {
+    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "production"),
+    "process.env.NEXT_PUBLIC_PLATFORM": JSON.stringify("desktop"),
+  },
+})
 
 await writeFile(
   resolve(webOutDir, "index.html"),

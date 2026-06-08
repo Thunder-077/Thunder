@@ -1,5 +1,4 @@
 import assert from "node:assert/strict"
-import plugin from "./index"
 import type {
   SpeechRuntimeHealthResult,
   SpeechSessionFeedResult,
@@ -20,7 +19,6 @@ function createJsonResponse<T>(data: T): Response {
   })
 }
 
-assert.equal(typeof plugin.setup, "function")
 assert.equal(typeof worker.handlers["speech.health.check"], "function")
 assert.equal(typeof worker.handlers["speech.session.start"], "function")
 assert.equal(typeof worker.handlers["speech.session.feed"], "function")
