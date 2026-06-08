@@ -1,11 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
-import type { FollowStatus } from "../utils/follow-state-machine"
+import type { FollowStatus } from "../../teleprompter-core/src/index"
 import { statusLabels } from "./follow-status-labels"
+import { Button, cn } from "@thunder/ui"
 
 type AsrDebugOverlayProps = {
   visibleStatus: FollowStatus
@@ -33,9 +31,9 @@ export function AsrDebugOverlay({
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               ASR 调试
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+              <span className="h-5 rounded-full bg-secondary px-1.5 text-[10px] leading-5 text-secondary-foreground">
                 DEV
-              </Badge>
+              </span>
             </div>
             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setExpanded(false)}>
               收起
@@ -43,28 +41,15 @@ export function AsrDebugOverlay({
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              状态
-              <Badge
-                variant="secondary"
-                className={cn(
-                  "h-5 px-2 text-[10px]",
-                  (visibleStatus === "following" || visibleStatus === "listening")
-                    ? "bg-primary/10 text-primary border-primary/20"
-                    : "bg-muted text-muted-foreground"
-                )}
-              >
-                {statusLabels[visibleStatus]}
-              </Badge>
-            </span>
+            <span>状态 <span className="font-semibold text-foreground">{statusLabels[visibleStatus]}</span></span>
             <span>置信度 <span className="font-semibold text-foreground">{Math.round(confidence * 100)}%</span></span>
             <span className={cn("font-medium", isOnScript ? "text-success" : "text-muted-foreground")}>
               {isOnScript ? "已匹配" : "等待匹配"}
             </span>
             {!speechSupported && (
-              <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+              <span className="h-5 rounded-full bg-destructive/10 px-1.5 text-[10px] leading-5 text-destructive">
                 不支持识别
-              </Badge>
+              </span>
             )}
           </div>
 
@@ -76,7 +61,7 @@ export function AsrDebugOverlay({
               {displayTranscript ? (
                 <p className="text-foreground transition-all duration-300">{displayTranscript}</p>
               ) : (
-                <p className="text-muted-foreground/50 italic">等待语音输入...</p>
+                <p className="italic text-muted-foreground/50">等待语音输入...</p>
               )}
             </div>
           </div>

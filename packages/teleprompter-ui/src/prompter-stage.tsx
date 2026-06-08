@@ -2,14 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type RefObject } from "react"
 import { Check, Maximize2, Minimize2, PencilLine, Pause, Play, RotateCcw, Square } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
-import { TeleprompterDocumentEditor } from "../../../../../../packages/teleprompter-ui/src/index"
-import type { ScriptSegment } from "../utils/script-segmenter"
-import { getSegmentTextStartOffset } from "../utils/follow-engine"
-import type { FollowStatus } from "../utils/follow-state-machine"
+import { getSegmentTextStartOffset, type FollowStatus, type ScriptSegment } from "../../teleprompter-core/src/index"
+import { TeleprompterDocumentEditor } from "./document-editor"
 import { statusLabels } from "./follow-status-labels"
 import { VoiceWaveform } from "./voice-waveform"
+import { Button, cn } from "@thunder/ui"
 
 type TeleprompterMode = "follow-read" | "auto-scroll"
 type AutoScrollStatus = "idle" | "countdown" | "scrolling" | "paused"
@@ -167,7 +164,6 @@ export function PrompterStage({
         color: "oklch(0.94 0.004 252)",
       }}
     >
-      {/* ── 装饰渐变 ── */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -176,7 +172,6 @@ export function PrompterStage({
         }}
       />
 
-      {/* ── 顶部状态栏 ── */}
       <div className="relative z-10 flex items-center justify-between gap-3 border-b border-border/30 px-5 py-3">
         <div className="flex items-center gap-3 text-sm text-slate-300">
           {mode === "follow-read" ? (
@@ -186,10 +181,7 @@ export function PrompterStage({
             </>
           ) : (
             <>
-              <span className={cn(
-                "h-2 w-2 rounded-full",
-                "bg-slate-500"
-              )} />
+              <span className={cn("h-2 w-2 rounded-full", "bg-slate-500")} />
               <span className="font-medium tracking-wide">自动滚动</span>
             </>
           )}
@@ -206,14 +198,18 @@ export function PrompterStage({
               {isEditingScript ? "保存" : "编辑"}
             </Button>
           ) : null}
-          <Button variant="ghost" size="sm" onClick={onToggleFullscreen} className="text-slate-200 hover:bg-muted/20 hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggleFullscreen}
+            className="text-slate-200 hover:bg-muted/20 hover:text-foreground"
+          >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             {isFullscreen ? "还原" : "全屏"}
           </Button>
         </div>
       </div>
 
-      {/* ── 滚动内容区 ── */}
       <div
         ref={prompterViewportRef}
         role="textbox"
@@ -222,7 +218,7 @@ export function PrompterStage({
         onPaste={onPrompterPaste}
         className={cn(
           "relative z-10 min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-24 outline-none sm:px-10 lg:px-16",
-          mode === "auto-scroll" && autoScrollMirrorDisplay && "[transform:scaleX(-1)]"
+          mode === "auto-scroll" && autoScrollMirrorDisplay && "[transform:scaleX(-1)]",
         )}
       >
         {segments.length === 0 || isEditingScript ? (
@@ -252,11 +248,10 @@ export function PrompterStage({
 
               return (
                 <div key={segment.id} className="flex items-start gap-5 py-3 first:pt-0">
-                  {/* ── 行号 ── */}
                   <span
                     className={cn(
-                      "w-8 shrink-0 select-none text-right font-mono text-sm flex items-center justify-end",
-                      isFollowActive || isAutoScrollActive ? "text-cyan-300 animate-pulse" : "text-slate-600"
+                      "flex w-8 shrink-0 select-none items-center justify-end text-right font-mono text-sm",
+                      isFollowActive || isAutoScrollActive ? "text-cyan-300 animate-pulse" : "text-slate-600",
                     )}
                     style={{
                       height: `${lineHeight * fontSize}px`,
@@ -266,7 +261,6 @@ export function PrompterStage({
                     {index + 1}
                   </span>
 
-                  {/* ── 段落内容（保留逐字跟随 + 点击校准） ── */}
                   <p
                     ref={(node) => {
                       segmentRefs.current[index] = node
@@ -274,7 +268,7 @@ export function PrompterStage({
                     className={cn(
                       "flex-1 scroll-m-40 rounded-xl border-l-[3px] border-transparent px-4 py-2 transition-all duration-300",
                       isFollowActive && "border-l-cyan-400/80 bg-cyan-500/10 shadow-[0_0_42px_rgba(34,211,238,0.08)]",
-                      isAutoScrollActive && "border-l-cyan-400/50 bg-cyan-500/5"
+                      isAutoScrollActive && "border-l-cyan-400/50 bg-cyan-500/5",
                     )}
                   >
                     {Array.from(segment.raw).map((char, charIndex) => {
@@ -298,7 +292,7 @@ export function PrompterStage({
                             "inline cursor-pointer rounded-sm px-0.5 py-0 text-left font-[inherit] leading-[inherit] transition-colors hover:bg-muted/20 select-text",
                             isRead && "text-slate-500/70",
                             !isRead && "text-slate-100",
-                            isCurrentChar && "bg-cyan-400/25 text-cyan-50"
+                            isCurrentChar && "bg-cyan-400/25 text-cyan-50",
                           )}
                         >
                           {char}
@@ -313,29 +307,22 @@ export function PrompterStage({
         )}
       </div>
 
-      {/* ── 底部进度条 ── */}
       {segments.length > 0 && !isEditingScript && (
         <div className={cn(
           "absolute bottom-5 left-6 right-6 z-10 transition-opacity duration-500",
-          isFullscreen && !controlsVisible && "opacity-0"
+          isFullscreen && !controlsVisible && "opacity-0",
         )}>
           <div className="h-1 overflow-hidden rounded-full bg-border/20">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
-            />
+            <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${progressPercent}%` }} />
           </div>
         </div>
       )}
 
-      {/* ── 全屏浮动控制栏 ── */}
       {isFullscreen && segments.length > 0 && !isEditingScript && (
         <div
           className={cn(
-            "absolute bottom-8 left-1/2 -translate-x-1/2 z-20 transition-all duration-500",
-            controlsVisible
-              ? "translate-y-0 opacity-100"
-              : "translate-y-4 opacity-0 pointer-events-none"
+            "absolute bottom-8 left-1/2 z-20 -translate-x-1/2 transition-all duration-500",
+            controlsVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
           )}
         >
           <div
@@ -345,35 +332,24 @@ export function PrompterStage({
             {mode === "follow-read" ? (
               <>
                 {isFollowPlaying ? (
-                  <Button
-                    onClick={onPauseFollowing}
-                    className="h-8 gap-1.5 text-xs shadow-sm px-3"
-                  >
+                  <Button onClick={onPauseFollowing} className="h-8 gap-1.5 px-3 text-xs shadow-sm">
                     <Pause className="h-3.5 w-3.5" />
                     暂停
                   </Button>
                 ) : (
                   <Button
                     onClick={followStatus === "paused" ? onResumeFollowing : onStartFollowing}
-                    className="h-8 gap-1.5 text-xs shadow-sm px-3"
+                    className="h-8 gap-1.5 px-3 text-xs shadow-sm"
                   >
                     <Play className="h-3.5 w-3.5 fill-current" />
                     {followStatus === "paused" ? "继续" : "开始"}
                   </Button>
                 )}
-                <Button
-                  variant="ghost"
-                  onClick={onStopFollowing}
-                  className={fullscreenStopButtonClass}
-                >
+                <Button variant="ghost" onClick={onStopFollowing} className={fullscreenStopButtonClass}>
                   <Square className="h-3.5 w-3.5 fill-current stroke-none" />
                   停止
                 </Button>
-                <Button
-                  variant="ghost"
-                  onClick={onReturnToStart}
-                  className={fullscreenResetButtonClass}
-                >
+                <Button variant="ghost" onClick={onReturnToStart} className={fullscreenResetButtonClass}>
                   <RotateCcw className="h-3.5 w-3.5" />
                   回到开头
                 </Button>
@@ -381,35 +357,21 @@ export function PrompterStage({
             ) : (
               <>
                 {isAutoScrollPlaying ? (
-                  <Button
-                    onClick={onAutoScrollPause}
-                    className="h-8 gap-1.5 text-xs shadow-sm px-3"
-                  >
+                  <Button onClick={onAutoScrollPause} className="h-8 gap-1.5 px-3 text-xs shadow-sm">
                     <Pause className="h-3.5 w-3.5" />
                     暂停
                   </Button>
                 ) : (
-                  <Button
-                    onClick={onAutoScrollStart}
-                    className="h-8 gap-1.5 text-xs shadow-sm px-3"
-                  >
+                  <Button onClick={onAutoScrollStart} className="h-8 gap-1.5 px-3 text-xs shadow-sm">
                     <Play className="h-3.5 w-3.5 fill-current" />
                     {autoScrollStatus === "paused" ? "继续" : "开始"}
                   </Button>
                 )}
-                <Button
-                  variant="ghost"
-                  onClick={onAutoScrollStop}
-                  className={fullscreenStopButtonClass}
-                >
+                <Button variant="ghost" onClick={onAutoScrollStop} className={fullscreenStopButtonClass}>
                   <Square className="h-3.5 w-3.5 fill-current stroke-none" />
                   停止
                 </Button>
-                <Button
-                  variant="ghost"
-                  onClick={onAutoScrollReset}
-                  className={fullscreenResetButtonClass}
-                >
+                <Button variant="ghost" onClick={onAutoScrollReset} className={fullscreenResetButtonClass}>
                   <RotateCcw className="h-3.5 w-3.5" />
                   回到开头
                 </Button>

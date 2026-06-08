@@ -1,6 +1,5 @@
-"use client"
-
 import { Minus, Plus } from "lucide-react"
+import { Button, cn } from "@thunder/ui"
 
 type NumberStepperProps = {
   value: number
@@ -23,24 +22,26 @@ export function NumberStepper({
   const increment = () => onChange(Math.min(max, +(value + step).toFixed(4)))
 
   return (
-    <div className="flex items-center shrink-0 overflow-hidden rounded-lg border border-border/70">
-      <button
-        type="button"
+    <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-border/70">
+      <Button
+        variant="ghost"
+        size="icon-sm"
         onClick={decrement}
-        className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/50"
+        className={cn("h-8 w-8 shrink-0 rounded-none border-0 text-muted-foreground hover:bg-muted/50")}
       >
         <Minus className="h-3.5 w-3.5" />
-      </button>
+      </Button>
       <span className="min-w-[3.5rem] select-none text-center text-sm font-medium tabular-nums">
         {formatValue ? formatValue(value) : value}
       </span>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon-sm"
         onClick={increment}
-        className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/50"
+        className={cn("h-8 w-8 shrink-0 rounded-none border-0 text-muted-foreground hover:bg-muted/50")}
       >
         <Plus className="h-3.5 w-3.5" />
-      </button>
+      </Button>
     </div>
   )
 }

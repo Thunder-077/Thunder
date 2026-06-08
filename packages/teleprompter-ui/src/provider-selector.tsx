@@ -1,11 +1,12 @@
 "use client"
 
 import { Check, Download, RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Select } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
-import type { TeleprompterSpeechModel } from "../runtime/types"
-import type { SpeechProvider } from "../transcribers"
+import { Button, cn, SegmentedControl, Select } from "@thunder/ui"
+import type {
+  TeleprompterSpeechDownloadProgress,
+  TeleprompterSpeechModel,
+  TeleprompterSpeechProvider,
+} from "./speech-ui-types"
 
 type ProviderSelectorProps = {
   showSherpa: boolean
@@ -14,8 +15,8 @@ type ProviderSelectorProps = {
   sherpaLoading: boolean
   sherpaModels: TeleprompterSpeechModel[]
   selectedSherpaModelId: string | null
-  downloadProgress: Record<string, { percentage: number; downloadedText: string; totalText: string; status?: string }>
-  speechProvider: SpeechProvider
+  downloadProgress: TeleprompterSpeechDownloadProgress
+  speechProvider: TeleprompterSpeechProvider
   onSelectSherpa: () => void
   onSelectWebSpeech: () => void
   onSelectSherpaModel: (value: string) => void
@@ -40,10 +41,6 @@ export function ProviderSelector({
   onActivateSelectedSherpaModel,
 }: ProviderSelectorProps) {
   const installedSherpaModels = sherpaModels.filter((model) => model.installed)
-  const sherpaOptions = sherpaModels.map((model) => ({
-    value: model.id,
-    label: `${model.name} (${model.size})`,
-  }))
   const selectedSherpaModel = sherpaModels.find((model) => model.id === selectedSherpaModelId) ?? null
   const showSherpaPanel = showSherpa && speechProvider === "sherpa-onnx"
   const hasInstalledSherpaModel = installedSherpaModels.length > 0
@@ -51,56 +48,59 @@ export function ProviderSelector({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2.5">
-        {showSherpa && (
-          <button
-            type="button"
-            onClick={onSelectSherpa}
-            className={cn(
-              "relative flex items-center justify-center rounded-xl border p-2 text-center transition-all h-12 cursor-pointer select-none",
-              speechProvider === "sherpa-onnx"
-                ? "border-primary bg-primary/5 text-primary shadow-[0_0_0_1px_rgba(59,130,246,0.1)]"
-                : "border-border bg-background text-muted-foreground hover:bg-muted/40 hover:border-muted-foreground/30"
-            )}
-          >
-            <span className="text-xs font-bold leading-tight">Sherpa ONNX</span>
-            {speechProvider === "sherpa-onnx" && (
-              <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-                <Check className="h-2.5 w-2.5 stroke-[3]" />
-              </span>
-            )}
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={onSelectWebSpeech}
-          className={cn(
-            "relative flex items-center justify-center rounded-xl border p-2 text-center transition-all h-12 cursor-pointer select-none",
-            speechProvider === "web-speech"
-              ? "border-primary bg-primary/5 text-primary shadow-[0_0_0_1px_rgba(59,130,246,0.1)]"
-              : "border-border bg-background text-muted-foreground hover:bg-muted/40 hover:border-muted-foreground/30"
-          )}
-        >
-          <span className="text-xs font-bold leading-tight">Web Speech</span>
-          {speechProvider === "web-speech" && (
-            <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-              <Check className="h-2.5 w-2.5 stroke-[3]" />
-            </span>
-          )}
-        </button>
-      </div>
+      <SegmentedControl
+        value={speechProvider}
+        onChange={(value) => {
+          if (value === "sherpa-onnx") {
+            onSelectSherpa()
+            return
+          }
+          onSelectWebSpeech()
+        }}
+        options={[
+          ...(showSherpa
+            ? [
+                {
+                  value: "sherpa-onnx",
+                  label: (
+                    <>
+                      <span className="text-xs font-bold leading-tight">Sherpa ONNX</span>
+                      {speechProvider === "sherpa-onnx" ? (
+                        <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                          <Check className="h-2.5 w-2.5 stroke-[3]" />
+                        </span>
+                      ) : null}
+                    </>
+                  ),
+                },
+              ]
+            : []),
+          {
+            value: "web-speech",
+            label: (
+              <>
+                <span className="text-xs font-bold leading-tight">Web Speech</span>
+                {speechProvider === "web-speech" ? (
+                  <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                    <Check className="h-2.5 w-2.5 stroke-[3]" />
+                  </span>
+                ) : null}
+              </>
+            ),
+          },
+        ]}
+      />
 
       {showSherpaPanel && (
         <div className="mt-3 space-y-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[11px] font-medium text-muted-foreground">Sherpa 模型</div>
             <Button
-              type="button"
               variant="ghost"
               size="icon-sm"
               onClick={onRefreshSherpaModels}
               disabled={sherpaLoading || sherpaBusy}
+              className="h-7 w-7"
               title="刷新模型状态"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", sherpaLoading && "animate-spin")} />
@@ -109,14 +109,16 @@ export function ProviderSelector({
 
           <Select
             value={selectedSherpaModelId ?? ""}
-            onValueChange={(next) => {
-              if (next) onSelectSherpaModel(next)
+            onChange={(value) => {
+              if (value) onSelectSherpaModel(value)
             }}
-            options={sherpaOptions}
             disabled={sherpaLoading || sherpaModels.length === 0}
-            placeholder={sherpaLoading ? "加载模型中…" : sherpaModels.length === 0 ? "暂无模型" : "选择模型"}
             size="compact"
-            showDescription={false}
+            placeholder={sherpaLoading ? "加载模型中…" : sherpaModels.length === 0 ? "暂无模型" : "选择模型"}
+            options={sherpaModels.map((model) => ({
+              value: model.id,
+              label: `${model.name} (${model.size})`,
+            }))}
           />
 
           {!hasInstalledSherpaModel && (
@@ -127,13 +129,12 @@ export function ProviderSelector({
             <>
               {selectedSherpaModel.downloading ? (
                 <Button
-                  type="button"
                   variant="outline"
-                  disabled
                   className="h-8 w-full gap-2 text-xs font-mono"
+                  disabled
                 >
                   <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  {selectedModelProgress 
+                  {selectedModelProgress
                     ? selectedModelProgress.status === "extracting"
                       ? "正在解压并激活模型，请稍候…"
                       : `正在下载并激活 (${selectedModelProgress.percentage}% - ${selectedModelProgress.downloadedText}/${selectedModelProgress.totalText})`
@@ -141,22 +142,20 @@ export function ProviderSelector({
                 </Button>
               ) : !selectedSherpaModel.installed ? (
                 <Button
-                  type="button"
                   variant="outline"
+                  className="h-8 w-full gap-2 text-xs"
                   onClick={onDownloadSelectedSherpaModel}
                   disabled={sherpaBusy}
-                  className="h-8 w-full gap-2 text-xs"
                 >
                   <Download className="h-3.5 w-3.5" />
                   下载并设为当前
                 </Button>
               ) : !selectedSherpaModel.active ? (
                 <Button
-                  type="button"
                   variant="outline"
+                  className="h-8 w-full text-xs"
                   onClick={onActivateSelectedSherpaModel}
                   disabled={sherpaBusy}
-                  className="h-8 w-full text-xs"
                 >
                   设为当前模型
                 </Button>

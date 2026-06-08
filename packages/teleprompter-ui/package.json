@@ -11,6 +11,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@thunder/ui": "workspace:*"
+  },
   "peerDependencies": {
     "react": "^19.0.0"
   },

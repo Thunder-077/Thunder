@@ -1,8 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef } from "react"
-import { cn } from "@/lib/utils"
-import type { FollowStatus } from "../utils/follow-state-machine"
+import type { FollowStatus } from "../../teleprompter-core/src/index"
+import { cn } from "@thunder/ui"
 
 export function VoiceWaveform({ status, isMicActive = false }: { status: FollowStatus; isMicActive?: boolean }) {
   const barsRef = useRef<HTMLDivElement[]>([])
@@ -10,8 +10,6 @@ export function VoiceWaveform({ status, isMicActive = false }: { status: FollowS
   const analyserRef = useRef<AnalyserNode | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const animationFrameIdRef = useRef<number | null>(null)
-
-  const isActive = isMicActive
 
   const cleanupAudio = useCallback(() => {
     if (animationFrameIdRef.current) {
@@ -30,7 +28,7 @@ export function VoiceWaveform({ status, isMicActive = false }: { status: FollowS
   }, [])
 
   useEffect(() => {
-    if (!isActive) {
+    if (!isMicActive) {
       cleanupAudio()
       return
     }
@@ -70,26 +68,24 @@ export function VoiceWaveform({ status, isMicActive = false }: { status: FollowS
             const baseScales = [0.25, 0.4, 0.5, 0.4, 0.25]
             const multiplier = multipliers[index] || 1
             const baseScale = baseScales[index] || 0.25
-            const scaleY = baseScale + volume * multiplier * 0.8
-            const finalScaleY = Math.min(scaleY, 1.4)
-            bar.style.transform = `scaleY(${finalScaleY})`
+            const scaleY = Math.min(baseScale + volume * multiplier * 0.8, 1.4)
+            bar.style.transform = `scaleY(${scaleY})`
           })
 
           animationFrameIdRef.current = requestAnimationFrame(updateWave)
         }
 
         updateWave()
-      } catch (err) {
-        console.warn("Failed to initialize audio visualization:", err)
+      } catch {
+        // 忽略可视化初始化失败，避免影响主流程。
       }
     }
 
-    initAudio()
-
+    void initAudio()
     return () => {
       cleanupAudio()
     }
-  }, [isActive, cleanupAudio])
+  }, [cleanupAudio, isMicActive])
 
   const getBarColorClass = () => {
     switch (status) {
@@ -105,45 +101,8 @@ export function VoiceWaveform({ status, isMicActive = false }: { status: FollowS
     }
   }
 
-  const getBarStyle = (index: number) => {
-    if (isActive) {
-      return {
-        transform: `scaleY(${[0.25, 0.4, 0.5, 0.4, 0.25][index]})`,
-        animationName: "none",
-        animationDuration: "0s",
-        animationTimingFunction: "linear",
-        animationIterationCount: "1",
-        animationDelay: "0s",
-      }
-    }
-
-    const baseScales = [0.25, 0.4, 0.5, 0.4, 0.25]
-    const delays = [0, 0.15, 0.3, 0.15, 0]
-    const dur = status === "paused" ? "2.5s" : "2s"
-    const animName = status === "failed" ? "voice-failed-shake" : "voice-idle-breath"
-
-    return {
-      transform: `scaleY(${baseScales[index]})`,
-      animationName: animName,
-      animationDuration: dur,
-      animationTimingFunction: "ease-in-out",
-      animationIterationCount: "infinite",
-      animationDelay: `${delays[index]}s`,
-    }
-  }
-
   return (
     <div className="flex h-5 w-8 items-center justify-between gap-[2.5px] px-[2px]">
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes voice-idle-breath {
-          0%, 100% { transform: scaleY(0.25); }
-          50% { transform: scaleY(0.65); }
-        }
-        @keyframes voice-failed-shake {
-          0%, 100% { transform: scaleY(0.25); opacity: 0.5; }
-          50% { transform: scaleY(0.4); opacity: 1; }
-        }
-      `}} />
       {[0, 1, 2, 3, 4].map((i) => (
         <div
           key={i}
@@ -152,9 +111,9 @@ export function VoiceWaveform({ status, isMicActive = false }: { status: FollowS
           }}
           className={cn(
             "h-full w-[3.2px] rounded-full origin-center transition-transform duration-75",
-            getBarColorClass()
+            getBarColorClass(),
           )}
-          style={getBarStyle(i)}
+          style={{ transform: `scaleY(${[0.25, 0.4, 0.5, 0.4, 0.25][i]})` }}
         />
       ))}
     </div>

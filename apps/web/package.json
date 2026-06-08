@@ -24,6 +24,7 @@
     "@thunder/plugin-devtools": "workspace:*",
     "@thunder/plugin-sdk": "workspace:*",
     "@thunder/teleprompter-core": "workspace:*",
+    "@thunder/ui": "workspace:*",
     "@thunder/emby": "workspace:*",
     "@thunder/platform": "workspace:*",
     "@thunder/vault": "workspace:*",

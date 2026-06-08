@@ -2,10 +2,8 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type RefObject } from "react"
 import { Pause, Play, RotateCcw, Settings2, Square } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
 import { AutoScrollSettingsDialog } from "./auto-scroll-settings-dialog"
+import { Button, Card, CardContent, cn } from "@thunder/ui"
 
 type AutoScrollStatus = "idle" | "countdown" | "scrolling" | "paused"
 type AutoScrollDirection = "up" | "down"
@@ -70,7 +68,7 @@ export const AutoScrollPanel = forwardRef<AutoScrollPanelHandle, AutoScrollPanel
 
   useEffect(() => {
     onStatusChange?.(status)
-  }, [status, onStatusChange])
+  }, [onStatusChange, status])
 
   useEffect(() => {
     onViewOptionsChange({ mirrorDisplay, highlightLine })
@@ -128,7 +126,6 @@ export const AutoScrollPanel = forwardRef<AutoScrollPanelHandle, AutoScrollPanel
       const pixelsPerSecond = speed * fontSize * lineHeight
       const directionMultiplier = direction === "up" ? 1 : -1
       const rawDelta = pixelsPerSecond * deltaSeconds * directionMultiplier
-      // scrollTop 支持小数累积；非平滑模式只关闭 CSS 行为，不应把低速位移截断成 0。
       viewport.scrollTop += rawDelta
 
       const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
@@ -264,10 +261,8 @@ export const AutoScrollPanel = forwardRef<AutoScrollPanelHandle, AutoScrollPanel
 
   return (
     <div className="space-y-3">
-      {/* ── 操作栏（顶部水平条） ── */}
       <Card size="sm">
-        <CardContent className="p-3 flex flex-col md:flex-row items-center justify-between gap-4">
-          {/* 左侧：滚动状态圆点 + 状态文字 + 滚动动画 */}
+        <CardContent className="flex flex-col items-center justify-between gap-4 p-3 md:flex-row">
           <div className="flex items-center gap-2.5 text-xs">
             <span className={cn(
               "h-2.5 w-2.5 rounded-full transition-all duration-300",
@@ -285,29 +280,18 @@ export const AutoScrollPanel = forwardRef<AutoScrollPanelHandle, AutoScrollPanel
             </span>
             <span className="text-muted-foreground">进度 {progress}%</span>
             <span className="text-muted-foreground">时间 {formattedElapsed}</span>
-            {status === "scrolling" && (
-              <span className="flex gap-0.5 items-end h-3 ml-1">
-                <span className="w-[3px] bg-success rounded-full animate-[bounce_0.8s_infinite_100ms] h-2" />
-                <span className="w-[3px] bg-success rounded-full animate-[bounce_0.8s_infinite_200ms] h-3" />
-                <span className="w-[3px] bg-success rounded-full animate-[bounce_0.8s_infinite_300ms] h-1.5" />
-              </span>
-            )}
           </div>
 
-          {/* 中间：4个按钮水平排列（开始、暂停、停止、回到开头） */}
           <div className="flex flex-wrap items-center gap-2">
             {(status === "scrolling" || status === "countdown") ? (
-              <Button
-                onClick={handlePause}
-                className="h-8 gap-1.5 text-xs shadow-sm px-3"
-              >
+              <Button onClick={handlePause} className="h-8 gap-1.5 px-3 text-xs shadow-sm">
                 <Pause className="h-3.5 w-3.5" />
                 暂停
               </Button>
             ) : (
               <Button
                 onClick={handleStart}
-                className="h-8 gap-1.5 text-xs shadow-sm px-3"
+                className="h-8 gap-1.5 px-3 text-xs shadow-sm"
                 disabled={!canScroll}
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
@@ -315,20 +299,23 @@ export const AutoScrollPanel = forwardRef<AutoScrollPanelHandle, AutoScrollPanel
               </Button>
             )}
             <Button
-              variant="outline"
               onClick={handleStop}
-              className="h-8 gap-1.5 text-xs text-destructive border-destructive/20 hover:bg-destructive/10 hover:text-destructive px-3"
+              variant="destructive-outline"
+              className="h-8 gap-1.5 px-3 text-xs"
             >
               <Square className="h-3.5 w-3.5 fill-destructive/80 stroke-none" />
               停止
             </Button>
-            <Button variant="outline" onClick={handleReset} className="h-8 gap-1.5 text-xs px-3">
+            <Button
+              onClick={handleReset}
+              variant="outline"
+              className="h-8 gap-1.5 px-3 text-xs"
+            >
               <RotateCcw className="h-3.5 w-3.5" />
               回到开头
             </Button>
           </div>
 
-          {/* 右侧：滚动设置按钮（打开 Sheet/Dialog） */}
           <AutoScrollSettingsDialog
             fontSize={fontSize}
             lineHeight={lineHeight}
@@ -351,11 +338,7 @@ export const AutoScrollPanel = forwardRef<AutoScrollPanelHandle, AutoScrollPanel
             onMirrorDisplayChange={setMirrorDisplay}
             onHighlightLineChange={setHighlightLine}
             trigger={(
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              >
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground">
                 <Settings2 className="h-3.5 w-3.5" />
                 滚动设置
               </Button>

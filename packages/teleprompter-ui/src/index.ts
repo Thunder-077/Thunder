@@ -3,3 +3,23 @@ export { TeleprompterSegmentPreviewList } from "./segment-preview-list"
 export { useTeleprompterDocumentSession } from "./use-document-session"
 export { useFollowReadSession } from "./use-follow-read-session"
 export { usePersistedTeleprompterDocument } from "./use-persisted-document"
+export { useAnimatedReadOffset } from "./use-animated-read-offset"
+export { NumberStepper } from "./number-stepper"
+export { statusLabels } from "./follow-status-labels"
+export { VoiceWaveform } from "./voice-waveform"
+export { ProviderSelector } from "./provider-selector"
+export { FollowSettingsDialog } from "./follow-settings-dialog"
+export { AutoScrollSettingsDialog } from "./auto-scroll-settings-dialog"
+export { FollowStatusPanel } from "./follow-status-panel"
+export { AutoScrollPanel } from "./auto-scroll-panel"
+export type { AutoScrollPanelHandle, AutoScrollViewOptions } from "./auto-scroll-panel"
+export { PrompterStage } from "./prompter-stage"
+export { AsrDebugOverlay } from "./asr-debug-overlay"
+export { TeleprompterWorkspace } from "./teleprompter-workspace"
+export type { TeleprompterDocumentIO, TeleprompterSherpaRuntime } from "./teleprompter-workspace"
+export type {
+  TeleprompterSpeechDownloadProgress,
+  TeleprompterSpeechModel,
+  TeleprompterSpeechProvider,
+} from "./speech-ui-types"
+export type { FollowReadSpeechController, FollowReadEngine, FollowReadSpeechResult } from "./use-follow-read-session"

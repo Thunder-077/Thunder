@@ -1,4 +1,4 @@
-import type { FollowStatus } from "../utils/follow-state-machine"
+import type { FollowStatus } from "../../teleprompter-core/src/index"
 
 export const statusLabels: Record<FollowStatus, string> = {
   idle: "未开始",

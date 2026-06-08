@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { FollowStatus } from "../../teleprompter-core/src/index"
 
-type FollowReadSpeechResult = {
+export type FollowReadSpeechResult = {
   text: string
   isFinal: boolean
   timestamps?: [number, number][]
 }
 
-type FollowReadSpeechController = {
+export type FollowReadSpeechController = {
   status: string
   error: string | null
   lastResult: FollowReadSpeechResult | null
+  isSupported: boolean
   clearError: () => void
   clearResult: () => void
   start: () => Promise<void>
@@ -32,7 +33,7 @@ type FollowEngineJumpUpdate = {
   isOnScript: boolean
 }
 
-type FollowReadEngine = {
+export type FollowReadEngine = {
   push: (text: string, isFinal: boolean, timestamps?: [number, number][]) => FollowEngineUpdate
   transitionStatus: (event: { type: "start-listening" | "pause" | "resume" | "stop" }) => void
   reset: () => void
