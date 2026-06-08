@@ -52,7 +52,7 @@ export function TeleprompterPanel() {
             <div>
               <h1 className="text-3xl font-semibold tracking-tight text-foreground">提词器</h1>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                V2 插件版提词器，复用共享页面编排与 trusted worker 运行时能力。
+                桌面插件版提词器，复用共享页面编排与 trusted worker 运行时能力。
               </p>
             </div>
           </div>

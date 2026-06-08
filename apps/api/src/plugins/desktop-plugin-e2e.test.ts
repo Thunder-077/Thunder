@@ -50,9 +50,9 @@ async function main() {
     ensureActivityLogTable(databasePath)
 
     const stagedPluginRoot = resolve(testRoot, "teleprompter-package")
-    await cp(resolve(workspaceRoot, "plugins-v2", "teleprompter"), stagedPluginRoot, {
+    await cp(resolve(workspaceRoot, "plugins", "desktop", "teleprompter"), stagedPluginRoot, {
       recursive: true,
-      filter: (source) => !source.includes(`${resolve(workspaceRoot, "plugins-v2", "teleprompter", "node_modules")}`),
+      filter: (source) => !source.includes(`${resolve(workspaceRoot, "plugins", "desktop", "teleprompter", "node_modules")}`),
     })
     await mkdir(join(stagedPluginRoot, "dist"), { recursive: true })
     await writeFile(join(stagedPluginRoot, "dist", "index.html"), "<!doctype html><div id=\"root\"></div>\n", "utf8")
@@ -109,7 +109,7 @@ async function main() {
 
     await uninstallDesktopPlugin("teleprompter")
 
-    console.log("[plugin-v2-e2e] tests passed")
+    console.log("[desktop-plugin-e2e] tests passed")
   } finally {
     await rm(testRoot, { recursive: true, force: true }).catch(() => undefined)
   }

@@ -1,25 +1,33 @@
 {
-  "manifestVersion": 1,
+  "manifestVersion": 2,
   "id": "teleprompter",
   "name": "提词器",
-  "version": "1.0.0",
-  "description": "大字提词、语音跟读与自动定位。",
-  "icon": "ScrollText",
-  "category": "productivity",
-  "order": 1,
+  "version": "0.1.0",
+  "description": "桌面提词器插件，支持脚本编辑、演讲模式和可信 worker 扩展能力。",
+  "kind": "trusted",
+  "engines": {
+    "thunder": "^2.0.0"
+  },
   "author": {
     "name": "Thunder"
   },
-  "permissions": ["webview", "local-api-proxy", "plugin-storage"],
-  "web": {
-    "entry": "web/index.html",
-    "contentSecurityPolicy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:*; worker-src 'self' blob:"
-  },
-  "api": {
-    "healthPath": "/health",
-    "runtime": {
-      "kind": "node",
-      "entry": "api/server.mjs"
+  "icon": "ScrollText",
+  "permissions": [
+    "storage",
+    "notifications",
+    "activity",
+    "microphone",
+    "native-runtime",
+    "filesystem:plugin-data"
+  ],
+  "contributes": {
+    "sidebar": {
+      "title": "提词器",
+      "icon": "ScrollText",
+      "entry": "dist/index.html"
     }
+  },
+  "runtime": {
+    "entry": "dist/worker.js"
   }
 }
