@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { SpeechProvider } from "../../../../packages/teleprompter-core/src/speech-types"
+import type { SpeechProvider } from "@thunder/teleprompter-core"
 import { pluginSpeechRuntime } from "../adapters/plugin-speech-runtime"
 
 type PluginFollowSpeechResult = {

@@ -6,14 +6,14 @@ import {
   TeleprompterWorkspace,
   type TeleprompterSherpaRuntime,
   type TeleprompterSpeechModel,
-} from "../../../../packages/teleprompter-ui/src/index"
+} from "@thunder/teleprompter-ui"
 import {
   readPluginTeleprompterDocument,
   writePluginTeleprompterDocument,
 } from "../adapters/document-storage"
 import { pluginSpeechRuntime } from "../adapters/plugin-speech-runtime"
 import { usePluginFollowSpeech } from "./use-plugin-follow-speech"
-import type { SpeechProvider } from "../../../../packages/teleprompter-core/src/index"
+import type { SpeechProvider } from "@thunder/teleprompter-core"
 
 function createPluginSherpaRuntime(): TeleprompterSherpaRuntime {
   return {

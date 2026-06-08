@@ -11,7 +11,7 @@ import {
   type TeleprompterStorageAdapter,
   type TeleprompterStoragePayload,
   type TeleprompterStorageRecord,
-} from "../../../../packages/teleprompter-core/src/index"
+} from "@thunder/teleprompter-core"
 
 function hasWindowStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined"

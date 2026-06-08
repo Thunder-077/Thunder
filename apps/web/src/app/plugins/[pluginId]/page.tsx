@@ -511,7 +511,6 @@ export default function DesktopPluginPage() {
         src={frameUrl}
         onLoad={() => appendLog("info", "插件 iframe 已加载")}
         allow="microphone; fullscreen"
-        allowFullScreen
         sandbox={frameSandbox}
         referrerPolicy="no-referrer"
         className="block w-full border-0 bg-transparent"

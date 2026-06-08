@@ -11,11 +11,12 @@ const workspaceRoot = resolve(webRoot, "..", "..")
 const pluginRoot = resolve(workspaceRoot, "plugins", "desktop", "teleprompter")
 const webOutDir = resolve(pluginRoot, "web")
 const assetsOutDir = resolve(webOutDir, "assets")
-const entryPoint = resolve(pluginRoot, "src", "main.tsx")
+const entryPoint = resolve(pluginRoot, "src", "index.tsx")
 const cssOutput = resolve(assetsOutDir, "main.css")
 const globalsCss = resolve(webRoot, "src", "app", "globals.css")
-const pluginCss = resolve(pluginRoot, "src", "plugin.css")
 const pluginUiRoot = resolve(workspaceRoot, "packages", "plugin-ui", "src")
+const teleprompterUiRoot = resolve(workspaceRoot, "packages", "teleprompter-ui", "src")
+const teleprompterCoreRoot = resolve(workspaceRoot, "packages", "teleprompter-core", "src")
 const webNodeModules = resolve(webRoot, "node_modules")
 const reactRoot = resolve(webNodeModules, "react")
 const reactDomRoot = resolve(webNodeModules, "react-dom")
@@ -53,13 +54,12 @@ await build({
     "@/components/ui/card": resolve(pluginUiRoot, "card.tsx"),
     "@/components/ui/dialog": resolve(pluginUiRoot, "dialog.tsx"),
     "@/components/ui/separator": resolve(pluginUiRoot, "separator.tsx"),
-    "@/components/page-header": resolve(pluginRoot, "src", "shims", "page-header.tsx"),
     "@/components/ui/select": resolve(pluginUiRoot, "select.tsx"),
     "@/components/ui/switch": resolve(pluginUiRoot, "switch.tsx"),
-    "@/lib/notification-store": resolve(pluginRoot, "src", "shims", "notification-store.ts"),
-    "@/lib/platform": resolve(pluginRoot, "src", "shims", "platform.ts"),
-    "@tauri-apps/api/event": resolve(pluginRoot, "src", "shims", "tauri-event.ts"),
     "@thunder/plugin-sdk/browser": resolve(workspaceRoot, "packages", "plugin-sdk", "src", "browser.ts"),
+    "@thunder/teleprompter-ui": resolve(teleprompterUiRoot, "index.ts"),
+    "@thunder/teleprompter-core": resolve(teleprompterCoreRoot, "index.ts"),
+    "@thunder/teleprompter-core/speech-types": resolve(teleprompterCoreRoot, "speech-types.ts"),
   },
   define: {
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "production"),
@@ -67,7 +67,7 @@ await build({
   },
 })
 
-const rawCss = `${await readFile(globalsCss, "utf8")}\n${await readFile(pluginCss, "utf8")}`
+const rawCss = await readFile(globalsCss, "utf8")
 const processedCss = await postcss([tailwindcss()]).process(rawCss, {
   from: globalsCss,
   to: cssOutput,
