@@ -46,6 +46,8 @@ const DESKTOP_ENV_FILE_NAME: &str = "desktop.env";
 const DEFAULT_NATIVE_API_PORT: u16 = 43102;
 const NATIVE_HTTP_READ_TIMEOUT: Duration = Duration::from_secs(5);
 const NATIVE_HTTP_MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
+const PLUGIN_RPC_TRANSPORT: &str = "pipe";
+const PLUGIN_RPC_SOCKET_DIR_NAME: &str = "plugin-rpc";
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -513,6 +515,20 @@ fn start_local_runtime<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         let db_path = app_data_dir.join("app.db");
         let database_url = format!("file:{}", db_path.to_string_lossy());
         desktop_env.insert("DATABASE_URL".into(), database_url);
+
+        // Trusted plugin workers consume host-provided transport hints from env.
+        // Keep the socket base path stable here so future Node-side runtime code
+        // does not need to guess per-platform writable directories.
+        let plugin_rpc_dir = app_data_dir.join(PLUGIN_RPC_SOCKET_DIR_NAME);
+        let _ = std::fs::create_dir_all(&plugin_rpc_dir);
+        desktop_env.insert(
+            "THUNDER_PLUGIN_RPC_TRANSPORT".into(),
+            PLUGIN_RPC_TRANSPORT.into(),
+        );
+        desktop_env.insert(
+            "THUNDER_PLUGIN_RPC_SOCKET_DIR".into(),
+            plugin_rpc_dir.to_string_lossy().to_string(),
+        );
     }
 
     let localhost_api_url = format!("http://127.0.0.1:{}", manifest.api_port);

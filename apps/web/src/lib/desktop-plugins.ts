@@ -1,14 +1,59 @@
-import type { ThunderPluginManifest, ThunderPluginPermission } from "@thunder/plugin-sdk"
 import { isTauriDesktop } from "@/lib/platform"
 
 export const DESKTOP_PLUGINS_CHANGED_EVENT = "thunder:desktop-plugins-changed"
 
-export type DesktopPluginPermission = ThunderPluginPermission
-export type DesktopPluginManifest = ThunderPluginManifest
+export type DesktopPluginPermission = string
+
+export interface DesktopPluginManifest {
+  manifestVersion: number
+  id: string
+  name: string
+  version: string
+  description: string
+  kind?: "sandboxed" | "trusted"
+  category?: string
+  order?: number
+  engines?: {
+    thunder: string
+  }
+  author: {
+    name: string
+    email?: string
+    url?: string
+  }
+  icon: string
+  permissions: DesktopPluginPermission[]
+  web?: {
+    entry: string
+    contentSecurityPolicy?: string
+  }
+  api?: {
+    baseUrl?: string
+    healthPath?: string
+    runtime?: {
+      kind: "node"
+      entry: string
+      args?: string[]
+      portEnv?: string
+      env?: Record<string, string>
+    }
+  }
+  contributes?: {
+    sidebar?: {
+      title: string
+      icon?: string
+      entry: string
+    }
+  }
+  runtime?: {
+    entry: string
+  }
+}
 
 export interface InstalledDesktopPlugin {
   manifest: DesktopPluginManifest
-  record: {
+  pluginRoot?: string
+  record?: {
     id: string
     version: string
     installedAt: string
@@ -24,9 +69,14 @@ export interface InstalledDesktopPlugin {
     }
   }
   route: string
-  webEntryUrl: string
+  webEntryUrl?: string
+  uiEntryUrl?: string | null
+  installedAt?: string
+  updatedAt?: string
   installed: true
 }
+
+export type DesktopInstalledPlugin = InstalledDesktopPlugin
 
 export interface DesktopPluginMigrationResult {
   pluginId: string
@@ -40,6 +90,7 @@ export interface DesktopPluginRuntimeStatus {
   pid?: number
   port?: number
   baseUrl?: string
+  endpoint?: string
   startedAt?: string
   lastExitAt?: string
   lastExitCode?: number | null
@@ -48,7 +99,7 @@ export interface DesktopPluginRuntimeStatus {
 
 export interface DesktopPluginListResponse {
   enabled: boolean
-  plugins: InstalledDesktopPlugin[]
+  plugins: DesktopInstalledPlugin[]
 }
 
 export interface DesktopPluginMarketplaceEntry {
@@ -62,7 +113,7 @@ export interface DesktopPluginMarketplaceEntry {
     name: string
     url?: string
   }
-  permissions: DesktopPluginPermission[]
+  permissions: string[]
   source?: "package" | "bundled"
   packageUrl?: string
   packageSha256?: string
@@ -120,7 +171,7 @@ export async function listDesktopPlugins(): Promise<DesktopPluginListResponse> {
   return payload.data
 }
 
-export async function getDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
+export async function getDesktopPlugin(pluginId: string): Promise<DesktopInstalledPlugin> {
   const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}`, {
     credentials: "same-origin",
     cache: "no-store",
@@ -132,7 +183,7 @@ export async function getDesktopPlugin(pluginId: string): Promise<InstalledDeskt
 
   const payload = (await response.json()) as {
     ok: boolean
-    data?: InstalledDesktopPlugin
+    data?: DesktopInstalledPlugin
     message?: string
   }
 
@@ -141,6 +192,14 @@ export async function getDesktopPlugin(pluginId: string): Promise<InstalledDeskt
   }
 
   return payload.data
+}
+
+export function getDesktopPluginEntryUrl(plugin: DesktopInstalledPlugin): string | null {
+  return plugin.uiEntryUrl ?? null
+}
+
+export function getDesktopPluginInstalledAt(plugin: DesktopInstalledPlugin): string | undefined {
+  return plugin.installedAt ?? plugin.record?.installedAt
 }
 
 export async function listDesktopPluginMarketplace(): Promise<DesktopPluginMarketplaceIndex> {
@@ -166,14 +225,14 @@ export async function listDesktopPluginMarketplace(): Promise<DesktopPluginMarke
   return payload.data
 }
 
-export async function installLocalDesktopPlugin(sourcePath: string): Promise<InstalledDesktopPlugin> {
+export async function installLocalDesktopPlugin(pluginPath: string): Promise<InstalledDesktopPlugin> {
   const response = await fetch("/api/v1/desktop/plugins/install/local", {
     method: "POST",
     credentials: "same-origin",
     headers: {
       "content-type": "application/json",
     },
-    body: JSON.stringify({ sourcePath }),
+    body: JSON.stringify({ pluginPath }),
   })
 
   const payload = (await response.json()) as {
@@ -286,6 +345,69 @@ export async function startDesktopPluginRuntime(pluginId: string): Promise<Deskt
 
 export async function stopDesktopPluginRuntime(pluginId: string): Promise<DesktopPluginRuntimeStatus> {
   return postRuntimeAction(pluginId, "stop")
+}
+
+export async function getDesktopPluginRuntimeStatus(pluginId: string): Promise<DesktopPluginRuntimeStatus> {
+  const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/runtime`, {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+  })
+
+  const payload = (await response.json()) as {
+    ok: boolean
+    data?: DesktopPluginRuntimeStatus
+    message?: string
+  }
+
+  if (!response.ok || !payload.ok || !payload.data) {
+    throw new Error(payload.message || "插件运行时状态读取失败")
+  }
+
+  return payload.data
+}
+
+export async function invokeDesktopPluginWorker<TResult = unknown, TPayload = unknown>(
+  pluginId: string,
+  method: string,
+  payload?: TPayload,
+): Promise<TResult> {
+  const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/worker/invoke`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ method, payload }),
+  })
+
+  const data = (await response.json()) as {
+    ok: boolean
+    data?: {
+      ok: true
+      result: TResult
+    }
+    message?: string
+  }
+
+  if (!response.ok || !data.ok || !data.data) {
+    throw new Error(data.message || "插件 worker 调用失败")
+  }
+
+  return data.data.result
+}
+
+const DESKTOP_PLUGIN_PERMISSION_LABELS: Record<string, string> = {
+  storage: "保存插件私有数据",
+  notifications: "显示通知",
+  activity: "记录活动",
+  microphone: "使用麦克风",
+  "filesystem:plugin-data": "写入插件数据目录",
+  "native-runtime": "运行本地高权限代码",
+}
+
+export function describeDesktopPluginPermission(permission: string): string {
+  return DESKTOP_PLUGIN_PERMISSION_LABELS[permission] ?? permission
 }
 
 async function postRuntimeAction(pluginId: string, action: "start" | "stop"): Promise<DesktopPluginRuntimeStatus> {

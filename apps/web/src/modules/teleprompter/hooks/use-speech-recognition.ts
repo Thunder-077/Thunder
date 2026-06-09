@@ -3,13 +3,15 @@
 import { useEffect, useMemo, useState } from "react"
 import { SherpaOnnxTranscriber, WebSpeechTranscriber } from "../transcribers"
 import type { SpeechProvider, SpeechTranscriber, TranscriberStatus, TranscriptionResult } from "../transcribers"
+import type { TeleprompterTranscriberFactory } from "../runtime/types"
 
 type UseSpeechRecognitionOptions = {
   provider: SpeechProvider
+  createTranscriber?: TeleprompterTranscriberFactory
 }
 
-function createTranscriber(options: UseSpeechRecognitionOptions): SpeechTranscriber {
-  if (options.provider === "sherpa-onnx") {
+function createDefaultTranscriber(provider: SpeechProvider): SpeechTranscriber {
+  if (provider === "sherpa-onnx") {
     return new SherpaOnnxTranscriber()
   }
 
@@ -17,8 +19,11 @@ function createTranscriber(options: UseSpeechRecognitionOptions): SpeechTranscri
 }
 
 export function useSpeechRecognition(options: UseSpeechRecognitionOptions) {
-  const { provider } = options
-  const transcriber = useMemo(() => createTranscriber({ provider }), [provider])
+  const { provider, createTranscriber } = options
+  const transcriber = useMemo(
+    () => (createTranscriber ?? createDefaultTranscriber)(provider),
+    [createTranscriber, provider],
+  )
   const [status, setStatus] = useState<TranscriberStatus>("idle")
   const [error, setError] = useState<string | null>(null)
   const [lastResult, setLastResult] = useState<TranscriptionResult | null>(null)

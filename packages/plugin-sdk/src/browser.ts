@@ -1,9 +1,10 @@
-import type { ThunderPluginManifest } from "./index"
+import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
 type BridgeMethod =
   | "plugin.getManifest"
   | "layout.setFrameHeight"
   | "runtime.request"
+  | "worker.invoke"
   | "network.request"
   | "notification.add"
   | "storage.get"
@@ -42,6 +43,11 @@ type RuntimeResponse<T> = {
   ok: boolean
   headers: Record<string, string>
   data: T
+}
+
+type WorkerInvokeResponse<T> = {
+  ok: true
+  result: T
 }
 
 type NetworkRequestOptions = {
@@ -87,6 +93,9 @@ export interface ThunderBrowserPluginClient {
     request<T = unknown>(path: string, options?: RuntimeRequestOptions): Promise<RuntimeResponse<T>>
     get<T = unknown>(path: string, options?: Omit<RuntimeRequestOptions, "method" | "body">): Promise<T>
     post<T = unknown>(path: string, body?: unknown, options?: Omit<RuntimeRequestOptions, "method" | "body">): Promise<T>
+  }
+  worker: {
+    invoke<TResult = unknown, TPayload = unknown>(method: string, payload?: TPayload): Promise<TResult>
   }
   network: {
     request<T = unknown>(url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>>
@@ -225,6 +234,19 @@ function postHostEvent(method: BridgeMethod, params?: unknown): void {
   window.parent.postMessage(request, "*")
 }
 
+function normalizeThunderPluginWorkerMethod(method: string): string {
+  const normalized = method.trim()
+  if (!normalized || normalized.length > 128) {
+    throw new Error("Thunder plugin worker method cannot be empty")
+  }
+
+  if (!/^[a-z0-9._-]+$/i.test(normalized)) {
+    throw new Error("Thunder plugin worker method is invalid")
+  }
+
+  return normalized
+}
+
 export function createThunderPluginClient(): ThunderBrowserPluginClient {
   return {
     plugin: {
@@ -289,6 +311,15 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
           ...withOptionalBody(options, body),
         })
         return response.data
+      },
+    },
+    worker: {
+      async invoke<TResult = unknown, TPayload = unknown>(method: string, payload?: TPayload) {
+        const response = await postHostMessage<WorkerInvokeResponse<TResult>>("worker.invoke", {
+          method: normalizeThunderPluginWorkerMethod(method),
+          payload,
+        })
+        return response.result
       },
     },
     network: {

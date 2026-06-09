@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useModuleRegistry } from "@/hooks/use-module-registry"
 import { useDesktopPlugins } from "@/hooks/use-desktop-plugins"
+import { desktopPluginToModuleManifest } from "@/lib/quick-access-modules"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import type { ModuleCategory, ModuleManifest } from "@thunder/core"
@@ -100,17 +101,7 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
   const modules = useMemo<ModuleManifest[]>(
     () => [
       ...registry.getEnabled(),
-      ...desktopPlugins.plugins.map((plugin) => ({
-        id: `plugin:${plugin.manifest.id}`,
-        name: plugin.manifest.name,
-        description: plugin.manifest.description,
-        icon: plugin.manifest.icon,
-        route: plugin.route,
-        category: plugin.manifest.category,
-        order: plugin.manifest.order ?? 1000,
-        enabled: true,
-        platforms: ["desktop" as const],
-      })),
+      ...desktopPlugins.plugins.map(desktopPluginToModuleManifest),
     ],
     [registry, desktopPlugins.plugins]
   )

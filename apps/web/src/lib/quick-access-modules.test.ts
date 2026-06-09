@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import type { ModuleManifest } from "@thunder/core"
-import type { InstalledDesktopPlugin } from "@/lib/desktop-plugins"
+import type { DesktopInstalledPlugin } from "@/lib/desktop-plugins"
 import { buildQuickAccessModules } from "./quick-access-modules"
 
 function createModule(id: string, order: number): ModuleManifest {
@@ -16,7 +16,7 @@ function createModule(id: string, order: number): ModuleManifest {
   }
 }
 
-function createPlugin(id: string, order: number): InstalledDesktopPlugin {
+function createPlugin(id: string, order: number): DesktopInstalledPlugin {
   return {
     manifest: {
       manifestVersion: 1,

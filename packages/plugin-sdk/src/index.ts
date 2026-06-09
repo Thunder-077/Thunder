@@ -1,84 +1,42 @@
-export type ThunderPluginCategory =
-  | "productivity"
-  | "security"
-  | "ai"
-  | "notes"
-  | "tools"
-  | "dashboard"
-  | "other"
+/**
+ * Public surface of `@thunder/plugin-sdk`.
+ *
+ * The runtime entry point for plugin UIs is `@thunder/plugin-sdk/browser`,
+ * which talks to the host via postMessage. The runtime entry point for
+ * trusted workers is `@thunder/plugin-sdk/worker`, which re-exports
+ * `defineWorker` from `@thunder/plugin-sdk-worker`.
+ *
+ * The Manifest type lives in `@thunder/plugin-schema`; we re-export it here
+ * for convenience so plugins only need to import from one place.
+ *
+ * ---
+ *
+ * History / migration note:
+ *
+ * Earlier versions of this file exposed a v1 "PluginApp" abstraction
+ * (`definePlugin`, `createPluginApi`, `ThunderPluginApp`,
+ * `ThunderPluginDefinition`, …) that constructed in-memory panel and
+ * command registries but was never wired into the host's iframe bridge.
+ * Plugins written against it appeared to register panels/commands that
+ * the host had no way to discover, which made the API actively misleading.
+ *
+ * That surface has been removed. Plugins should now use the real
+ * `thunder` client from `@thunder/plugin-sdk/browser` to talk to the
+ * host (storage, network, worker.invoke, layout.frame, …) and declare
+ * their contribution points in `plugin.json`.
+ *
+ * The trusted-app template (`packages/plugin-cli/src/templates/trusted-app/`)
+ * has been updated to match.
+ */
 
-export type ThunderPluginPermission =
-  | "webview"
-  | "plugin-storage"
-  | "network-proxy"
-  | "local-api-proxy"
-
-export interface ThunderPluginManifest {
-  manifestVersion: 1
-  id: string
-  name: string
-  version: string
-  description: string
-  icon: string
-  category: ThunderPluginCategory
-  order?: number
-  author: {
-    name: string
-    url?: string
-  }
-  homepage?: string
-  permissions: ThunderPluginPermission[]
-  web: {
-    entry: string
-    contentSecurityPolicy?: string
-  }
-  api?: {
-    baseUrl?: string
-    healthPath?: string
-    runtime?: {
-      kind: "node"
-      entry: string
-      args?: string[]
-      portEnv?: string
-      env?: Record<string, string>
-    }
-  }
-  migrations?: {
-    sqlite?: string
-  }
-}
-
-export interface ThunderPluginRuntimeEnv {
-  THUNDER_PLUGIN_ID: string
-  THUNDER_PLUGIN_VERSION: string
-  THUNDER_PLUGIN_STATE_DIR: string
-  PORT: string
-}
-
-export function defineThunderPluginManifest(manifest: ThunderPluginManifest): ThunderPluginManifest {
-  return manifest
-}
-
-type RuntimeEnvSource = Record<string, string | undefined>
-
-export function getThunderPluginRuntimeEnv(env: RuntimeEnvSource): ThunderPluginRuntimeEnv {
-  const required = [
-    "THUNDER_PLUGIN_ID",
-    "THUNDER_PLUGIN_VERSION",
-    "THUNDER_PLUGIN_STATE_DIR",
-    "PORT",
-  ] as const
-
-  for (const key of required) {
-    if (!env[key]) {
-      throw new Error(`Missing Thunder plugin runtime env: ${key}`)
-    }
-  }
-
-  return {
-    THUNDER_PLUGIN_ID: env.THUNDER_PLUGIN_ID!,
-    THUNDER_PLUGIN_VERSION: env.THUNDER_PLUGIN_VERSION!,
-    THUNDER_PLUGIN_STATE_DIR: env.THUNDER_PLUGIN_STATE_DIR!,
-    PORT: env.PORT!,
-  }
-}
+export type {
+  ThunderPluginAuthor,
+  ThunderPluginCommandContribution,
+  ThunderPluginContributes,
+  ThunderPluginKind,
+  ThunderPluginManifest,
+  ThunderPluginPermission,
+  ThunderPluginRuntime,
+  ThunderPluginSettingContribution,
+  ThunderPluginSidebarContribution,
+} from "@thunder/plugin-schema"

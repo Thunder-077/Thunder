@@ -1,8 +1,17 @@
 export type {
-  ThunderPluginCategory as DesktopPluginCategory,
   ThunderPluginPermission as DesktopPluginPermission,
   ThunderPluginManifest as DesktopPluginManifest,
-} from "@thunder/plugin-sdk"
+  ThunderPluginManifest as DesktopPluginSchemaManifest,
+} from "@thunder/plugin-schema"
+
+export type DesktopPluginCategory =
+  | "productivity"
+  | "security"
+  | "ai"
+  | "notes"
+  | "tools"
+  | "dashboard"
+  | "other"
 
 export interface DesktopPluginInstallRecord {
   id: string
@@ -21,10 +30,12 @@ export interface DesktopPluginInstallRecord {
 }
 
 export interface InstalledDesktopPlugin {
-  manifest: import("@thunder/plugin-sdk").ThunderPluginManifest
-  record: DesktopPluginInstallRecord
+  manifest: import("@thunder/plugin-schema").ThunderPluginManifest
+  pluginRoot: string
   route: string
-  webEntryUrl: string
+  uiEntryUrl: string | null
+  installedAt?: string
+  updatedAt?: string
   installed: true
 }
 
@@ -34,6 +45,7 @@ export interface DesktopPluginRuntimeStatus {
   pid?: number
   port?: number
   baseUrl?: string
+  endpoint?: string
   startedAt?: string
   lastExitAt?: string
   lastExitCode?: number | null
@@ -68,12 +80,12 @@ export interface DesktopPluginMarketplaceEntry {
   version: string
   description: string
   icon: string
-  category: import("@thunder/plugin-sdk").ThunderPluginCategory
+  category: DesktopPluginCategory
   author: {
     name: string
     url?: string
   }
-  permissions: import("@thunder/plugin-sdk").ThunderPluginPermission[]
+  permissions: string[]
   source?: "package" | "bundled"
   packageUrl?: string
   packageSha256?: string

@@ -1,21 +1,17 @@
-import { Hono, type Context } from "hono"
+import { Hono } from "hono"
 import {
   DesktopPluginError,
   fetchDesktopPluginMarketplace,
   getDesktopPluginRuntimeStatus,
-  getInstalledDesktopPlugin,
-  installLocalDesktopPlugin,
+  getInstalledPlugin,
   installBundledDesktopPlugin,
-  installPackagedDesktopPlugin,
+  installPackagedPlugin,
   isDesktopPluginRuntimeEnabled,
   listInstalledDesktopPlugins,
-  readDesktopPluginAsset,
-  resolveDesktopPluginApiProxyTarget,
-  requestDesktopPluginNetworkProxy,
-  runDesktopPluginMigrations,
+  readDesktopPluginUiAsset,
   startDesktopPluginRuntime,
-  stopDesktopPluginRuntime,
   uninstallDesktopPlugin,
+  invokeDesktopPluginWorker,
 } from "./desktop-plugin-manager"
 
 export const desktopPlugins = new Hono()
@@ -40,17 +36,6 @@ export function sanitizePluginApiProxyHeaders(headers: Headers): Headers {
     sanitized.set(normalizedName, value)
   }
   return sanitized
-}
-
-async function readPluginApiProxyBody(request: Request, method: string): Promise<ArrayBuffer | undefined> {
-  if (method === "GET" || method === "HEAD") {
-    return undefined
-  }
-
-  // Buffer the body before proxying so large JSON payloads do not depend on nested
-  // request streams and stale content-length headers across the host -> plugin hop.
-  const body = await request.arrayBuffer()
-  return body.byteLength > 0 ? body : undefined
 }
 
 function toErrorResponse(error: unknown) {
@@ -87,7 +72,7 @@ desktopPlugins.get("/marketplace", async (c) => {
 
 desktopPlugins.get("/:id", async (c) => {
   try {
-    const plugin = await getInstalledDesktopPlugin(c.req.param("id"))
+    const plugin = await getInstalledPlugin(c.req.param("id"))
     return c.json({ ok: true, data: plugin })
   } catch (error) {
     return jsonError(error)
@@ -98,27 +83,19 @@ desktopPlugins.post("/install/local", async (c) => {
   try {
     const body = (await c.req.json().catch(() => null)) as
       | {
-          sourcePath?: string
-          expectedSha256?: string
-          signature?: {
-            keyId: string
-            algorithm: "ed25519"
-            signature: string
-          }
+          pluginPath?: string
         }
       | null
 
-    if (!body?.sourcePath) {
-      return new Response(JSON.stringify({ ok: false, message: "sourcePath 不能为空" }), {
+    if (!body?.pluginPath) {
+      return new Response(JSON.stringify({ ok: false, message: "pluginPath 不能为空" }), {
         status: 400,
         headers: { "content-type": "application/json; charset=utf-8" },
       })
     }
 
-    const plugin = await installLocalDesktopPlugin({
-      sourcePath: body.sourcePath,
-      expectedSha256: body.expectedSha256,
-      signature: body.signature,
+    const plugin = await installPackagedPlugin({
+      pluginPath: body.pluginPath,
     })
     return c.json({ ok: true, data: plugin }, 201)
   } catch (error) {
@@ -127,35 +104,7 @@ desktopPlugins.post("/install/local", async (c) => {
 })
 
 desktopPlugins.post("/install/package", async (c) => {
-  try {
-    const body = (await c.req.json().catch(() => null)) as
-      | {
-          packageUrl?: string
-          packageSha256?: string
-          signature?: {
-            keyId: string
-            algorithm: "ed25519"
-            signature: string
-          }
-        }
-      | null
-
-    if (!body?.packageUrl || !body.packageSha256 || !body.signature) {
-      return new Response(JSON.stringify({ ok: false, message: "packageUrl、packageSha256 和 signature 不能为空" }), {
-        status: 400,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      })
-    }
-
-    const plugin = await installPackagedDesktopPlugin({
-      packageUrl: body.packageUrl,
-      packageSha256: body.packageSha256,
-      signature: body.signature,
-    })
-    return c.json({ ok: true, data: plugin }, 201)
-  } catch (error) {
-    return jsonError(error)
-  }
+  return c.json({ ok: false, message: "正式插件系统暂不支持远程包安装，请使用本地目录或官方内置插件" }, 501)
 })
 
 desktopPlugins.post("/install/bundled", async (c) => {
@@ -185,19 +134,24 @@ desktopPlugins.delete("/:id", async (c) => {
   }
 })
 
-desktopPlugins.post("/:id/migrations/run", async (c) => {
+desktopPlugins.post("/:id/worker/invoke", async (c) => {
   try {
-    const result = await runDesktopPluginMigrations(c.req.param("id"))
-    return c.json({ ok: true, data: result })
-  } catch (error) {
-    return jsonError(error)
-  }
-})
+    const body = (await c.req.json().catch(() => null)) as
+      | {
+          method?: string
+          payload?: unknown
+        }
+      | null
 
-desktopPlugins.post("/:id/network", async (c) => {
-  try {
-    const result = await requestDesktopPluginNetworkProxy(c.req.param("id"), await c.req.json())
-    return c.json({ ok: true, data: result })
+    if (!body?.method || typeof body.method !== "string") {
+      return new Response(JSON.stringify({ ok: false, message: "method 不能为空" }), {
+        status: 400,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      })
+    }
+
+    const result = await invokeDesktopPluginWorker(c.req.param("id"), body.method, body.payload)
+    return c.json({ ok: true, data: { ok: true, result } })
   } catch (error) {
     return jsonError(error)
   }
@@ -221,16 +175,7 @@ desktopPlugins.post("/:id/runtime/start", async (c) => {
   }
 })
 
-desktopPlugins.post("/:id/runtime/stop", async (c) => {
-  try {
-    const status = await stopDesktopPluginRuntime(c.req.param("id"))
-    return c.json({ ok: true, data: status })
-  } catch (error) {
-    return jsonError(error)
-  }
-})
-
-desktopPlugins.get("/:id/web/*", async (c) => {
+desktopPlugins.get("/:id/ui/*", async (c) => {
   try {
     const id = c.req.param("id")
     if (!id) {
@@ -239,8 +184,9 @@ desktopPlugins.get("/:id/web/*", async (c) => {
         headers: { "content-type": "application/json; charset=utf-8" },
       })
     }
-    const rawPath = c.req.path.split(`/api/v1/desktop/plugins/${id}/web/`)[1] ?? ""
-    const asset = await readDesktopPluginAsset(
+
+    const rawPath = c.req.path.split(`/api/v1/desktop/plugins/${id}/ui/`)[1] ?? ""
+    const asset = await readDesktopPluginUiAsset(
       id,
       rawPath
         .split("/")
@@ -262,53 +208,3 @@ desktopPlugins.get("/:id/web/*", async (c) => {
     return jsonError(error)
   }
 })
-
-async function handlePluginApiProxy(c: Context) {
-  try {
-    const id = c.req.param("id")
-    if (!id) {
-      return new Response(JSON.stringify({ ok: false, message: "插件 id 不能为空" }), {
-        status: 400,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      })
-    }
-    const rawPath = c.req.path.split(`/api/v1/desktop/plugins/${id}/api/`)[1] ?? ""
-    const target = await resolveDesktopPluginApiProxyTarget(
-      id,
-      rawPath
-        .split("/")
-        .map((part) => decodeURIComponent(part))
-        .filter(Boolean),
-      new URL(c.req.url).search
-    )
-
-    const method = c.req.method.toUpperCase()
-    const headers = sanitizePluginApiProxyHeaders(new Headers(c.req.raw.headers))
-    headers.set("x-thunder-plugin-id", id)
-
-    const body = await readPluginApiProxyBody(c.req.raw, method)
-    if (!body) {
-      headers.delete("content-type")
-    }
-
-    const upstream = await fetch(target.url, {
-      method,
-      headers,
-      body,
-      redirect: "manual",
-    })
-
-    const responseHeaders = new Headers(upstream.headers)
-    responseHeaders.delete("transfer-encoding")
-    responseHeaders.delete("connection")
-    return new Response(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: responseHeaders,
-    })
-  } catch (error) {
-    return jsonError(error)
-  }
-}
-
-desktopPlugins.on(["GET", "POST", "PUT", "PATCH", "DELETE"], "/:id/api/*", handlePluginApiProxy)

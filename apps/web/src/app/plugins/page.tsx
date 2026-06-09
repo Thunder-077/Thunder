@@ -28,13 +28,14 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
+  describeDesktopPluginPermission,
+  type DesktopInstalledPlugin,
   installBundledDesktopPlugin,
   installPackagedDesktopPlugin,
   listDesktopPluginMarketplace,
   listDesktopPlugins,
   shouldLoadDesktopPlugins,
   type DesktopPluginMarketplaceEntry,
-  type InstalledDesktopPlugin,
 } from "@/lib/desktop-plugins"
 import { cn } from "@/lib/utils"
 
@@ -189,9 +190,17 @@ function marketplaceEntryToVisual(entry: DesktopPluginMarketplaceEntry): PluginV
   }
 }
 
+function getMarketplacePermissionSummary(entry: DesktopPluginMarketplaceEntry): string {
+  if (!entry.permissions.length) {
+    return "无需额外权限"
+  }
+
+  return entry.permissions.slice(0, 3).map(describeDesktopPluginPermission).join(" · ")
+}
+
 export default function DesktopPluginMarketplacePage() {
   const router = useRouter()
-  const [installed, setInstalled] = useState<InstalledDesktopPlugin[]>([])
+  const [installed, setInstalled] = useState<DesktopInstalledPlugin[]>([])
   const [marketplace, setMarketplace] = useState<DesktopPluginMarketplaceEntry[]>([])
   const [message, setMessage] = useState<string | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
@@ -451,6 +460,11 @@ function PluginCard({
       >
         {installed ? "已安装" : loading ? "安装中" : "安装"}
       </Button>
+      {plugin.entry && (
+        <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+          权限：{getMarketplacePermissionSummary(plugin.entry)}
+        </p>
+      )}
     </article>
   )
 }
@@ -495,6 +509,11 @@ function TrendingRow({
         >
           {installed ? "已安装" : loading ? "安装中" : "安装"}
         </Button>
+        {plugin.entry && (
+          <span className="hidden max-w-[220px] truncate text-[11px] text-muted-foreground xl:inline">
+            {getMarketplacePermissionSummary(plugin.entry)}
+          </span>
+        )}
       </div>
     </article>
   )

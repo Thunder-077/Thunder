@@ -3,33 +3,12 @@ import type { DesktopPluginPermission } from "@/lib/desktop-plugins"
 export const PLUGIN_BRIDGE_REQUEST_SOURCE = "thunder-plugin"
 export const PLUGIN_BRIDGE_VERSION = 1
 
-const ALLOWED_RUNTIME_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"])
-
 export type PluginBridgeRequest = {
   source?: string
   version?: number
   id?: string
   method?: string
   params?: unknown
-}
-
-export type LayoutRequestParams = {
-  height?: number
-}
-
-export type RuntimeRequestParams = {
-  path?: string
-  method?: string
-  headers?: Record<string, string>
-  body?: unknown
-  cache?: RequestCache
-}
-
-export type NetworkRequestParams = {
-  url?: string
-  method?: string
-  headers?: Record<string, string>
-  body?: unknown
 }
 
 export type StorageRequestParams = {
@@ -40,20 +19,15 @@ export type StorageRequestParams = {
 type PluginStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">
 
 const BRIDGE_METHOD_PERMISSIONS: Partial<Record<string, DesktopPluginPermission>> = {
-  "runtime.request": "local-api-proxy",
-  "network.request": "network-proxy",
-  "storage.get": "plugin-storage",
-  "storage.set": "plugin-storage",
-  "storage.remove": "plugin-storage",
-  "storage.keys": "plugin-storage",
-  "storage.clear": "plugin-storage",
-  "activity.track": "local-api-proxy",
-}
-
-export function ensurePluginPermission(permissions: DesktopPluginPermission[], permission: DesktopPluginPermission): void {
-  if (!permissions.includes(permission)) {
-    throw new Error(`插件未声明 ${permission} 权限`)
-  }
+  "storage.get": "storage",
+  "storage.set": "storage",
+  "storage.remove": "storage",
+  "storage.keys": "storage",
+  "storage.clear": "storage",
+  "notification.add": "notifications",
+  "activity.track": "activity",
+  "worker.invoke": "native-runtime",
+  "runtime.request": "native-runtime",
 }
 
 export function getRequiredPluginPermissionForBridgeMethod(method: string): DesktopPluginPermission | null {
@@ -89,71 +63,6 @@ export function isAllowedPluginBridgeOrigin(eventOrigin: string, frameUrl: strin
 
 export function isPluginFrameOriginIsolated(frameUrl: string, hostOrigin: string): boolean {
   return new URL(frameUrl).origin !== new URL(hostOrigin).origin
-}
-
-export function normalizeRuntimeRequestPath(path: string | undefined): string {
-  const rawPath = path?.trim()
-  if (!rawPath || rawPath.startsWith("/") || rawPath.startsWith("\\")) {
-    throw new Error("插件 runtime 请求路径无效")
-  }
-
-  const pathOnly = rawPath.split(/[?#]/, 1)[0]
-  const segments = pathOnly.split("/")
-  for (const segment of segments) {
-    if (!segment || segment.includes("\\")) {
-      throw new Error("插件 runtime 请求路径无效")
-    }
-
-    let decodedSegment = segment
-    try {
-      decodedSegment = decodeURIComponent(segment)
-    } catch {
-      throw new Error("插件 runtime 请求路径无效")
-    }
-
-    if (
-      decodedSegment === "." ||
-      decodedSegment === ".." ||
-      decodedSegment.includes("/") ||
-      decodedSegment.includes("\\")
-    ) {
-      throw new Error("插件 runtime 请求路径无效")
-    }
-  }
-
-  return rawPath
-}
-
-export function normalizeRuntimeRequestMethod(method: string | undefined): string {
-  const normalizedMethod = (method ?? "GET").toUpperCase()
-  if (!ALLOWED_RUNTIME_METHODS.has(normalizedMethod)) {
-    throw new Error("插件 runtime 请求方法无效")
-  }
-  return normalizedMethod
-}
-
-export function sanitizeRuntimeRequestHeaders(headers: Record<string, string> | undefined): Headers {
-  const sanitized = new Headers()
-  for (const [name, value] of Object.entries(headers ?? {})) {
-    const normalizedName = name.trim().toLowerCase()
-    if (!normalizedName || ["authorization", "cookie", "host"].includes(normalizedName)) {
-      continue
-    }
-    sanitized.set(normalizedName, value)
-  }
-  return sanitized
-}
-
-export function sanitizeNetworkRequestParams(params: NetworkRequestParams | null): NetworkRequestParams {
-  if (!params?.url?.trim()) {
-    throw new Error("插件网络代理 URL 不能为空")
-  }
-  return {
-    url: params.url.trim(),
-    method: params.method ?? "GET",
-    headers: params.headers ?? {},
-    body: params.body,
-  }
 }
 
 export function normalizeStorageKey(key: string | undefined): string {

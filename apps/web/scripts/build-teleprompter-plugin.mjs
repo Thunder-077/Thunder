@@ -9,16 +9,22 @@ const scriptDir = dirname(fileURLToPath(import.meta.url))
 const webRoot = resolve(scriptDir, "..")
 const workspaceRoot = resolve(webRoot, "..", "..")
 const pluginRoot = resolve(workspaceRoot, "plugins", "desktop", "teleprompter")
-const webOutDir = resolve(pluginRoot, "web")
+const webOutDir = resolve(pluginRoot, "dist")
 const assetsOutDir = resolve(webOutDir, "assets")
-const entryPoint = resolve(pluginRoot, "src", "main.tsx")
+const entryPoint = resolve(pluginRoot, "src", "index.tsx")
+const workerEntryPoint = resolve(pluginRoot, "src", "worker.ts")
 const cssOutput = resolve(assetsOutDir, "main.css")
 const globalsCss = resolve(webRoot, "src", "app", "globals.css")
-const pluginCss = resolve(pluginRoot, "src", "plugin.css")
 const pluginUiRoot = resolve(workspaceRoot, "packages", "plugin-ui", "src")
+const teleprompterUiRoot = resolve(workspaceRoot, "packages", "teleprompter-ui", "src")
+const teleprompterCoreRoot = resolve(workspaceRoot, "packages", "teleprompter-core", "src")
 const webNodeModules = resolve(webRoot, "node_modules")
 const reactRoot = resolve(webNodeModules, "react")
 const reactDomRoot = resolve(webNodeModules, "react-dom")
+
+function toPosixPath(input) {
+  return input.replaceAll("\\", "/")
+}
 
 await rm(webOutDir, { recursive: true, force: true })
 await mkdir(assetsOutDir, { recursive: true })
@@ -27,7 +33,7 @@ await build({
   entryPoints: [entryPoint],
   bundle: true,
   platform: "browser",
-  format: "esm",
+  format: "iife",
   target: ["es2020"],
   outfile: resolve(assetsOutDir, "main.js"),
   absWorkingDir: webRoot,
@@ -53,13 +59,12 @@ await build({
     "@/components/ui/card": resolve(pluginUiRoot, "card.tsx"),
     "@/components/ui/dialog": resolve(pluginUiRoot, "dialog.tsx"),
     "@/components/ui/separator": resolve(pluginUiRoot, "separator.tsx"),
-    "@/components/page-header": resolve(pluginRoot, "src", "shims", "page-header.tsx"),
     "@/components/ui/select": resolve(pluginUiRoot, "select.tsx"),
     "@/components/ui/switch": resolve(pluginUiRoot, "switch.tsx"),
-    "@/lib/notification-store": resolve(pluginRoot, "src", "shims", "notification-store.ts"),
-    "@/lib/platform": resolve(pluginRoot, "src", "shims", "platform.ts"),
-    "@tauri-apps/api/event": resolve(pluginRoot, "src", "shims", "tauri-event.ts"),
     "@thunder/plugin-sdk/browser": resolve(workspaceRoot, "packages", "plugin-sdk", "src", "browser.ts"),
+    "@thunder/teleprompter-ui": resolve(teleprompterUiRoot, "index.ts"),
+    "@thunder/teleprompter-core": resolve(teleprompterCoreRoot, "index.ts"),
+    "@thunder/teleprompter-core/speech-types": resolve(teleprompterCoreRoot, "speech-types.ts"),
   },
   define: {
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "production"),
@@ -67,12 +72,41 @@ await build({
   },
 })
 
-const rawCss = `${await readFile(globalsCss, "utf8")}\n${await readFile(pluginCss, "utf8")}`
-const processedCss = await postcss([tailwindcss()]).process(rawCss, {
+const rawCss = await readFile(globalsCss, "utf8")
+const pluginCssSources = [
+  pluginRoot,
+  pluginUiRoot,
+  teleprompterUiRoot,
+  teleprompterCoreRoot,
+].map((dir) => `@source "${toPosixPath(dir)}/**/*.{ts,tsx}";`)
+const processedCss = await postcss([tailwindcss()]).process(`${pluginCssSources.join("\n")}\n${rawCss}`, {
+  // 插件 CSS 产物需要显式扫描共享包源码，否则响应式类不会进入最终 bundle。
   from: globalsCss,
   to: cssOutput,
+  map: false,
 })
 await writeFile(cssOutput, processedCss.css, "utf8")
+
+await build({
+  entryPoints: [workerEntryPoint],
+  outfile: resolve(webOutDir, "worker.js"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: ["node20"],
+  absWorkingDir: webRoot,
+  nodePaths: [resolve(webRoot, "node_modules"), resolve(workspaceRoot, "node_modules")],
+  sourcemap: false,
+  minify: process.env.NODE_ENV === "production",
+  alias: {
+    "@thunder/plugin-sdk/worker": resolve(workspaceRoot, "packages", "plugin-sdk", "src", "worker.ts"),
+    "@thunder/plugin-sdk-worker": resolve(workspaceRoot, "packages", "plugin-sdk-worker", "src", "index.ts"),
+  },
+  define: {
+    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "production"),
+    "process.env.NEXT_PUBLIC_PLATFORM": JSON.stringify("desktop"),
+  },
+})
 
 await writeFile(
   resolve(webOutDir, "index.html"),

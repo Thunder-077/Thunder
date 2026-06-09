@@ -1,37 +1,19 @@
 import { constants as fsConstants } from "node:fs"
-import { access, appendFile, cp, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
-import { spawn, type ChildProcess } from "node:child_process"
+import { access, appendFile, cp, lstat, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { createHash, createPublicKey, verify } from "node:crypto"
-import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
-import { tmpdir } from "node:os"
-import { fileURLToPath } from "node:url"
-import { lookup } from "node:dns/promises"
-import { createServer, isIP } from "node:net"
-// @ts-ignore node:sqlite types are provided by the Node runtime used by desktop.
-import { DatabaseSync } from "node:sqlite"
-import { x as extractTar } from "tar"
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep, extname } from "node:path"
+import { createPipeClient, createTrustedRuntimeSupervisor } from "@thunder/plugin-host-runtime"
+import { parseThunderPluginManifest } from "@thunder/plugin-schema"
 import type {
-  DesktopPluginMigrationRecord,
   DesktopPluginInstallRecord,
-  DesktopPluginManifest,
+  DesktopPluginSchemaManifest,
   DesktopPluginMarketplaceIndex,
-  DesktopPluginNetworkProxyRequest,
-  DesktopPluginNetworkProxyResponse,
   DesktopPluginRuntimeStatus,
   InstalledDesktopPlugin,
 } from "./desktop-plugin-types"
 import { recordActivity } from "../modules/activity/activity-service"
 
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
-const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/
-const ALLOWED_PLUGIN_PERMISSIONS = new Set<DesktopPluginManifest["permissions"][number]>([
-  "webview",
-  "plugin-storage",
-  "network-proxy",
-  "local-api-proxy",
-])
-const ALLOWED_NETWORK_PROXY_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"])
-const BLOCKED_NETWORK_PROXY_HOSTS = new Set(["localhost", "0.0.0.0", "127.0.0.1", "::1"])
 const STATIC_CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -46,33 +28,19 @@ const STATIC_CONTENT_TYPES: Record<string, string> = {
   ".woff": "font/woff",
   ".woff2": "font/woff2",
 }
-const RUNTIME_START_TIMEOUT_MS = 10_000
-const RUNTIME_STOP_TIMEOUT_MS = 5_000
+const trustedRuntimeSupervisor = createTrustedRuntimeSupervisor()
 
 export class DesktopPluginError extends Error {
   constructor(
     message: string,
-    readonly status = 400
+    readonly status = 400,
   ) {
     super(message)
   }
 }
 
 export interface InstallLocalPluginOptions {
-  sourcePath: string
-  expectedSha256?: string
-  signature?: DesktopPluginInstallRecord["signature"]
-}
-
-interface InstallLocalPluginInternalOptions extends InstallLocalPluginOptions {
-  allowUnsignedBundled?: boolean
-  source?: DesktopPluginInstallRecord["source"]
-}
-
-export interface InstallPackagePluginOptions {
-  packageUrl: string
-  packageSha256: string
-  signature: DesktopPluginInstallRecord["signature"]
+  pluginPath: string
 }
 
 export interface StaticPluginAsset {
@@ -80,28 +48,6 @@ export interface StaticPluginAsset {
   contentType: string
   contentSecurityPolicy?: string
 }
-
-export interface DesktopPluginProxyTarget {
-  url: string
-}
-
-export interface DesktopPluginMigrationResult {
-  pluginId: string
-  applied: DesktopPluginMigrationRecord[]
-  skipped: DesktopPluginMigrationRecord[]
-}
-
-interface RuntimeProcessRecord {
-  pluginId: string
-  child: ChildProcess
-  port: number
-  baseUrl: string
-  startedAt: string
-}
-
-const runtimeProcesses = new Map<string, RuntimeProcessRecord>()
-const runtimeStatus = new Map<string, DesktopPluginRuntimeStatus>()
-const runtimeStartPromises = new Map<string, Promise<string>>()
 
 export function isDesktopPluginRuntimeEnabled(): boolean {
   return (
@@ -149,7 +95,6 @@ function getPluginDirs() {
     root,
     pluginsDir: join(root, "plugins"),
     stagingDir: join(root, "plugin-staging"),
-    stateDir: join(root, "plugin-state"),
     auditLogPath: join(root, "plugin-audit.jsonl"),
   }
 }
@@ -179,38 +124,21 @@ function isPathInside(childPath: string, parentPath: string): boolean {
   return path === "" || (!path.startsWith("..") && !isAbsolute(path))
 }
 
-async function findBundledPluginSource(pluginId: string): Promise<string> {
-  assertPluginId(pluginId)
-
-  for (const root of getBundledPluginRoots()) {
-    const sourcePath = resolve(root, pluginId)
-    if (!isPathInside(sourcePath, root)) {
-      continue
-    }
-    const manifestPath = join(sourcePath, "plugin.json")
-    if (await pathExists(manifestPath)) {
-      return sourcePath
-    }
-  }
-
-  throw new DesktopPluginError("内置插件不存在或未随应用打包", 404)
+async function ensureDirs(): Promise<void> {
+  const dirs = getPluginDirs()
+  await mkdir(dirs.pluginsDir, { recursive: true })
+  await mkdir(dirs.stagingDir, { recursive: true })
 }
 
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(stableJson).join(",")}]`
+async function appendAudit(event: string, details: Record<string, unknown>): Promise<void> {
+  await ensureDirs()
+  const { auditLogPath } = getPluginDirs()
+  const record = {
+    event,
+    at: new Date().toISOString(),
+    ...details,
   }
-  if (value && typeof value === "object") {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
-      .join(",")}}`
-  }
-  return JSON.stringify(value)
-}
-
-function sha256(buffer: Buffer | string): string {
-  return createHash("sha256").update(buffer).digest("hex")
+  await appendFile(auditLogPath, `${JSON.stringify(record)}\n`, "utf8")
 }
 
 function assertPluginId(id: string): void {
@@ -223,83 +151,6 @@ function assertRelativeAssetPath(path: string, label: string): void {
   if (!path || path.startsWith("/") || path.startsWith("\\") || path.includes("..")) {
     throw new DesktopPluginError(`${label} 必须是插件目录内的相对路径`)
   }
-}
-
-function assertString(value: unknown, label: string): asserts value is string {
-  if (typeof value !== "string" || !value.trim()) {
-    throw new DesktopPluginError(`${label} 不能为空`)
-  }
-}
-
-function validateManifest(input: unknown): DesktopPluginManifest {
-  const manifest = input as DesktopPluginManifest
-  if (!manifest || typeof manifest !== "object") {
-    throw new DesktopPluginError("插件 manifest 必须是对象")
-  }
-  if (manifest.manifestVersion !== 1) {
-    throw new DesktopPluginError("仅支持 manifestVersion=1 的插件")
-  }
-
-  assertString(manifest.id, "插件 id")
-  assertPluginId(manifest.id)
-  assertString(manifest.name, "插件名称")
-  assertString(manifest.version, "插件版本")
-  if (!SEMVER_PATTERN.test(manifest.version)) {
-    throw new DesktopPluginError("插件版本必须是 semver 格式，例如 1.0.0")
-  }
-  assertString(manifest.description, "插件描述")
-  assertString(manifest.icon, "插件图标")
-  assertString(manifest.category, "插件分类")
-  assertString(manifest.author?.name, "插件作者")
-  assertString(manifest.web?.entry, "插件 web.entry")
-  assertRelativeAssetPath(manifest.web.entry, "插件 web.entry")
-
-  if (!Array.isArray(manifest.permissions)) {
-    throw new DesktopPluginError("插件 permissions 必须是数组")
-  }
-  for (const permission of manifest.permissions) {
-    if (!ALLOWED_PLUGIN_PERMISSIONS.has(permission)) {
-      throw new DesktopPluginError(`未知插件权限: ${String(permission)}`)
-    }
-  }
-  if (!manifest.permissions.includes("webview")) {
-    throw new DesktopPluginError("声明 web.entry 的插件必须申请 webview 权限")
-  }
-
-  if (manifest.api) {
-    if (!manifest.api.baseUrl && !manifest.api.runtime) {
-      throw new DesktopPluginError("插件 api 必须声明 baseUrl 或 runtime")
-    }
-    if (manifest.api.baseUrl) {
-      const baseUrl = new URL(manifest.api.baseUrl)
-      const isLoopback =
-        baseUrl.hostname === "127.0.0.1" || baseUrl.hostname === "localhost" || baseUrl.hostname === "::1"
-      if (!isLoopback) {
-        throw new DesktopPluginError("插件本地 API 代理只允许指向 loopback 地址")
-      }
-    }
-    if (manifest.api.runtime) {
-      if (manifest.api.runtime.kind !== "node") {
-        throw new DesktopPluginError("插件后端 runtime 仅支持 node")
-      }
-      assertString(manifest.api.runtime.entry, "插件 api.runtime.entry")
-      assertRelativeAssetPath(manifest.api.runtime.entry, "插件 api.runtime.entry")
-      for (const arg of manifest.api.runtime.args ?? []) {
-        if (arg.includes("..")) {
-          throw new DesktopPluginError("插件 api.runtime.args 不能包含路径越界片段")
-        }
-      }
-    }
-    if (!manifest.permissions.includes("local-api-proxy")) {
-      throw new DesktopPluginError("声明 api 的插件必须申请 local-api-proxy 权限")
-    }
-  }
-
-  if (manifest.migrations?.sqlite) {
-    assertRelativeAssetPath(manifest.migrations.sqlite, "插件 migrations.sqlite")
-  }
-
-  return manifest
 }
 
 async function readJsonFile<T>(path: string): Promise<T> {
@@ -326,68 +177,6 @@ async function assertNoSymlinks(current: string): Promise<void> {
   }
 }
 
-function trustedKeys(): Map<string, string> {
-  const raw = process.env.THUNDER_PLUGIN_TRUSTED_KEYS
-  if (!raw) return new Map()
-
-  try {
-    const parsed = JSON.parse(raw) as Array<{ keyId: string; publicKey: string }>
-    return new Map(parsed.map((item) => [item.keyId, item.publicKey]))
-  } catch {
-    throw new DesktopPluginError("THUNDER_PLUGIN_TRUSTED_KEYS 必须是 JSON 数组")
-  }
-}
-
-function allowUnsignedPlugins(): boolean {
-  return process.env.THUNDER_ALLOW_UNSIGNED_PLUGINS === "1" || process.env.NODE_ENV !== "production"
-}
-
-function verifyManifestSignature(
-  manifest: DesktopPluginManifest,
-  signature?: DesktopPluginInstallRecord["signature"]
-): void {
-  if (!signature) {
-    if (allowUnsignedPlugins()) return
-    throw new DesktopPluginError("生产环境禁止安装未签名插件", 403)
-  }
-
-  if (signature.algorithm !== "ed25519") {
-    throw new DesktopPluginError("插件签名算法仅支持 ed25519")
-  }
-
-  const publicKey = trustedKeys().get(signature.keyId)
-  if (!publicKey) {
-    throw new DesktopPluginError(`插件签名 keyId 未被信任: ${signature.keyId}`, 403)
-  }
-
-  const key = createPublicKey(publicKey)
-  const ok = verify(null, Buffer.from(stableJson(manifest)), key, Buffer.from(signature.signature, "base64"))
-  if (!ok) {
-    throw new DesktopPluginError("插件签名校验失败", 403)
-  }
-}
-
-async function readManifest(pluginRoot: string): Promise<DesktopPluginManifest> {
-  const manifest = validateManifest(await readJsonFile(join(pluginRoot, "plugin.json")))
-  const entryPath = resolve(pluginRoot, manifest.web.entry)
-  await assertPathInside(pluginRoot, entryPath)
-  if (!(await pathExists(entryPath))) {
-    throw new DesktopPluginError("插件 web.entry 指向的文件不存在")
-  }
-  if (manifest.migrations?.sqlite) {
-    const migrationDir = resolve(pluginRoot, manifest.migrations.sqlite)
-    await assertPathInside(pluginRoot, migrationDir)
-  }
-  if (manifest.api?.runtime) {
-    const runtimeEntry = resolve(pluginRoot, manifest.api.runtime.entry)
-    await assertPathInside(pluginRoot, runtimeEntry)
-    if (!(await pathExists(runtimeEntry))) {
-      throw new DesktopPluginError("插件 api.runtime.entry 指向的文件不存在")
-    }
-  }
-  return manifest
-}
-
 async function assertPathInside(root: string, target: string): Promise<void> {
   const normalizedRoot = resolve(root)
   const normalizedTarget = resolve(target)
@@ -396,71 +185,62 @@ async function assertPathInside(root: string, target: string): Promise<void> {
   }
 }
 
-async function ensureDirs(): Promise<void> {
-  const dirs = getPluginDirs()
-  await mkdir(dirs.pluginsDir, { recursive: true })
-  await mkdir(dirs.stagingDir, { recursive: true })
-  await mkdir(dirs.stateDir, { recursive: true })
+async function readManifestVersion(pluginRoot: string): Promise<number> {
+  const manifest = await readJsonFile<{ manifestVersion?: unknown }>(join(pluginRoot, "plugin.json"))
+  return typeof manifest.manifestVersion === "number" ? manifest.manifestVersion : 0
 }
 
-async function appendAudit(event: string, details: Record<string, unknown>): Promise<void> {
-  await ensureDirs()
-  const { auditLogPath } = getPluginDirs()
-  const record = {
-    event,
-    at: new Date().toISOString(),
-    ...details,
-  }
-  await appendFile(auditLogPath, `${JSON.stringify(record)}\n`, "utf8")
-}
+async function readManifest(pluginRoot: string): Promise<DesktopPluginSchemaManifest> {
+  const manifest = parseThunderPluginManifest(await readJsonFile(join(pluginRoot, "plugin.json")))
+  const sidebarEntry = manifest.contributes?.sidebar?.entry
 
-async function downloadPackage(packageUrl: string, expectedSha256: string): Promise<string> {
-  const url = new URL(packageUrl)
-  if (url.protocol !== "https:" && url.protocol !== "file:") {
-    throw new DesktopPluginError("插件包只允许通过 https 或 file URL 安装", 403)
-  }
-
-  const tempDir = await mkdtemp(join(tmpdir(), "thunder-plugin-"))
-  const packagePath = join(tempDir, "plugin.tar.gz")
-
-  if (url.protocol === "file:") {
-    const sourcePath = fileURLToPath(url)
-    await cp(sourcePath, packagePath)
-  } else {
-    const response = await fetch(url)
-    if (!response.ok || !response.body) {
-      throw new DesktopPluginError(`插件包下载失败: ${response.status}`, 502)
+  if (sidebarEntry) {
+    assertRelativeAssetPath(sidebarEntry, "插件 contributes.sidebar.entry")
+    const uiEntryPath = resolve(pluginRoot, sidebarEntry)
+    await assertPathInside(pluginRoot, uiEntryPath)
+    if (!(await pathExists(uiEntryPath))) {
+      throw new DesktopPluginError("插件 contributes.sidebar.entry 指向的文件不存在")
     }
-    const bytes = Buffer.from(await response.arrayBuffer())
-    await writeFile(packagePath, bytes)
   }
 
-  const actualSha256 = sha256(await readFile(packagePath))
-  if (actualSha256 !== expectedSha256) {
-    throw new DesktopPluginError("插件包 sha256 校验失败", 403)
+  if (manifest.runtime?.entry) {
+    assertRelativeAssetPath(manifest.runtime.entry, "插件 runtime.entry")
+    const runtimeEntryPath = resolve(pluginRoot, manifest.runtime.entry)
+    await assertPathInside(pluginRoot, runtimeEntryPath)
+    if (!(await pathExists(runtimeEntryPath))) {
+      throw new DesktopPluginError("插件 runtime.entry 指向的文件不存在")
+    }
   }
 
-  return packagePath
+  return manifest
 }
 
-function toInstalledPlugin(
-  manifest: DesktopPluginManifest,
-  record: DesktopPluginInstallRecord
+function sha256(buffer: Buffer | string): string {
+  return createHash("sha256").update(buffer).digest("hex")
+}
+
+export function toInstalledPlugin(
+  manifest: DesktopPluginSchemaManifest,
+  pluginRoot: string,
+  installedAt?: string,
+  updatedAt?: string,
 ): InstalledDesktopPlugin {
-  // 同版本插件重装也可能替换静态资源，入口 URL 必须跟随安装记录变化。
-  const cacheKey = `${record.version}-${record.updatedAt}`
+  const sidebarEntry = manifest.contributes?.sidebar?.entry ?? null
 
   return {
     manifest,
-    record,
+    pluginRoot,
     route: `/plugins/${manifest.id}`,
-    webEntryUrl: `/api/v1/desktop/plugins/${manifest.id}/web/${manifest.web.entry}?v=${encodeURIComponent(cacheKey)}`,
+    uiEntryUrl: sidebarEntry ? `/api/v1/desktop/plugins/${manifest.id}/ui/${sidebarEntry}` : null,
+    installedAt,
+    updatedAt,
     installed: true,
   }
 }
 
 export async function listInstalledDesktopPlugins(): Promise<InstalledDesktopPlugin[]> {
   if (!isDesktopPluginRuntimeEnabled()) return []
+
   await ensureDirs()
   const { pluginsDir } = getPluginDirs()
   const entries = await readdir(pluginsDir, { withFileTypes: true }).catch(() => [])
@@ -470,63 +250,67 @@ export async function listInstalledDesktopPlugins(): Promise<InstalledDesktopPlu
     if (!entry.isDirectory()) continue
     const pluginRoot = join(pluginsDir, entry.name)
     try {
+      if ((await readManifestVersion(pluginRoot)) !== 2) {
+        continue
+      }
       const manifest = await readManifest(pluginRoot)
-      const record = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json"))
-      plugins.push(toInstalledPlugin(manifest, record))
+      const installRecord = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json")).catch(() => null)
+      plugins.push(toInstalledPlugin(manifest, pluginRoot, installRecord?.installedAt, installRecord?.updatedAt))
     } catch (error) {
       console.warn("[desktop-plugins] ignored invalid plugin", entry.name, error)
     }
   }
 
-  return plugins.sort((a, b) => (a.manifest.order ?? 1000) - (b.manifest.order ?? 1000))
+  return plugins.sort((a, b) => a.manifest.name.localeCompare(b.manifest.name))
 }
 
-export async function getInstalledDesktopPlugin(id: string): Promise<InstalledDesktopPlugin> {
+export async function getInstalledPlugin(id: string): Promise<InstalledDesktopPlugin> {
   assertPluginId(id)
   if (!isDesktopPluginRuntimeEnabled()) {
     throw new DesktopPluginError("插件未安装", 404)
   }
+
   await ensureDirs()
   const { pluginsDir } = getPluginDirs()
   const pluginRoot = join(pluginsDir, id)
+  if ((await readManifestVersion(pluginRoot).catch(() => 0)) !== 2) {
+    throw new DesktopPluginError("插件未安装", 404)
+  }
+
   try {
     const manifest = await readManifest(pluginRoot)
-    const record = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json"))
-    return toInstalledPlugin(manifest, record)
+    const installRecord = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json")).catch(() => null)
+    return toInstalledPlugin(manifest, pluginRoot, installRecord?.installedAt, installRecord?.updatedAt)
   } catch {
     throw new DesktopPluginError("插件未安装", 404)
   }
 }
 
-async function installLocalDesktopPluginInternal(
-  options: InstallLocalPluginInternalOptions
+export async function installPackagedPlugin(
+  options: InstallLocalPluginOptions,
 ): Promise<InstalledDesktopPlugin> {
   if (!isDesktopPluginRuntimeEnabled()) {
     throw new DesktopPluginError("插件系统仅在桌面端启用", 403)
   }
+
   await ensureDirs()
-  const sourcePath = resolve(options.sourcePath)
+  const sourcePath = resolve(options.pluginPath)
   const sourceStat = await stat(sourcePath).catch(() => null)
   if (!sourceStat?.isDirectory()) {
-    throw new DesktopPluginError("当前安装接口需要传入已解压的本地插件目录")
+    throw new DesktopPluginError("pluginPath 必须是已解压的正式插件目录")
+  }
+
+  if ((await readManifestVersion(sourcePath)) !== 2) {
+    throw new DesktopPluginError("当前只支持正式插件 manifest")
   }
 
   const manifest = await readManifest(sourcePath)
   await assertNoSymlinks(sourcePath)
-  if (!options.allowUnsignedBundled) {
-    verifyManifestSignature(manifest, options.signature)
-  }
-
-  const manifestBuffer = await readFile(join(sourcePath, "plugin.json"))
-  const manifestSha256 = sha256(manifestBuffer)
-  if (options.expectedSha256 && options.expectedSha256 !== manifestSha256) {
-    throw new DesktopPluginError("插件 manifest sha256 校验失败", 403)
-  }
 
   const { pluginsDir, stagingDir } = getPluginDirs()
   const targetDir = join(pluginsDir, manifest.id)
   const stageDir = join(stagingDir, `${manifest.id}-${Date.now()}`)
-  const previousManifest = await readManifest(targetDir).catch(() => null)
+  const previousPlugin = await getInstalledPlugin(manifest.id).catch(() => null)
 
   await rm(stageDir, { recursive: true, force: true })
   await cp(sourcePath, stageDir, { recursive: true, dereference: true })
@@ -535,22 +319,22 @@ async function installLocalDesktopPluginInternal(
   const installRecord: DesktopPluginInstallRecord = {
     id: manifest.id,
     version: manifest.version,
-    installedAt: now,
+    installedAt: previousPlugin?.installedAt ?? now,
     updatedAt: now,
-    source: options.source ?? "local-directory",
+    source: "local-directory",
     sourceRef: sourcePath,
-    manifestSha256,
-    signature: options.signature,
+    manifestSha256: sha256(await readFile(join(sourcePath, "plugin.json"))),
   }
+
   await writeFile(join(stageDir, ".thunder-install.json"), `${JSON.stringify(installRecord, null, 2)}\n`, "utf8")
-  if (previousManifest) {
+  if (previousPlugin) {
     await stopDesktopPluginRuntime(manifest.id)
   }
   await rm(targetDir, { recursive: true, force: true })
   await cp(stageDir, targetDir, { recursive: true, dereference: true })
   await rm(stageDir, { recursive: true, force: true })
 
-  await appendAudit(previousManifest ? "plugin.upgraded" : "plugin.installed", {
+  await appendAudit(previousPlugin ? "plugin.upgraded" : "plugin.installed", {
     pluginId: manifest.id,
     version: manifest.version,
     source: installRecord.source,
@@ -560,27 +344,34 @@ async function installLocalDesktopPluginInternal(
   try {
     await recordActivity({
       module: `plugin:${manifest.id}`,
-      action: previousManifest ? "plugin.upgraded" : "plugin.installed",
-      title: previousManifest ? `升级了插件 ${manifest.name || manifest.id}` : `安装了插件 ${manifest.name || manifest.id}`,
+      action: previousPlugin ? "plugin.upgraded" : "plugin.installed",
+      title: previousPlugin ? `升级了插件 ${manifest.name}` : `安装了插件 ${manifest.name}`,
     })
-  } catch (e) {
-    console.error("[plugin-activity] Failed to record activity", e)
+  } catch (error) {
+    console.error("[plugin-activity] Failed to record activity", error)
   }
 
-  return toInstalledPlugin(manifest, installRecord)
+  return toInstalledPlugin(manifest, targetDir, installRecord.installedAt, installRecord.updatedAt)
 }
 
-export async function installLocalDesktopPlugin(options: InstallLocalPluginOptions): Promise<InstalledDesktopPlugin> {
-  return installLocalDesktopPluginInternal(options)
+async function findBundledPluginSource(pluginId: string): Promise<string> {
+  assertPluginId(pluginId)
+
+  for (const root of getBundledPluginRoots()) {
+    const sourcePath = resolve(root, pluginId)
+    if (!isPathInside(sourcePath, root)) continue
+    if (!(await pathExists(join(sourcePath, "plugin.json")))) continue
+    if ((await readManifestVersion(sourcePath).catch(() => 0)) !== 2) continue
+    return sourcePath
+  }
+
+  throw new DesktopPluginError("内置插件不存在或未随应用打包", 404)
 }
 
 export async function installBundledDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
   const sourcePath = await findBundledPluginSource(pluginId)
-  const plugin = await installLocalDesktopPluginInternal({
-    sourcePath,
-    allowUnsignedBundled: true,
-    source: "bundled",
-  })
+  const plugin = await installPackagedPlugin({ pluginPath: sourcePath })
+
   await appendAudit("plugin.bundled-installed", {
     pluginId: plugin.manifest.id,
     version: plugin.manifest.version,
@@ -591,77 +382,25 @@ export async function installBundledDesktopPlugin(pluginId: string): Promise<Ins
     await recordActivity({
       module: `plugin:${plugin.manifest.id}`,
       action: "plugin.bundled-installed",
-      title: `启用了内置插件 ${plugin.manifest.name || plugin.manifest.id}`,
+      title: `启用了内置插件 ${plugin.manifest.name}`,
     })
-  } catch (e) {
-    console.error("[plugin-activity] Failed to record activity", e)
+  } catch (error) {
+    console.error("[plugin-activity] Failed to record activity", error)
   }
 
   return plugin
 }
 
-export async function installPackagedDesktopPlugin(
-  options: InstallPackagePluginOptions
-): Promise<InstalledDesktopPlugin> {
-  if (!options.signature) {
-    throw new DesktopPluginError("市场插件必须提供签名", 403)
-  }
-  await ensureDirs()
-  const packagePath = await downloadPackage(options.packageUrl, options.packageSha256)
-  const packageDir = dirname(packagePath)
-  const extractDir = join(packageDir, "extract")
-  await mkdir(extractDir, { recursive: true })
-  await extractTar({
-    file: packagePath,
-    cwd: extractDir,
-    gzip: true,
-    filter: (path) => !path.includes("..") && !path.startsWith("/") && !path.startsWith("\\"),
-  })
-
-  const entries = await readdir(extractDir, { withFileTypes: true })
-  const rootEntry = entries.find((entry) => entry.isDirectory())?.name
-  const pluginSourceDir = rootEntry ? join(extractDir, rootEntry) : extractDir
-  const plugin = await installLocalDesktopPluginInternal({
-    sourcePath: pluginSourceDir,
-    expectedSha256: undefined,
-    signature: options.signature,
-  })
-
-  const { pluginsDir } = getPluginDirs()
-  const recordPath = join(pluginsDir, plugin.manifest.id, ".thunder-install.json")
-  const record = await readJsonFile<DesktopPluginInstallRecord>(recordPath)
-  record.source = "package-url"
-  record.sourceRef = options.packageUrl
-  record.packageSha256 = options.packageSha256
-  await writeFile(recordPath, `${JSON.stringify(record, null, 2)}\n`, "utf8")
-  await rm(packageDir, { recursive: true, force: true })
-  await appendAudit("plugin.package-installed", {
-    pluginId: plugin.manifest.id,
-    version: plugin.manifest.version,
-    packageSha256: options.packageSha256,
-  })
-
-  try {
-    await recordActivity({
-      module: `plugin:${plugin.manifest.id}`,
-      action: "plugin.package-installed",
-      title: `从市场安装了插件 ${plugin.manifest.name || plugin.manifest.id}`,
-    })
-  } catch (e) {
-    console.error("[plugin-activity] Failed to record activity", e)
-  }
-
-  return toInstalledPlugin(plugin.manifest, record)
-}
-
 export async function uninstallDesktopPlugin(id: string): Promise<void> {
   assertPluginId(id)
   await stopDesktopPluginRuntime(id)
+
   const { pluginsDir } = getPluginDirs()
   const targetDir = join(pluginsDir, id)
   await assertPathInside(pluginsDir, targetDir)
-  const plugin = await getInstalledDesktopPlugin(id).catch(() => null)
+  const plugin = await getInstalledPlugin(id).catch(() => null)
   await rm(targetDir, { recursive: true, force: true })
+
   await appendAudit("plugin.uninstalled", {
     pluginId: id,
     version: plugin?.manifest.version,
@@ -671,523 +410,117 @@ export async function uninstallDesktopPlugin(id: string): Promise<void> {
     await recordActivity({
       module: `plugin:${id}`,
       action: "plugin.uninstalled",
-      title: `卸载了插件 ${plugin?.manifest.name || id}`,
+      title: `卸载了插件 ${plugin?.manifest.name ?? id}`,
     })
-  } catch (e) {
-    console.error("[plugin-activity] Failed to record activity", e)
+  } catch (error) {
+    console.error("[plugin-activity] Failed to record activity", error)
   }
 }
 
-export async function readDesktopPluginAsset(id: string, assetPathParts: string[]): Promise<StaticPluginAsset> {
-  assertPluginId(id)
-  const plugin = await getInstalledDesktopPlugin(id)
-  const { pluginsDir } = getPluginDirs()
-  const pluginRoot = join(pluginsDir, id)
-  const relativePath = assetPathParts.join("/")
-  const assetPath = resolve(pluginRoot, relativePath || plugin.manifest.web.entry)
-  await assertPathInside(pluginRoot, assetPath)
-  const assetStat = await stat(assetPath).catch(() => null)
-  if (!assetStat?.isFile()) {
-    throw new DesktopPluginError("插件资源不存在", 404)
+export async function readDesktopPluginUiAsset(id: string, assetPathParts: string[]): Promise<StaticPluginAsset> {
+  const plugin = await getInstalledPlugin(id)
+  const sidebarEntry = plugin.manifest.contributes?.sidebar?.entry
+  if (!sidebarEntry) {
+    throw new DesktopPluginError("插件未声明 UI 入口", 404)
   }
 
-  const bytes = await readFile(assetPath)
-  const contentType = STATIC_CONTENT_TYPES[extname(assetPath).toLowerCase()] ?? "application/octet-stream"
+  const requestedAsset = assetPathParts.join("/")
+  const resolvedAssetPath = resolve(plugin.pluginRoot, requestedAsset)
+  await assertPathInside(plugin.pluginRoot, resolvedAssetPath)
+
+  const sidebarRoot = dirname(resolve(plugin.pluginRoot, sidebarEntry))
+  if (!isPathInside(resolvedAssetPath, sidebarRoot) && resolvedAssetPath !== resolve(plugin.pluginRoot, sidebarEntry)) {
+    throw new DesktopPluginError("插件 UI 资源路径越界", 403)
+  }
+
+  const bytes = await readFile(resolvedAssetPath).catch(() => null)
+  if (!bytes) {
+    throw new DesktopPluginError("插件 UI 资源不存在", 404)
+  }
+
   return {
     bytes,
-    contentType,
+    contentType: STATIC_CONTENT_TYPES[extname(resolvedAssetPath).toLowerCase()] ?? "application/octet-stream",
     contentSecurityPolicy:
-      plugin.manifest.web.contentSecurityPolicy ??
       "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'",
   }
 }
 
-export async function resolveDesktopPluginApiProxyTarget(
-  id: string,
-  pathParts: string[],
-  search: string
-): Promise<DesktopPluginProxyTarget> {
-  const plugin = await getInstalledDesktopPlugin(id)
-  if (!plugin.manifest.api || !plugin.manifest.permissions.includes("local-api-proxy")) {
-    throw new DesktopPluginError("插件未声明本地 API 代理权限", 403)
+async function startTrustedDesktopPluginRuntime(plugin: InstalledDesktopPlugin): Promise<DesktopPluginRuntimeStatus> {
+  if (plugin.manifest.kind !== "trusted") {
+    throw new DesktopPluginError("当前仅支持 trusted runtime", 501)
   }
 
-  const baseUrl = new URL(await ensureDesktopPluginRuntime(plugin))
-  const relativePath = pathParts.map(encodeURIComponent).join("/")
-  const target = new URL(relativePath, baseUrl.href.endsWith("/") ? baseUrl.href : `${baseUrl.href}/`)
-  target.search = search
-  return { url: target.toString() }
-}
-
-function normalizeHostname(hostname: string): string {
-  return hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "")
-}
-
-function isBlockedIpv4Address(address: string): boolean {
-  const parts = address.split(".").map((part) => Number(part))
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
-    return false
-  }
-
-  const [first, second] = parts
-  return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    first === 169 && second === 254 ||
-    first === 172 && second >= 16 && second <= 31 ||
-    first === 192 && second === 168
-  )
-}
-
-function isBlockedIpv6Address(address: string): boolean {
-  const normalized = normalizeHostname(address)
-  return (
-    normalized === "::1" ||
-    normalized === "::" ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("fe80:") ||
-    normalized.startsWith("::ffff:127.") ||
-    normalized.startsWith("::ffff:10.") ||
-    normalized.startsWith("::ffff:192.168.") ||
-    /^::ffff:172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)
-  )
-}
-
-function isBlockedNetworkProxyAddress(address: string): boolean {
-  const normalized = normalizeHostname(address)
-  if (isIP(normalized) === 4) {
-    return isBlockedIpv4Address(normalized)
-  }
-  if (isIP(normalized) === 6) {
-    return isBlockedIpv6Address(normalized)
-  }
-  return false
-}
-
-async function assertNetworkProxyUrl(rawUrl: string): Promise<URL> {
-  const url = new URL(rawUrl)
-  if (url.protocol !== "https:") {
-    throw new DesktopPluginError("插件网络代理仅允许访问 https URL", 403)
-  }
-  if (url.username || url.password) {
-    throw new DesktopPluginError("插件网络代理 URL 不能包含认证信息", 403)
-  }
-
-  const hostname = normalizeHostname(url.hostname)
-  if (
-    BLOCKED_NETWORK_PROXY_HOSTS.has(hostname) ||
-    isBlockedNetworkProxyAddress(hostname) ||
-    hostname.endsWith(".local") ||
-    hostname.endsWith(".localhost")
-  ) {
-    throw new DesktopPluginError("插件网络代理不能访问本机或内网地址", 403)
-  }
-
-  if (isIP(hostname) === 0) {
-    const addresses = await lookup(hostname, { all: true, verbatim: true })
-    if (addresses.some((address) => isBlockedNetworkProxyAddress(address.address))) {
-      throw new DesktopPluginError("插件网络代理不能访问解析到本机或内网地址的域名", 403)
+  const currentStatus = trustedRuntimeSupervisor.getStatus(plugin.manifest.id)
+  if (currentStatus.running && currentStatus.endpoint) {
+    return {
+      pluginId: currentStatus.pluginId,
+      running: currentStatus.running,
+      endpoint: currentStatus.endpoint,
     }
   }
 
-  return url
-}
-
-function sanitizeNetworkProxyHeaders(headers: Record<string, string> | undefined): Headers {
-  const sanitized = new Headers()
-  for (const [name, value] of Object.entries(headers ?? {})) {
-    const normalizedName = name.trim().toLowerCase()
-    if (
-      !normalizedName ||
-      [
-        "authorization",
-        "cookie",
-        "host",
-        "proxy-authorization",
-        "referer",
-        "user-agent",
-      ].includes(normalizedName)
-    ) {
-      continue
-    }
-    sanitized.set(normalizedName, value)
-  }
-  return sanitized
-}
-
-export async function requestDesktopPluginNetworkProxy(
-  id: string,
-  request: DesktopPluginNetworkProxyRequest
-): Promise<DesktopPluginNetworkProxyResponse> {
-  const plugin = await getInstalledDesktopPlugin(id)
-  if (!plugin.manifest.permissions.includes("network-proxy")) {
-    throw new DesktopPluginError("插件未声明网络代理权限", 403)
-  }
-
-  const url = await assertNetworkProxyUrl(request.url)
-  const method = (request.method ?? "GET").toUpperCase()
-  if (!ALLOWED_NETWORK_PROXY_METHODS.has(method)) {
-    throw new DesktopPluginError("插件网络代理请求方法无效", 400)
-  }
-
-  const hasBody = method !== "GET" && request.body !== undefined
-  const response = await fetch(url, {
-    method,
-    headers: sanitizeNetworkProxyHeaders(request.headers),
-    body: hasBody ? JSON.stringify(request.body) : undefined,
-    redirect: "manual",
+  const status = await trustedRuntimeSupervisor.start({
+    manifest: plugin.manifest,
+    pluginRoot: plugin.pluginRoot,
   })
-  const contentType = response.headers.get("content-type") ?? ""
-  const data = contentType.includes("application/json") ? await response.json() : await response.text()
+
   return {
-    status: response.status,
-    ok: response.ok,
-    headers: Object.fromEntries(response.headers.entries()),
-    data,
-  }
-}
-
-async function allocatePort(): Promise<number> {
-  return new Promise((resolvePort, rejectPort) => {
-    const server = createServer()
-    server.unref()
-    server.once("error", rejectPort)
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address()
-      server.close(() => {
-        if (address && typeof address === "object") {
-          resolvePort(address.port)
-          return
-        }
-        rejectPort(new Error("无法分配插件运行时端口"))
-      })
-    })
-  })
-}
-
-function pluginStateDir(id: string): string {
-  return join(getPluginDirs().stateDir, id)
-}
-
-function setRuntimeStatus(id: string, patch: Partial<DesktopPluginRuntimeStatus>): DesktopPluginRuntimeStatus {
-  const current = runtimeStatus.get(id) ?? { pluginId: id, running: false }
-  const next = { ...current, ...patch, pluginId: id }
-  runtimeStatus.set(id, next)
-  return next
-}
-
-async function waitForRuntimeHealth(baseUrl: string, healthPath = "/health"): Promise<void> {
-  const deadline = Date.now() + RUNTIME_START_TIMEOUT_MS
-  const healthUrl = new URL(healthPath, baseUrl).toString()
-  let lastError = ""
-
-  while (Date.now() < deadline) {
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 1000)
-      const response = await fetch(healthUrl, { signal: controller.signal })
-      clearTimeout(timeout)
-      if (response.ok) return
-      lastError = `HTTP ${response.status}`
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error)
-    }
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 250))
-  }
-
-  throw new DesktopPluginError(`插件后端健康检查失败: ${lastError || healthUrl}`, 502)
-}
-
-async function ensureDesktopPluginRuntime(plugin: InstalledDesktopPlugin): Promise<string> {
-  const api = plugin.manifest.api
-  if (!api) {
-    throw new DesktopPluginError("插件未声明本地 API", 403)
-  }
-  if (api.baseUrl) {
-    return api.baseUrl
-  }
-  if (!api.runtime) {
-    throw new DesktopPluginError("插件 API 配置不完整", 500)
-  }
-
-  const existing = runtimeProcesses.get(plugin.manifest.id)
-  if (existing && !existing.child.killed) {
-    return existing.baseUrl
-  }
-
-  const starting = runtimeStartPromises.get(plugin.manifest.id)
-  if (starting) {
-    return starting
-  }
-
-  const startPromise = startDesktopPluginRuntimeProcess(plugin)
-  runtimeStartPromises.set(plugin.manifest.id, startPromise)
-  try {
-    return await startPromise
-  } finally {
-    runtimeStartPromises.delete(plugin.manifest.id)
-  }
-}
-
-async function startDesktopPluginRuntimeProcess(plugin: InstalledDesktopPlugin): Promise<string> {
-  const api = plugin.manifest.api
-  if (!api?.runtime) {
-    throw new DesktopPluginError("插件 API 配置不完整", 500)
-  }
-
-  const { pluginsDir } = getPluginDirs()
-  const pluginRoot = join(pluginsDir, plugin.manifest.id)
-  const entryPath = resolve(pluginRoot, api.runtime.entry)
-  await assertPathInside(pluginRoot, entryPath)
-  const port = await allocatePort()
-  const baseUrl = `http://127.0.0.1:${port}`
-  const stateDir = pluginStateDir(plugin.manifest.id)
-  await mkdir(stateDir, { recursive: true })
-
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ...(api.runtime.env ?? {}),
-    THUNDER_PLUGIN_ID: plugin.manifest.id,
-    THUNDER_PLUGIN_VERSION: plugin.manifest.version,
-    THUNDER_PLUGIN_STATE_DIR: stateDir,
-    [api.runtime.portEnv ?? "PORT"]: String(port),
-  }
-
-  const child = spawn(process.execPath, [entryPath, ...(api.runtime.args ?? [])], {
-    cwd: pluginRoot,
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-  })
-
-  const startedAt = new Date().toISOString()
-  const record: RuntimeProcessRecord = {
-    pluginId: plugin.manifest.id,
-    child,
-    port,
-    baseUrl,
-    startedAt,
-  }
-  runtimeProcesses.set(plugin.manifest.id, record)
-  setRuntimeStatus(plugin.manifest.id, {
-    running: true,
-    pid: child.pid,
-    port,
-    baseUrl,
-    startedAt,
-    lastError: undefined,
-  })
-
-  child.stdout.on("data", (chunk) => {
-    console.log(`[plugin:${plugin.manifest.id}:stdout] ${String(chunk).trimEnd()}`)
-  })
-  child.stderr.on("data", (chunk) => {
-    console.warn(`[plugin:${plugin.manifest.id}:stderr] ${String(chunk).trimEnd()}`)
-  })
-  child.once("exit", (code) => {
-    runtimeProcesses.delete(plugin.manifest.id)
-    setRuntimeStatus(plugin.manifest.id, {
-      running: false,
-      pid: undefined,
-      port: undefined,
-      baseUrl: undefined,
-      lastExitAt: new Date().toISOString(),
-      lastExitCode: code,
-    })
-  })
-
-  try {
-    await waitForRuntimeHealth(baseUrl, api.healthPath)
-    return baseUrl
-  } catch (error) {
-    await stopDesktopPluginRuntime(plugin.manifest.id)
-    setRuntimeStatus(plugin.manifest.id, {
-      running: false,
-      lastError: error instanceof Error ? error.message : String(error),
-    })
-    throw error
+    pluginId: status.pluginId,
+    running: status.running,
+    endpoint: status.endpoint,
   }
 }
 
 export async function startDesktopPluginRuntime(id: string): Promise<DesktopPluginRuntimeStatus> {
-  assertPluginId(id)
-  const plugin = await getInstalledDesktopPlugin(id)
-  const baseUrl = await ensureDesktopPluginRuntime(plugin)
-  return runtimeStatus.get(id) ?? {
-    pluginId: id,
-    running: true,
-    baseUrl,
-  }
+  const plugin = await getInstalledPlugin(id)
+  return startTrustedDesktopPluginRuntime(plugin)
 }
 
 export async function stopDesktopPluginRuntime(id: string): Promise<DesktopPluginRuntimeStatus> {
   assertPluginId(id)
-  const record = runtimeProcesses.get(id)
-  if (record && !record.child.killed) {
-    const exited = new Promise<void>((resolveExit) => {
-      record.child.once("exit", () => resolveExit())
-    })
-    record.child.kill()
-    const gracefulExit = await Promise.race([
-      exited.then(() => true),
-      new Promise<boolean>((resolveTimeout) => setTimeout(() => resolveTimeout(false), RUNTIME_STOP_TIMEOUT_MS)),
-    ])
-    if (!gracefulExit && !record.child.killed) {
-      record.child.kill("SIGKILL")
-      await Promise.race([
-        exited,
-        new Promise<void>((resolveTimeout) => setTimeout(resolveTimeout, 1000)),
-      ])
-    }
-    runtimeProcesses.delete(id)
+  const status = await trustedRuntimeSupervisor.stop(id)
+  return {
+    pluginId: status.pluginId,
+    running: status.running,
+    endpoint: status.endpoint,
   }
-  return setRuntimeStatus(id, {
-    running: false,
-    pid: undefined,
-    port: undefined,
-    baseUrl: undefined,
-    lastExitAt: new Date().toISOString(),
-  })
 }
 
 export function getDesktopPluginRuntimeStatus(id: string): DesktopPluginRuntimeStatus {
   assertPluginId(id)
-  return runtimeStatus.get(id) ?? {
-    pluginId: id,
-    running: false,
+  const status = trustedRuntimeSupervisor.getStatus(id)
+  return {
+    pluginId: status.pluginId,
+    running: status.running,
+    endpoint: status.endpoint,
   }
 }
 
-process.once("exit", () => {
-  for (const record of runtimeProcesses.values()) {
-    if (!record.child.killed) {
-      record.child.kill()
-    }
+export async function invokeDesktopPluginWorker(
+  id: string,
+  method: string,
+  payload: unknown,
+): Promise<unknown> {
+  const plugin = await getInstalledPlugin(id)
+  if (plugin.manifest.kind !== "trusted") {
+    throw new DesktopPluginError("当前仅支持 trusted worker.invoke", 501)
   }
-})
-
-function getSqliteDatabasePath(): string {
-  const dbUrl = process.env.DATABASE_URL
-  if (!dbUrl || (!dbUrl.startsWith("file:") && !dbUrl.startsWith("sqlite:"))) {
-    throw new DesktopPluginError("插件迁移仅支持桌面本地 SQLite 数据库", 400)
+  if (!plugin.manifest.permissions.includes("native-runtime")) {
+    throw new DesktopPluginError("插件未声明 native-runtime 权限", 403)
   }
-  return resolve(dbUrl.replace(/^(file:|sqlite:)/, ""))
-}
 
-async function listPluginMigrationFiles(pluginRoot: string, manifest: DesktopPluginManifest): Promise<string[]> {
-  if (!manifest.migrations?.sqlite) return []
-  const migrationDir = resolve(pluginRoot, manifest.migrations.sqlite)
-  await assertPathInside(pluginRoot, migrationDir)
-  const dirStat = await stat(migrationDir).catch(() => null)
-  if (!dirStat?.isDirectory()) {
-    throw new DesktopPluginError("插件声明的 SQLite 迁移目录不存在")
+  const status = await startTrustedDesktopPluginRuntime(plugin)
+  const endpoint = status.endpoint ?? trustedRuntimeSupervisor.getEndpoint(plugin.manifest.id)
+  if (!endpoint) {
+    throw new DesktopPluginError("trusted runtime endpoint 不可用", 502)
   }
-  const entries = await readdir(migrationDir, { withFileTypes: true })
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
-    .map((entry) => join(migrationDir, entry.name))
-    .sort((a, b) => a.localeCompare(b))
-}
 
-export async function runDesktopPluginMigrations(id: string): Promise<DesktopPluginMigrationResult> {
-  assertPluginId(id)
-  const plugin = await getInstalledDesktopPlugin(id)
-  const { pluginsDir } = getPluginDirs()
-  const pluginRoot = join(pluginsDir, id)
-  const files = await listPluginMigrationFiles(pluginRoot, plugin.manifest)
-  const db = new DatabaseSync(getSqliteDatabasePath())
-  const applied: DesktopPluginMigrationRecord[] = []
-  const skipped: DesktopPluginMigrationRecord[] = []
-
+  const client = await createPipeClient(endpoint)
   try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS plugin_migrations (
-        plugin_id TEXT NOT NULL,
-        version TEXT NOT NULL,
-        name TEXT NOT NULL,
-        sha256 TEXT NOT NULL,
-        applied_at TEXT NOT NULL,
-        PRIMARY KEY (plugin_id, name)
-      );
-    `)
-
-    for (const file of files) {
-      const sql = await readFile(file, "utf8")
-      const record: DesktopPluginMigrationRecord = {
-        pluginId: plugin.manifest.id,
-        version: plugin.manifest.version,
-        name: file.slice(pluginRoot.length + 1).replace(/\\/g, "/"),
-        sha256: sha256(sql),
-        appliedAt: new Date().toISOString(),
-      }
-      const existing = db
-        .prepare("SELECT sha256, applied_at FROM plugin_migrations WHERE plugin_id = ? AND name = ?")
-        .get(record.pluginId, record.name) as { sha256: string; applied_at: string } | undefined
-
-      if (existing) {
-        if (existing.sha256 !== record.sha256) {
-          throw new DesktopPluginError(`插件迁移已执行但内容发生变化: ${record.name}`, 409)
-        }
-        skipped.push({ ...record, appliedAt: existing.applied_at })
-        continue
-      }
-
-      try {
-        db.exec("BEGIN TRANSACTION;")
-        db.exec(sql)
-        db.prepare(
-          "INSERT INTO plugin_migrations (plugin_id, version, name, sha256, applied_at) VALUES (?, ?, ?, ?, ?)"
-        ).run(record.pluginId, record.version, record.name, record.sha256, record.appliedAt)
-        db.exec("COMMIT;")
-        applied.push(record)
-        await appendAudit("plugin.migration.applied", {
-          pluginId: record.pluginId,
-          version: record.version,
-          name: record.name,
-          sha256: record.sha256,
-        })
-      } catch (error) {
-        db.exec("ROLLBACK;")
-        throw error
-      }
-    }
+    return await client.invoke(method, payload)
   } finally {
-    db.close()
-  }
-
-  return {
-    pluginId: plugin.manifest.id,
-    applied,
-    skipped,
-  }
-}
-
-export async function fetchDesktopPluginMarketplace(): Promise<DesktopPluginMarketplaceIndex> {
-  const bundledPlugins = await listBundledMarketplaceEntries()
-  const indexUrl = process.env.THUNDER_PLUGIN_MARKETPLACE_URL
-  if (!indexUrl) {
-    return {
-      version: 1,
-      generatedAt: new Date().toISOString(),
-      plugins: bundledPlugins,
-    }
-  }
-
-  const response = await fetch(indexUrl)
-  if (!response.ok) {
-    throw new DesktopPluginError(`插件市场索引拉取失败: ${response.status}`, 502)
-  }
-
-  const index = (await response.json()) as DesktopPluginMarketplaceIndex
-  if (index.version !== 1 || !Array.isArray(index.plugins)) {
-    throw new DesktopPluginError("插件市场索引格式不正确", 502)
-  }
-  verifyMarketplaceIndex(index)
-  return {
-    ...index,
-    plugins: mergeMarketplaceEntries([...bundledPlugins, ...index.plugins]),
+    await client.close()
   }
 }
 
@@ -1200,26 +533,28 @@ async function listBundledMarketplaceEntries(): Promise<DesktopPluginMarketplace
       if (!entry.isDirectory()) continue
       const sourcePath = resolve(root, entry.name)
       if (!isPathInside(sourcePath, root)) continue
+      if ((await readManifestVersion(sourcePath).catch(() => 0)) !== 2) continue
+
       const manifest = await readManifest(sourcePath).catch(() => null)
-      if (!manifest) continue
-      if (!(await pathExists(join(sourcePath, manifest.web.entry)))) continue
+      const sidebarEntry = manifest?.contributes?.sidebar?.entry
+      if (!manifest || !sidebarEntry) continue
+      if (!(await pathExists(join(sourcePath, sidebarEntry)))) continue
+
       entries.push({
         id: manifest.id,
         name: manifest.name,
         version: manifest.version,
-        description: manifest.description,
-        icon: manifest.icon,
-        category: manifest.category,
-        author: manifest.author,
-        permissions: manifest.permissions,
+        description: manifest.description ?? "",
+        icon: manifest.icon ?? "Package",
+        category: "tools",
+        author: manifest.author ?? { name: "Thunder" },
+        permissions: [...manifest.permissions],
         source: "bundled",
       })
     }
   }
 
-  return mergeMarketplaceEntries(entries).sort(
-    (a, b) => String(a.category).localeCompare(String(b.category)) || a.name.localeCompare(b.name)
-  )
+  return mergeMarketplaceEntries(entries).sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function mergeMarketplaceEntries(entries: DesktopPluginMarketplaceIndex["plugins"]): DesktopPluginMarketplaceIndex["plugins"] {
@@ -1228,6 +563,31 @@ function mergeMarketplaceEntries(entries: DesktopPluginMarketplaceIndex["plugins
     map.set(entry.id, entry)
   }
   return [...map.values()]
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(",")}]`
+  }
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(",")}}`
+  }
+  return JSON.stringify(value)
+}
+
+function trustedKeys(): Map<string, string> {
+  const raw = process.env.THUNDER_PLUGIN_TRUSTED_KEYS
+  if (!raw) return new Map()
+
+  try {
+    const parsed = JSON.parse(raw) as Array<{ keyId: string; publicKey: string }>
+    return new Map(parsed.map((item) => [item.keyId, item.publicKey]))
+  } catch {
+    throw new DesktopPluginError("THUNDER_PLUGIN_TRUSTED_KEYS 必须是 JSON 数组")
+  }
 }
 
 function marketplaceTrustedKeys(): Map<string, string> {
@@ -1251,14 +611,48 @@ function verifyMarketplaceIndex(index: DesktopPluginMarketplaceIndex): void {
   if (index.signature.algorithm !== "ed25519") {
     throw new DesktopPluginError("插件市场索引签名算法仅支持 ed25519", 403)
   }
+
   const publicKey = keys.get(index.signature.keyId)
   if (!publicKey) {
     throw new DesktopPluginError(`插件市场索引 keyId 未被信任: ${index.signature.keyId}`, 403)
   }
 
   const { signature, ...signedIndex } = index
-  const ok = verify(null, Buffer.from(stableJson(signedIndex)), createPublicKey(publicKey), Buffer.from(signature.signature, "base64"))
+  const ok = verify(
+    null,
+    Buffer.from(stableJson(signedIndex)),
+    createPublicKey(publicKey),
+    Buffer.from(signature.signature, "base64"),
+  )
   if (!ok) {
     throw new DesktopPluginError("插件市场索引签名校验失败", 403)
+  }
+}
+
+export async function fetchDesktopPluginMarketplace(): Promise<DesktopPluginMarketplaceIndex> {
+  const bundledPlugins = await listBundledMarketplaceEntries()
+  const indexUrl = process.env.THUNDER_PLUGIN_MARKETPLACE_URL
+  if (!indexUrl) {
+    return {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      plugins: bundledPlugins,
+    }
+  }
+
+  const response = await fetch(indexUrl)
+  if (!response.ok) {
+    throw new DesktopPluginError(`插件市场索引拉取失败: ${response.status}`, 502)
+  }
+
+  const index = (await response.json()) as DesktopPluginMarketplaceIndex
+  if (index.version !== 1 || !Array.isArray(index.plugins)) {
+    throw new DesktopPluginError("插件市场索引格式不正确", 502)
+  }
+
+  verifyMarketplaceIndex(index)
+  return {
+    ...index,
+    plugins: mergeMarketplaceEntries([...bundledPlugins, ...index.plugins]),
   }
 }

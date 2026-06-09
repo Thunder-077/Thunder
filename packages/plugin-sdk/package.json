@@ -7,9 +7,15 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./browser": "./src/browser.ts"
+    "./browser": "./src/browser.ts",
+    "./worker": "./src/worker.ts"
+  },
+  "dependencies": {
+    "@thunder/plugin-schema": "workspace:*",
+    "@thunder/plugin-sdk-worker": "workspace:*"
   },
   "scripts": {
+    "test": "tsx src/browser.test.ts",
     "test:browser": "tsx src/browser.test.ts",
     "typecheck": "tsc --noEmit"
   },

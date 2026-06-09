@@ -1,0 +1,16 @@
+{
+  "name": "__PACKAGE_NAME__",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "thunder-plugin build .",
+    "dev": "thunder-plugin dev .",
+    "pack": "thunder-plugin pack ."
+  },
+  "dependencies": {
+    "@thunder/plugin-sdk": "^0.1.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  }
+}

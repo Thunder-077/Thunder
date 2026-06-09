@@ -19,6 +19,7 @@
     "test:desktop-runtime": "node scripts/generate-enabled-modules.test.mjs && node apps/api/scripts/runtime-dependency-utils.test.mjs && node apps/api/scripts/build-desktop-bundle.test.mjs && node packages/database/src/client-platform.test.mjs && node apps/api/src/db-init-paths.test.mjs && node apps/desktop/scripts/runtime-copy-utils.test.mjs && node apps/desktop/scripts/prepare-release-config.test.mjs && node apps/desktop/scripts/build-release.test.mjs",
     "build:plugin:teleprompter": "pnpm --filter @thunder/web build:plugin:teleprompter",
     "build:plugin-marketplace": "pnpm --filter @thunder/api build:plugin-marketplace",
+    "plugin:create": "pnpm --dir packages/plugin-cli exec tsx src/index.ts create",
     "version:set": "node ./scripts/set-desktop-version.mjs",
     "version:check": "node ./scripts/check-desktop-version.mjs",
     "db:generate": "pnpm --filter @thunder/database db:generate",

@@ -2,19 +2,14 @@ import assert from "node:assert/strict"
 import {
   clearPluginStorage,
   createIsolatedPluginFrameUrl,
-  ensurePluginPermission,
   getRequiredPluginPermissionForBridgeMethod,
   getPluginStorageValue,
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
   listPluginStorageKeys,
   normalizePluginFrameHeight,
-  normalizeRuntimeRequestMethod,
-  normalizeRuntimeRequestPath,
   normalizeStorageKey,
   pluginStorageKey,
-  sanitizeNetworkRequestParams,
-  sanitizeRuntimeRequestHeaders,
   setPluginStorageValue,
 } from "./desktop-plugin-bridge"
 
@@ -57,57 +52,26 @@ function rejects(fn: () => unknown, label: string): void {
 }
 
 function main() {
-  assert.equal(normalizeRuntimeRequestPath("native/status"), "native/status")
-  assert.equal(normalizeRuntimeRequestMethod(undefined), "GET")
-  assert.equal(normalizeRuntimeRequestMethod("post"), "POST")
-  rejects(() => normalizeRuntimeRequestPath("../secret"), "runtime path must reject parent segments")
-  rejects(() => normalizeRuntimeRequestPath("native/%2e%2e/secret"), "runtime path must reject encoded parent segments")
-  rejects(() => normalizeRuntimeRequestPath("native/%2Fsecret"), "runtime path must reject encoded slash")
-  rejects(() => normalizeRuntimeRequestPath("/native/status"), "runtime path must reject absolute path")
-  rejects(() => normalizeRuntimeRequestMethod("OPTIONS"), "runtime method must reject unsupported methods")
-
-  const headers = sanitizeRuntimeRequestHeaders({
-    Authorization: "secret",
-    Cookie: "sid=1",
-    Host: "example.com",
-    "X-Plugin": "ok",
-  })
-  assert.equal(headers.get("authorization"), null)
-  assert.equal(headers.get("cookie"), null)
-  assert.equal(headers.get("host"), null)
-  assert.equal(headers.get("x-plugin"), "ok")
-
-  assert.deepEqual(sanitizeNetworkRequestParams({ url: " https://example.com/api " }), {
-    url: "https://example.com/api",
-    method: "GET",
-    headers: {},
-    body: undefined,
-  })
-  rejects(() => sanitizeNetworkRequestParams(null), "network request must require url")
-  rejects(() => sanitizeNetworkRequestParams({ url: " " }), "network request must reject blank url")
-
-  ensurePluginPermission(["webview", "plugin-storage"], "plugin-storage")
-  rejects(() => ensurePluginPermission(["webview"], "plugin-storage"), "permission check must reject missing permission")
   assert.equal(getRequiredPluginPermissionForBridgeMethod("plugin.getManifest"), null)
-  assert.equal(getRequiredPluginPermissionForBridgeMethod("runtime.request"), "local-api-proxy")
-  assert.equal(getRequiredPluginPermissionForBridgeMethod("network.request"), "network-proxy")
-  assert.equal(getRequiredPluginPermissionForBridgeMethod("storage.get"), "plugin-storage")
-  assert.equal(getRequiredPluginPermissionForBridgeMethod("activity.track"), "local-api-proxy")
+  assert.equal(getRequiredPluginPermissionForBridgeMethod("storage.get"), "storage")
+  assert.equal(getRequiredPluginPermissionForBridgeMethod("notification.add"), "notifications")
+  assert.equal(getRequiredPluginPermissionForBridgeMethod("activity.track"), "activity")
+  assert.equal(getRequiredPluginPermissionForBridgeMethod("worker.invoke"), "native-runtime")
 
   const localhostFrameUrl = createIsolatedPluginFrameUrl(
-    "/api/v1/desktop/plugins/teleprompter/web/web/index.html",
+    "/api/v1/desktop/plugins/teleprompter/ui/dist/index.html",
     "http://localhost:3000"
   )
-  assert.equal(localhostFrameUrl, "http://127.0.0.1:3000/api/v1/desktop/plugins/teleprompter/web/web/index.html")
+  assert.equal(localhostFrameUrl, "http://127.0.0.1:3000/api/v1/desktop/plugins/teleprompter/ui/dist/index.html")
   assert.equal(isAllowedPluginBridgeOrigin("http://127.0.0.1:3000", localhostFrameUrl), true)
   assert.equal(isAllowedPluginBridgeOrigin("null", localhostFrameUrl), false)
   assert.equal(isPluginFrameOriginIsolated(localhostFrameUrl, "http://localhost:3000"), true)
 
   const loopbackFrameUrl = createIsolatedPluginFrameUrl(
-    "/api/v1/desktop/plugins/teleprompter/web/web/index.html",
+    "/api/v1/desktop/plugins/teleprompter/ui/dist/index.html",
     "http://127.0.0.1:43100"
   )
-  assert.equal(loopbackFrameUrl, "http://localhost:43100/api/v1/desktop/plugins/teleprompter/web/web/index.html")
+  assert.equal(loopbackFrameUrl, "http://localhost:43100/api/v1/desktop/plugins/teleprompter/ui/dist/index.html")
   assert.equal(
     createIsolatedPluginFrameUrl("https://plugins.example.com/plugin/index.html", "http://localhost:3000"),
     "https://plugins.example.com/plugin/index.html"

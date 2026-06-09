@@ -5,12 +5,12 @@ import {
   DESKTOP_PLUGINS_CHANGED_EVENT,
   listDesktopPlugins,
   shouldLoadDesktopPlugins,
-  type InstalledDesktopPlugin,
+  type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
 
 interface DesktopPluginState {
   enabled: boolean
-  plugins: InstalledDesktopPlugin[]
+  plugins: DesktopInstalledPlugin[]
   loading: boolean
   error: string | null
 }
