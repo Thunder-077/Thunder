@@ -94,14 +94,17 @@ AppData/com.thunder.desktop/
 | Method | 权限 | 说明 |
 |--------|------|------|
 | `plugin.getManifest` | 无 | 返回当前插件 Manifest |
+| `layout.setFrameHeight` | 无 | 调整 iframe 高度 |
 | `storage.get` | `storage` | 读取插件私有存储 |
 | `storage.set` | `storage` | 写入插件私有存储 |
 | `storage.remove` | `storage` | 删除单个存储 key |
 | `storage.keys` | `storage` | 列出插件存储 key |
 | `storage.clear` | `storage` | 清空插件存储 |
-| `notifications.show` | `notifications` | 触发桌面通知 |
-| `activity.record` | `activity` | 记录活动 |
+| `notification.add` | `notifications` | 触发桌面通知 |
+| `activity.track` | `activity` | 记录活动 |
 | `worker.invoke` | `native-runtime` | 调用 trusted worker handler |
+| `runtime.request` | `native-runtime` | 向 trusted runtime 发送 HTTP 请求 |
+| `network.request` | 无 | 发起外部网络请求 |
 
 宿主会同时校验：
 

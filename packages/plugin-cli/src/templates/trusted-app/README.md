@@ -23,30 +23,21 @@ Dependencies use `workspace:*` and resolve to the local `packages/*` sources.
 
 ### Outside the monorepo
 
-The `workspace:*` protocol only resolves inside a pnpm workspace. For an
-external project you have two options:
-
-**A) Link the SDK packages from a local checkout**
+Install the SDK from npm:
 
 ```bash
-# from a Thunder monorepo root
-pnpm --filter @thunder/plugin-sdk build
-pnpm --filter @thunder/plugin-schema build
-pnpm --filter @thunder/plugin-sdk-worker build
+npm install
 ```
 
-Then in your plugin:
+Make sure the Thunder Desktop host is running before starting dev mode:
 
 ```bash
-pnpm link /path/to/thunder-monorepo/packages/plugin-sdk
-pnpm link /path/to/thunder-monorepo/packages/plugin-schema
-pnpm link /path/to/thunder-monorepo/packages/plugin-sdk-worker
+# Start dev mode (auto-installs plugin into running host)
+npx thunder-plugin dev
+
+# Or point at a remote host
+THUNDER_PLUGIN_DEV_API_URL=http://your-host:3001 npx thunder-plugin dev
 ```
-
-**B) Wait for the SDK packages to be published to npm**
-
-Update `package.json` to use a real version (e.g. `"@thunder/plugin-sdk": "^0.1.0"`)
-and run `pnpm install`.
 
 ## Build & develop
 

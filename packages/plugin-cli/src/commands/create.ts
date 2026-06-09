@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { findMonorepoRoot } from "../workspace"
 
 export type PluginTemplate = "trusted-app" | "sandboxed-basic" | "sandboxed-ui"
 
@@ -16,6 +17,9 @@ const TEMPLATE_ROOT = join(
   "..",
   "templates",
 )
+
+/** Version range used in published templates; replaced with workspace:* inside the monorepo. */
+const PUBLISHED_SDK_VERSION = "^0.1.0"
 
 function assertPluginName(name: string): string {
   const pluginName = name.trim()
@@ -43,6 +47,31 @@ function replaceTemplateTokens(source: string, pluginName: string): string {
     .replace(/__PACKAGE_NAME__/g, pluginName)
 }
 
+/**
+ * When creating a plugin inside a Thunder monorepo, rewrite published SDK
+ * version ranges to `workspace:*` so dependencies resolve to local sources.
+ */
+async function rewriteForMonorepoIfNeeded(
+  files: GeneratedPluginFiles,
+  targetDir: string,
+): Promise<GeneratedPluginFiles> {
+  const monorepoRoot = await findMonorepoRoot(targetDir)
+  if (!monorepoRoot) return files
+
+  const rewritten: GeneratedPluginFiles = {}
+  for (const [path, content] of Object.entries(files)) {
+    if (path === "package.json") {
+      rewritten[path] = content.replace(
+        new RegExp(`"${PUBLISHED_SDK_VERSION.replace(/\^/g, "\\^")}"`, "g"),
+        '"workspace:*"',
+      )
+    } else {
+      rewritten[path] = content
+    }
+  }
+  return rewritten
+}
+
 function toPascalCase(value: string): string {
   return value
     .split(/[-_\s]+/)
@@ -66,14 +95,18 @@ function createTrustedAppTemplate(pluginName: string): GeneratedPluginFiles {
   }
 }
 
-export function createPluginProject(
+export async function createPluginProject(
   options: CreatePluginProjectOptions,
-): GeneratedPluginFiles {
+  targetDir: string,
+): Promise<GeneratedPluginFiles> {
   const pluginName = assertPluginName(options.name)
 
+  let files: GeneratedPluginFiles
   if (options.template === "trusted-app") {
-    return createTrustedAppTemplate(pluginName)
+    files = createTrustedAppTemplate(pluginName)
+  } else {
+    throw new Error(`Unsupported template: ${options.template}`)
   }
 
-  throw new Error(`Unsupported template: ${options.template}`)
+  return rewriteForMonorepoIfNeeded(files, targetDir)
 }

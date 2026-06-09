@@ -105,16 +105,22 @@ import { thunder } from "@thunder/plugin-sdk/browser"
 const manifest = await thunder.plugin.getManifest()
 await thunder.storage.set("draft", { text: "hello" })
 const draft = await thunder.storage.get<{ text: string }>("draft")
+thunder.notification.add({ type: "success", title: "Saved" })
+await thunder.activity.track({ action: "save", title: "Draft saved" })
 const result = await thunder.worker.invoke("speech.transcribe", { text: "hello world" })
 ```
 
 当前正式可依赖的方法重点是：
 
 - `plugin.getManifest`
+- `plugin.setFrameHeight`
+- `theme.onChange`
 - `storage.*`
-- `notifications.show`
-- `activity.record`
+- `notification.add`
+- `activity.track`
 - `worker.invoke`
+- `runtime.request` / `runtime.get` / `runtime.post`
+- `network.request` / `network.get` / `network.post`
 
 ### Worker SDK
 

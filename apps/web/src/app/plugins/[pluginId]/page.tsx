@@ -271,7 +271,7 @@ export default function DesktopPluginPage() {
           return
         }
 
-        if (request.method === "notification.add" || request.method === "notifications.show") {
+        if (request.method === "notification.add") {
           const params = request.params as {
             type?: "info" | "success" | "error"
             title?: string
@@ -361,7 +361,7 @@ export default function DesktopPluginPage() {
           return
         }
 
-        if (request.method === "activity.track" || request.method === "activity.record") {
+        if (request.method === "activity.track") {
           const params = request.params as {
             action?: string
             title?: string

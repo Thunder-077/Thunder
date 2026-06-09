@@ -1,12 +1,11 @@
 {
-  "name": "__PACKAGE_NAME__",
+  "name": "hello-plugin",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "build": "thunder-plugin build .",
-    "dev": "thunder-plugin dev .",
-    "pack": "thunder-plugin pack ."
+    "dev": "thunder-plugin dev ."
   },
   "dependencies": {
     "@thunder/plugin-sdk": "^0.1.0",

@@ -4,8 +4,8 @@ const RPC_METHOD_PERMISSIONS: Record<string, string> = {
   "storage.remove": "storage",
   "storage.keys": "storage",
   "storage.clear": "storage",
-  "notifications.show": "notifications",
-  "activity.record": "activity",
+  "notification.add": "notifications",
+  "activity.track": "activity",
   "worker.invoke": "native-runtime",
 }
 

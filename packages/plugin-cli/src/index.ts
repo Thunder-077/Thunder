@@ -44,23 +44,18 @@ async function printCreateNextSteps(targetDir: string): Promise<void> {
     console.log(`  pnpm install            # links @thunder/* via workspace protocol`)
     console.log(`  pnpm dev                # or: thunder-plugin dev .`)
   } else {
-    console.log("Next steps (external project — no Thunder monorepo detected):")
+    console.log("Next steps:")
     console.log(`  cd ${targetDir}`)
-    console.log(
-      `  # The template uses workspace:* for @thunder/* deps. Either link to a`,
-    )
-    console.log(
-      `  # local checkout, or replace the version range in package.json once the`,
-    )
-    console.log(`  # SDK is published to npm:`)
-    console.log(`  pnpm link /path/to/thunder-monorepo/packages/plugin-sdk`)
-    console.log(`  pnpm link /path/to/thunder-monorepo/packages/plugin-schema`)
-    console.log(`  pnpm link /path/to/thunder-monorepo/packages/plugin-sdk-worker`)
-    console.log(`  pnpm install`)
-    console.log(`  pnpm dev                # requires a running desktop host`)
+    console.log(`  npm install             # installs @thunder/plugin-sdk from npm`)
+    console.log(`  npx thunder-plugin dev  # starts dev mode with hot-reload`)
+    console.log("")
+    console.log("Prerequisites:")
+    console.log(`  - Thunder Desktop host must be running (pnpm dev:desktop in a Thunder checkout)`)
+    console.log(`  - Or set THUNDER_PLUGIN_DEV_API_URL to point at a running host`)
+    console.log("")
+    console.log("Docs: https://github.com/user/thunder/blob/main/docs/desktop-plugin-development.md")
   }
   console.log("")
-  console.log("See README.md in the generated project for full instructions.")
 }
 
 function parseCliArgs(argv: string[]): ParsedCliArgs {
@@ -91,10 +86,13 @@ export async function runPluginCli(argv: string[]): Promise<void> {
         return
       }
 
-      const files = createPluginProject({
-        name: args.pluginName,
-        template: "trusted-app",
-      })
+      const files = await createPluginProject(
+        {
+          name: args.pluginName,
+          template: "trusted-app",
+        },
+        args.rootDir,
+      )
 
       await mkdir(args.rootDir, { recursive: true })
       await writeProjectFiles(args.rootDir, files)

@@ -84,14 +84,18 @@ plugin.json
 当前正式 Host Bridge 能力：
 
 - `plugin.getManifest`
+- `plugin.setFrameHeight`
+- `theme.onChange`
 - `storage.get`
 - `storage.set`
 - `storage.remove`
 - `storage.keys`
 - `storage.clear`
-- `notifications.show`
-- `activity.record`
+- `notification.add`
+- `activity.track`
 - `worker.invoke`
+- `runtime.request`
+- `network.request`
 
 权限由宿主页按方法校验，不信任插件自行声称的能力。
 

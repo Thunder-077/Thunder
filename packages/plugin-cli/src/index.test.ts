@@ -13,7 +13,8 @@ import {
 } from "./commands/dev"
 import { packPlugin } from "./commands/pack"
 
-const files = createPluginProject({ name: "teleprompter", template: "trusted-app" })
+const pluginRoot = await mkdtemp(join(tmpdir(), "thunder-plugin-cli-"))
+const files = await createPluginProject({ name: "teleprompter", template: "trusted-app" }, pluginRoot)
 
 assert.equal(files["plugin.json"].includes('"kind": "trusted"'), true)
 assert.equal(files["src/worker.ts"].includes("defineWorker"), true)
@@ -23,7 +24,6 @@ assert.equal(typeof files["tsconfig.json"], "string")
 assert.equal(typeof files[".gitignore"], "string")
 assert.equal(typeof files["README.md"], "string")
 
-const pluginRoot = await mkdtemp(join(tmpdir(), "thunder-plugin-cli-"))
 for (const [relativePath, contents] of Object.entries(files)) {
   const filePath = join(pluginRoot, relativePath)
   await mkdir(dirname(filePath), { recursive: true })

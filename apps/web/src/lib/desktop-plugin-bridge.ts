@@ -25,10 +25,9 @@ const BRIDGE_METHOD_PERMISSIONS: Partial<Record<string, DesktopPluginPermission>
   "storage.keys": "storage",
   "storage.clear": "storage",
   "notification.add": "notifications",
-  "notifications.show": "notifications",
   "activity.track": "activity",
-  "activity.record": "activity",
   "worker.invoke": "native-runtime",
+  "runtime.request": "native-runtime",
 }
 
 export function getRequiredPluginPermissionForBridgeMethod(method: string): DesktopPluginPermission | null {
