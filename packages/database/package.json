@@ -6,7 +6,10 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "workerd": "./src/index.postgres.ts",
+      "default": "./src/index.ts"
+    }
   },
   "scripts": {
     "db:generate": "pnpm run db:generate:postgres && pnpm run db:generate:sqlite && pnpm run db:compile-sqlite-migrations",
