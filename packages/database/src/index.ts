@@ -1,2 +1,2 @@
-export { createScopedPrismaClient, getPrismaClient, prisma, default } from "./client.postgres"
+export { createScopedPrismaClient, getPrismaClient, prisma, default } from "./client"
 export { Prisma } from "@prisma/client"
