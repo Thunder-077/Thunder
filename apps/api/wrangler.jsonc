@@ -3,6 +3,9 @@
   "name": "thunder-api",
   "main": "src/worker.ts",
   "compatibility_date": "2026-05-05",
+  "build": {
+    "command": "node ../../scripts/generate-enabled-modules.mjs"
+  },
   "compatibility_flags": [
     "nodejs_compat",
     "nodejs_compat_populate_process_env"
