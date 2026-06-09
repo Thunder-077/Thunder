@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@thunder/teleprompter-core": "workspace:*",
     "@thunder/ui": "workspace:*"
   },
   "peerDependencies": {

@@ -21,7 +21,9 @@
     "paths": {
       "@/*": ["./src/*"],
       "@thunder/plugin-devtools": ["../../packages/plugin-devtools/src/index.ts"],
-      "@thunder/plugin-ui": ["../../packages/plugin-ui/src/index.ts"]
+      "@thunder/plugin-ui": ["../../packages/plugin-ui/src/index.ts"],
+      "@thunder/teleprompter-core": ["../../packages/teleprompter-core/src/index.ts"],
+      "@thunder/teleprompter-ui": ["../../packages/teleprompter-ui/src/index.ts"]
     }
   },
   "include": [

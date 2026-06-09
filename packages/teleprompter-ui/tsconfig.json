@@ -9,7 +9,11 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "paths": {
+      "@thunder/teleprompter-core": ["../teleprompter-core/src/index.ts"],
+      "@thunder/ui": ["../ui/src/index.ts"]
+    }
   },
   "include": ["src"]
 }

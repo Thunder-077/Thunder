@@ -15,6 +15,8 @@ export { AutoScrollPanel } from "./auto-scroll-panel"
 export type { AutoScrollPanelHandle, AutoScrollViewOptions } from "./auto-scroll-panel"
 export { PrompterStage } from "./prompter-stage"
 export { AsrDebugOverlay } from "./asr-debug-overlay"
+export { TeleprompterPage } from "./teleprompter-page"
+export type { TeleprompterPageProps } from "./teleprompter-page"
 export { TeleprompterWorkspace } from "./teleprompter-workspace"
 export type { TeleprompterDocumentIO, TeleprompterSherpaRuntime } from "./teleprompter-workspace"
 export type {

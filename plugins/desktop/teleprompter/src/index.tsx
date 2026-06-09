@@ -1,7 +1,7 @@
 import React from "react"
 import { createRoot } from "react-dom/client"
 import { thunder } from "@thunder/plugin-sdk/browser"
-import { TeleprompterPanel } from "./features/teleprompter-panel"
+import { TeleprompterPluginPageAdapter } from "./features/teleprompter-plugin-page-adapter"
 
 function PluginFrameAutoHeight() {
   React.useEffect(() => {
@@ -56,6 +56,6 @@ createRoot(root).render(
   <React.StrictMode>
     <PluginFrameAutoHeight />
     <PluginThemeSync />
-    <TeleprompterPanel />
+    <TeleprompterPluginPageAdapter />
   </React.StrictMode>
 )
