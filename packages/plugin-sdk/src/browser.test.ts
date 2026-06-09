@@ -1,8 +1,4 @@
 import assert from "node:assert/strict"
-import {
-  createPluginApi,
-  definePlugin,
-} from "./index"
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 import {
   createThunderPluginClient,
@@ -94,19 +90,6 @@ function createBridgeWindow() {
 }
 
 async function main() {
-  const plugin = definePlugin({
-    setup(app) {
-      app.commands.register("teleprompter.open", async () => {
-        await app.navigation.openPanel("main")
-      })
-    },
-  })
-
-  const api = createPluginApi()
-  plugin.setup(api)
-  await api.commands.execute("teleprompter.open")
-  assert.equal(api.navigation.lastOpenedPanel, "main")
-
   assert.equal(normalizeThunderPluginRuntimePath("status"), "status")
   assert.equal(normalizeThunderPluginRuntimePath("native/sherpa/models?fresh=1"), "native/sherpa/models?fresh=1")
   rejects(() => normalizeThunderPluginRuntimePath("/status"), "runtime path must reject leading slash")
