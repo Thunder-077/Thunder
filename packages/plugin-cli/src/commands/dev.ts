@@ -1,12 +1,12 @@
 import { watch } from "node:fs"
 import { spawn, type ChildProcess } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { resolve } from "node:path"
 import { buildPlugin, type BuildPluginResult, type PluginProject } from "./build"
+import { findMonorepoRoot } from "../workspace"
 
 const CLI_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..")
-const WORKSPACE_ROOT = resolve(CLI_ROOT, "../../../..")
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:3001"
 const DEFAULT_WEB_BASE_URL = "http://127.0.0.1:3000"
 const HOST_START_TIMEOUT_MS = 180000
@@ -95,13 +95,27 @@ async function isDesktopHostReady(apiBaseUrl: string): Promise<boolean> {
   }
 }
 
-function startDesktopDevHost(): ChildProcess {
+function startDesktopDevHost(monorepoRoot: string): ChildProcess {
   const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
   return spawn(command, ["dev:desktop"], {
-    cwd: WORKSPACE_ROOT,
+    cwd: monorepoRoot,
     stdio: "inherit",
     env: process.env,
   })
+}
+
+/**
+ * Try to locate a Thunder monorepo we can use to auto-start the dev host. We
+ * check the current working directory first (covers the common monorepo-dev
+ * case), then the CLI's own location (covers `npx`-style invocations where the
+ * CLI may have been linked from a local checkout).
+ */
+async function locateAutoStartMonorepo(): Promise<string | null> {
+  const fromCwd = await findMonorepoRoot(process.cwd())
+  if (fromCwd) {
+    return fromCwd
+  }
+  return findMonorepoRoot(CLI_ROOT)
 }
 
 async function ensureDesktopDevHost(apiBaseUrl: string): Promise<{
@@ -115,7 +129,26 @@ async function ensureDesktopDevHost(apiBaseUrl: string): Promise<{
     }
   }
 
-  const childProcess = startDesktopDevHost()
+  // Without a reachable monorepo, the CLI cannot start the dev host itself.
+  // External plugin authors must already have the Thunder desktop host running
+  // (e.g. via a published installer or `pnpm dev:desktop` from a checkout).
+  const monorepoRoot = await locateAutoStartMonorepo()
+  if (!monorepoRoot) {
+    throw new Error(
+      "Desktop dev host is not running and no Thunder monorepo was found. " +
+        "Start the host manually (e.g. run `pnpm dev:desktop` in a Thunder checkout) " +
+        "or point the CLI at a running host via the THUNDER_PLUGIN_DEV_API_URL env var.",
+    )
+  }
+
+  if (process.env.THUNDER_DEV_HOST_AUTO_START === "0") {
+    throw new Error(
+      "Desktop dev host is not running. THUNDER_DEV_HOST_AUTO_START=0 disables auto-start; " +
+        "start the host manually, or unset the env var to allow auto-start.",
+    )
+  }
+
+  const childProcess = startDesktopDevHost(monorepoRoot)
   const ready = await waitForCondition(
     () => isDesktopHostReady(apiBaseUrl),
     HOST_START_TIMEOUT_MS,
@@ -204,7 +237,6 @@ function openDevtoolsPage(url: string): void {
 
   const { command, args } = getOpenCommand(url)
   const childProcess = spawn(command, args, {
-    cwd: WORKSPACE_ROOT,
     detached: true,
     stdio: "ignore",
   })
@@ -325,7 +357,9 @@ export {
   ensureDesktopDevHost,
   getOpenCommand,
   isDesktopHostReady,
+  locateAutoStartMonorepo,
   openDevtoolsPage,
   shouldIgnoreReinstallPath,
+  startDesktopDevHost,
   waitForCondition,
 }

@@ -17,7 +17,11 @@ const files = createPluginProject({ name: "teleprompter", template: "trusted-app
 
 assert.equal(files["plugin.json"].includes('"kind": "trusted"'), true)
 assert.equal(files["src/worker.ts"].includes("defineWorker"), true)
-assert.equal(files["src/index.tsx"].includes("definePlugin"), true)
+assert.equal(files["src/index.tsx"].includes("@thunder/plugin-sdk/browser"), true)
+assert.equal(files["src/index.tsx"].includes("definePlugin"), false)
+assert.equal(typeof files["tsconfig.json"], "string")
+assert.equal(typeof files[".gitignore"], "string")
+assert.equal(typeof files["README.md"], "string")
 
 const pluginRoot = await mkdtemp(join(tmpdir(), "thunder-plugin-cli-"))
 for (const [relativePath, contents] of Object.entries(files)) {

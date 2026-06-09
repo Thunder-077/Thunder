@@ -32,16 +32,32 @@ function readTemplateFile(template: PluginTemplate, ...pathParts: string[]): str
 }
 
 function replaceTemplateTokens(source: string, pluginName: string): string {
+  // Component identifiers must be valid JS, so we PascalCase the kebab-case
+  // plugin name (`my-plugin` -> `MyPlugin`) for the rare case the template
+  // embeds it in a function or class name.
+  const componentName = toPascalCase(pluginName)
   return source
     .replace(/__PLUGIN_ID__/g, pluginName)
     .replace(/__PLUGIN_NAME__/g, pluginName)
+    .replace(/__PLUGIN_COMPONENT__/g, componentName)
     .replace(/__PACKAGE_NAME__/g, pluginName)
+}
+
+function toPascalCase(value: string): string {
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("")
 }
 
 function createTrustedAppTemplate(pluginName: string): GeneratedPluginFiles {
   return {
     "plugin.json": replaceTemplateTokens(readTemplateFile("trusted-app", "plugin.json"), pluginName),
     "package.json": replaceTemplateTokens(readTemplateFile("trusted-app", "package.json"), pluginName),
+    "tsconfig.json": readTemplateFile("trusted-app", "tsconfig.json"),
+    ".gitignore": readTemplateFile("trusted-app", ".gitignore"),
+    "README.md": replaceTemplateTokens(readTemplateFile("trusted-app", "README.md"), pluginName),
     "src/index.tsx": replaceTemplateTokens(
       readTemplateFile("trusted-app", "src", "index.tsx"),
       pluginName,

@@ -11,5 +11,6 @@
     "isolatedModules": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/templates/**", "src/**/*.test.ts"]
 }

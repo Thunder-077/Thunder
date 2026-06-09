@@ -6,6 +6,7 @@ import { createPluginProject } from "./commands/create"
 import { runDevCommand } from "./commands/dev"
 import { runPackCommand } from "./commands/pack"
 import { runPublishCommand } from "./commands/publish"
+import { findMonorepoRoot } from "./workspace"
 
 interface ParsedCliArgs {
   command?: string
@@ -32,6 +33,34 @@ async function writeProjectFiles(
     await mkdir(dirname(filePath), { recursive: true })
     await writeFile(filePath, contents, "utf8")
   }
+}
+
+async function printCreateNextSteps(targetDir: string): Promise<void> {
+  const monorepoRoot = await findMonorepoRoot(targetDir)
+  console.log("")
+  if (monorepoRoot) {
+    console.log("Next steps (Thunder monorepo detected):")
+    console.log(`  cd ${targetDir}`)
+    console.log(`  pnpm install            # links @thunder/* via workspace protocol`)
+    console.log(`  pnpm dev                # or: thunder-plugin dev .`)
+  } else {
+    console.log("Next steps (external project — no Thunder monorepo detected):")
+    console.log(`  cd ${targetDir}`)
+    console.log(
+      `  # The template uses workspace:* for @thunder/* deps. Either link to a`,
+    )
+    console.log(
+      `  # local checkout, or replace the version range in package.json once the`,
+    )
+    console.log(`  # SDK is published to npm:`)
+    console.log(`  pnpm link /path/to/thunder-monorepo/packages/plugin-sdk`)
+    console.log(`  pnpm link /path/to/thunder-monorepo/packages/plugin-schema`)
+    console.log(`  pnpm link /path/to/thunder-monorepo/packages/plugin-sdk-worker`)
+    console.log(`  pnpm install`)
+    console.log(`  pnpm dev                # requires a running desktop host`)
+  }
+  console.log("")
+  console.log("See README.md in the generated project for full instructions.")
 }
 
 function parseCliArgs(argv: string[]): ParsedCliArgs {
@@ -70,6 +99,7 @@ export async function runPluginCli(argv: string[]): Promise<void> {
       await mkdir(args.rootDir, { recursive: true })
       await writeProjectFiles(args.rootDir, files)
       console.log(`[plugin-cli] created ${args.pluginName} in ${args.rootDir}`)
+      await printCreateNextSteps(args.rootDir)
       return
     }
 

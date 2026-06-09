@@ -2,10 +2,8 @@ import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, join, relative, resolve } from "node:path"
 import { build, context, type BuildContext, type BuildOptions } from "esbuild"
-import {
-  parseThunderPluginManifest,
-  type ThunderPluginManifest,
-} from "../../../plugin-schema/src/index"
+import { parseThunderPluginManifest, type ThunderPluginManifest } from "@thunder/plugin-schema"
+import { findMonorepoRoot, readThunderWorkspacePackages } from "../workspace"
 
 export interface PluginProject {
   rootDir: string
@@ -33,16 +31,6 @@ const DEFAULT_DIST_DIR = "dist"
 const UI_SOURCE_ENTRY = "src/index.tsx"
 const WORKER_SOURCE_ENTRY = "src/worker.ts"
 const CLI_ROOT = dirname(fileURLToPath(import.meta.url))
-const WORKSPACE_ROOT = resolve(CLI_ROOT, "../../../..")
-const WORKSPACE_NODE_MODULES = join(WORKSPACE_ROOT, "node_modules")
-
-const WORKSPACE_IMPORT_ALIASES = new Map<string, string>([
-  ["@thunder/plugin-sdk", resolve(WORKSPACE_ROOT, "packages/plugin-sdk/src/index.ts")],
-  ["@thunder/plugin-sdk/browser", resolve(WORKSPACE_ROOT, "packages/plugin-sdk/src/browser.ts")],
-  ["@thunder/plugin-sdk/worker", resolve(WORKSPACE_ROOT, "packages/plugin-sdk/src/worker.ts")],
-  ["@thunder/plugin-sdk-worker", resolve(WORKSPACE_ROOT, "packages/plugin-sdk-worker/src/index.ts")],
-  ["@thunder/plugin-schema", resolve(WORKSPACE_ROOT, "packages/plugin-schema/src/index.ts")],
-])
 
 async function fileExists(path: string): Promise<boolean> {
   try {
@@ -73,46 +61,57 @@ function normalizeOutputPath(path: string): string {
   return path.replace(/\\/g, "/")
 }
 
-function createUiBuildOptions(entryPoint: string, outfile: string): BuildOptions {
-  return {
-    entryPoints: [entryPoint],
-    outfile,
-    bundle: true,
-    format: "esm",
-    platform: "browser",
-    jsx: "automatic",
-    loader: {
-      ".ts": "ts",
-      ".tsx": "tsx",
-    },
-    nodePaths: [WORKSPACE_NODE_MODULES],
-    plugins: [createWorkspaceAliasPlugin()],
-    sourcemap: true,
-    target: "es2020",
-  }
+interface ResolvedBuildContext {
+  nodePaths: string[]
+  aliasPlugin: ReturnType<typeof createThunderAliasPlugin> | null
 }
 
-function createWorkerBuildOptions(entryPoint: string, outfile: string): BuildOptions {
-  return {
-    entryPoints: [entryPoint],
-    outfile,
-    bundle: true,
-    format: "esm",
-    platform: "node",
-    loader: {
-      ".ts": "ts",
-      ".tsx": "tsx",
-    },
-    nodePaths: [WORKSPACE_NODE_MODULES],
-    plugins: [createWorkspaceAliasPlugin()],
-    sourcemap: true,
-    target: "node20",
+/**
+ * Resolve the build context for a plugin project. We look for a Thunder
+ * monorepo by walking up from the project root, the current working directory,
+ * and finally the CLI's own location. The monorepo, if any, contributes:
+ *
+ *  - An extra `nodePaths` entry so hoisted deps (e.g. react) resolve even when
+ *    the plugin project itself has no `node_modules`.
+ *  - An esbuild alias plugin that maps `@thunder/plugin-*` imports to the
+ *    monorepo's TypeScript sources, so the plugin can be built before
+ *    `@thunder/*` packages are installed into its own `node_modules`.
+ *
+ * When no monorepo is reachable (a fully external plugin project), we return
+ * an empty context and rely entirely on esbuild's standard node resolution
+ * against the plugin project's own `node_modules`.
+ */
+async function resolveBuildContext(projectRootDir: string): Promise<ResolvedBuildContext> {
+  const projectNodeModules = join(projectRootDir, "node_modules")
+  const searchDirs = [projectRootDir, process.cwd(), CLI_ROOT]
+  let monorepoRoot: string | null = null
+  for (const dir of searchDirs) {
+    monorepoRoot = await findMonorepoRoot(dir)
+    if (monorepoRoot) {
+      break
+    }
   }
+
+  const nodePaths: string[] = [projectNodeModules]
+  let aliasPlugin: ResolvedBuildContext["aliasPlugin"] = null
+
+  if (monorepoRoot) {
+    const monorepoNodeModules = join(monorepoRoot, "node_modules")
+    if (monorepoNodeModules !== projectNodeModules) {
+      nodePaths.push(monorepoNodeModules)
+    }
+    const aliases = await readThunderWorkspacePackages(monorepoRoot)
+    if (aliases.size > 0) {
+      aliasPlugin = createThunderAliasPlugin(aliases)
+    }
+  }
+
+  return { nodePaths, aliasPlugin }
 }
 
-function createWorkspaceAliasPlugin() {
+function createThunderAliasPlugin(aliases: Map<string, string>) {
   return {
-    name: "thunder-workspace-alias",
+    name: "thunder-package-resolver",
     setup(pluginBuild: {
       onResolve(
         options: { filter: RegExp },
@@ -120,14 +119,11 @@ function createWorkspaceAliasPlugin() {
       ): void
     }) {
       pluginBuild.onResolve({ filter: /^@thunder\/plugin-/ }, (args) => {
-        const replacement = WORKSPACE_IMPORT_ALIASES.get(args.path)
+        const replacement = aliases.get(args.path)
         if (!replacement) {
           return null
         }
-
-        return {
-          path: replacement,
-        }
+        return { path: replacement }
       })
     },
   }
@@ -175,7 +171,6 @@ async function createWatchContext(
               log(`${label}: build failed`)
               return
             }
-
             log(`${label}: rebuilt`)
           })
         },
@@ -196,6 +191,7 @@ export async function buildPlugin(
   const outDir = join(project.rootDir, DEFAULT_DIST_DIR)
   const outputs = new Set<string>()
   const watchers: BuildContext[] = []
+  const buildContext = await resolveBuildContext(project.rootDir)
 
   if (options.clean !== false) {
     await rm(outDir, { recursive: true, force: true })
@@ -213,7 +209,7 @@ export async function buildPlugin(
     const jsOutfile = join(dirname(htmlOutfile), "index.js")
     await mkdir(dirname(htmlOutfile), { recursive: true })
 
-    const buildOptions = createUiBuildOptions(uiSourceEntry, jsOutfile)
+    const buildOptions = createUiBuildOptions(uiSourceEntry, jsOutfile, buildContext)
     if (options.watch) {
       watchers.push(await createWatchContext(buildOptions, "UI", log))
     } else {
@@ -240,7 +236,7 @@ export async function buildPlugin(
     const workerOutfile = join(project.rootDir, project.manifest.runtime.entry)
     await mkdir(dirname(workerOutfile), { recursive: true })
 
-    const buildOptions = createWorkerBuildOptions(workerSourceEntry, workerOutfile)
+    const buildOptions = createWorkerBuildOptions(workerSourceEntry, workerOutfile, buildContext)
     if (options.watch) {
       watchers.push(await createWatchContext(buildOptions, "Worker", log))
     } else {
@@ -263,6 +259,53 @@ export async function buildPlugin(
             },
           }
         : undefined,
+  }
+}
+
+function createUiBuildOptions(
+  entryPoint: string,
+  outfile: string,
+  buildContext: ResolvedBuildContext,
+): BuildOptions {
+  const plugins = buildContext.aliasPlugin ? [buildContext.aliasPlugin] : []
+  return {
+    entryPoints: [entryPoint],
+    outfile,
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    jsx: "automatic",
+    loader: {
+      ".ts": "ts",
+      ".tsx": "tsx",
+    },
+    nodePaths: buildContext.nodePaths,
+    plugins,
+    sourcemap: true,
+    target: "es2020",
+  }
+}
+
+function createWorkerBuildOptions(
+  entryPoint: string,
+  outfile: string,
+  buildContext: ResolvedBuildContext,
+): BuildOptions {
+  const plugins = buildContext.aliasPlugin ? [buildContext.aliasPlugin] : []
+  return {
+    entryPoints: [entryPoint],
+    outfile,
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    loader: {
+      ".ts": "ts",
+      ".tsx": "tsx",
+    },
+    nodePaths: buildContext.nodePaths,
+    plugins,
+    sourcemap: true,
+    target: "node20",
   }
 }
 
