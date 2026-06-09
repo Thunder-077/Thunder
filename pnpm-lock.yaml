@@ -495,6 +495,9 @@ importers:
       '@thunder/ui':
         specifier: workspace:*
         version: link:../ui
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.4)
       react:
         specifier: ^19.0.0
         version: 19.2.4
