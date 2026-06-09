@@ -1,0 +1,5 @@
+{
+  "buildCommand": "pnpm build:web",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "nodeVersion": "24.x"
+}
