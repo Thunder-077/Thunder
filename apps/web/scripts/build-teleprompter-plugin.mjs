@@ -22,6 +22,10 @@ const webNodeModules = resolve(webRoot, "node_modules")
 const reactRoot = resolve(webNodeModules, "react")
 const reactDomRoot = resolve(webNodeModules, "react-dom")
 
+function toPosixPath(input) {
+  return input.replaceAll("\\", "/")
+}
+
 await rm(webOutDir, { recursive: true, force: true })
 await mkdir(assetsOutDir, { recursive: true })
 
@@ -69,9 +73,17 @@ await build({
 })
 
 const rawCss = await readFile(globalsCss, "utf8")
-const processedCss = await postcss([tailwindcss()]).process(rawCss, {
+const pluginCssSources = [
+  pluginRoot,
+  pluginUiRoot,
+  teleprompterUiRoot,
+  teleprompterCoreRoot,
+].map((dir) => `@source "${toPosixPath(dir)}/**/*.{ts,tsx}";`)
+const processedCss = await postcss([tailwindcss()]).process(`${pluginCssSources.join("\n")}\n${rawCss}`, {
+  // 插件 CSS 产物需要显式扫描共享包源码，否则响应式类不会进入最终 bundle。
   from: globalsCss,
   to: cssOutput,
+  map: false,
 })
 await writeFile(cssOutput, processedCss.css, "utf8")
 

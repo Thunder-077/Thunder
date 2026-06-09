@@ -3,13 +3,6 @@ import { createRoot } from "react-dom/client"
 import { thunder } from "@thunder/plugin-sdk/browser"
 import { TeleprompterPanel } from "./features/teleprompter-panel"
 
-/**
- * 提词器插件 UI 入口。
- *
- * 该文件是 iframe 加载的浏览器入口 (`dist/index.html` -> `assets/main.js`),
- * 不再走 `definePlugin({ setup })` 模板 — 没有任何宿主进程会调 `setup`,
- * 必须在此处直接把 React 树挂到 `#root`,并通过 Host Bridge 上报 frame 高度。
- */
 function PluginFrameAutoHeight() {
   React.useEffect(() => {
     const reportHeight = () => {
@@ -40,6 +33,19 @@ function PluginFrameAutoHeight() {
   return null
 }
 
+function PluginThemeSync() {
+  React.useEffect(() => {
+    const unsubscribe = thunder.theme.onChange((theme) => {
+      document.documentElement.classList.toggle("dark", theme === "dark")
+      document.documentElement.dataset.theme = theme
+      document.documentElement.style.colorScheme = theme
+    })
+    return unsubscribe
+  }, [])
+
+  return null
+}
+
 const root = document.getElementById("root")
 
 if (!root) {
@@ -49,6 +55,7 @@ if (!root) {
 createRoot(root).render(
   <React.StrictMode>
     <PluginFrameAutoHeight />
+    <PluginThemeSync />
     <TeleprompterPanel />
   </React.StrictMode>
 )

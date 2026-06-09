@@ -1,12 +1,12 @@
 "use client"
 
-import { ScrollText } from "lucide-react"
 import { useMemo, useState } from "react"
 import {
   TeleprompterWorkspace,
   type TeleprompterSherpaRuntime,
   type TeleprompterSpeechModel,
 } from "@thunder/teleprompter-ui"
+import { shouldShowTeleprompterExperimentalInsights } from "@/modules/teleprompter/utils/teleprompter-env"
 import {
   readPluginTeleprompterDocument,
   writePluginTeleprompterDocument,
@@ -14,6 +14,9 @@ import {
 import { pluginSpeechRuntime } from "../adapters/plugin-speech-runtime"
 import { usePluginFollowSpeech } from "./use-plugin-follow-speech"
 import type { SpeechProvider } from "@thunder/teleprompter-core"
+
+const TELEPROMPTER_PAGE_MIN_HEIGHT = "42rem"
+const TELEPROMPTER_PAGE_HEIGHT = "calc(100dvh - var(--desktop-titlebar-height, 38px) - 4rem)"
 
 function createPluginSherpaRuntime(): TeleprompterSherpaRuntime {
   return {
@@ -37,6 +40,7 @@ function createPluginSherpaRuntime(): TeleprompterSherpaRuntime {
 }
 
 export function TeleprompterPanel() {
+  const showExperimentalInsights = shouldShowTeleprompterExperimentalInsights()
   const [speechProvider, setSpeechProvider] = useState<SpeechProvider>("web-speech")
   const speech = usePluginFollowSpeech(speechProvider)
   const sherpaRuntime = useMemo(() => createPluginSherpaRuntime(), [])
@@ -44,17 +48,9 @@ export function TeleprompterPanel() {
   return (
     <TeleprompterWorkspace
       header={(
-        <header className="mb-1 flex flex-col gap-3 border-b border-border/50 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-muted/40">
-              <ScrollText className="h-5 w-5 text-foreground" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">提词器</h1>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                桌面插件版提词器，复用共享页面编排与 trusted worker 运行时能力。
-              </p>
-            </div>
+        <header className="mb-4 flex flex-col gap-4 border-b border-border/50 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 max-w-3xl">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">提词器</h1>
           </div>
         </header>
       )}
@@ -66,7 +62,9 @@ export function TeleprompterPanel() {
         readDocument: readPluginTeleprompterDocument,
         writeDocument: writePluginTeleprompterDocument,
       }}
-      showExperimentalInsights
+      showExperimentalInsights={showExperimentalInsights}
+      minHeight={TELEPROMPTER_PAGE_MIN_HEIGHT}
+      height={TELEPROMPTER_PAGE_HEIGHT}
     />
   )
 }

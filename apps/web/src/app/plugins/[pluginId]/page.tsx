@@ -1,10 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useParams, useSearchParams } from "next/navigation"
+import { useParams } from "next/navigation"
 import { AlertTriangle } from "lucide-react"
 import { PageHeader } from "@/components/page-header"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useTheme } from "@/components/theme-provider"
 import {
@@ -34,18 +33,10 @@ import {
 } from "@/lib/desktop-plugins"
 import { notificationStore } from "@/lib/notification-store"
 import { ActivityClient } from "@thunder/api-client"
-import {
-  PluginDevtoolsPanel,
-  type PluginDiagnosticItem,
-  type PluginLogEntry,
-  type PluginRpcLogEntry,
-  type PluginStorageEntry,
-  type PluginWorkerStatus,
-} from "@thunder/plugin-devtools"
+import type { PluginLogEntry, PluginRpcLogEntry, PluginWorkerStatus } from "@thunder/plugin-devtools"
 
 export default function DesktopPluginPage() {
   const params = useParams<{ pluginId: string }>()
-  const searchParams = useSearchParams()
   const pluginId = params.pluginId
   const desktopEnabled = shouldLoadDesktopPlugins()
   const [plugin, setPlugin] = useState<DesktopInstalledPlugin | null>(null)
@@ -55,7 +46,6 @@ export default function DesktopPluginPage() {
   const [workerStatus, setWorkerStatus] = useState<PluginWorkerStatus>({ running: false })
   const [rpcCalls, setRpcCalls] = useState<PluginRpcLogEntry[]>([])
   const [devLogs, setDevLogs] = useState<PluginLogEntry[]>([])
-  const [showDevtools, setShowDevtools] = useState(() => searchParams.get("devtools") === "1")
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previousWorkerStatusRef = useRef<string | null>(null)
   const { resolvedTheme } = useTheme()
@@ -471,40 +461,8 @@ export default function DesktopPluginPage() {
   const frameSandbox = isPluginFrameOriginIsolated(frameUrl, hostOrigin)
     ? "allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
     : "allow-forms allow-modals allow-popups allow-scripts"
-  const storageKeys = listPluginStorageKeys(window.localStorage, plugin.manifest.id)
-  const storageEntries: PluginStorageEntry[] = storageKeys.map((key) => ({
-    key,
-    value: getPluginStorageValue(window.localStorage, plugin.manifest.id, key),
-  }))
-  const diagnostics: PluginDiagnosticItem[] = [
-    {
-      label: "Plugin Route",
-      value: plugin.route,
-    },
-    {
-      label: "Frame Origin Isolation",
-      value: isPluginFrameOriginIsolated(frameUrl, hostOrigin) ? "isolated" : "shared-origin",
-      tone: isPluginFrameOriginIsolated(frameUrl, hostOrigin) ? "default" : "warning",
-    },
-    {
-      label: "Frame Height",
-      value: `${frameHeight}px`,
-    },
-    {
-      label: "Host Origin",
-      value: hostOrigin,
-    },
-  ]
-
   return (
-    <div className="min-h-0 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <PageHeader title={plugin.manifest.name} />
-        <Button variant="outline" size="sm" onClick={() => setShowDevtools((previous) => !previous)}>
-          {showDevtools ? "隐藏 Devtools" : "显示 Devtools"}
-        </Button>
-      </div>
-
+    <div className="min-h-0">
       <iframe
         ref={iframeRef}
         title={plugin.manifest.name}
@@ -516,22 +474,6 @@ export default function DesktopPluginPage() {
         className="block w-full border-0 bg-transparent"
         style={{ height: `${frameHeight}px` }}
       />
-
-      {showDevtools ? (
-        <Card>
-          <CardContent className="space-y-4 p-5">
-            <PluginDevtoolsPanel
-              manifest={plugin.manifest}
-              permissions={plugin.manifest.permissions}
-              rpcCalls={rpcCalls}
-              workerStatus={workerStatus}
-              logs={devLogs}
-              storage={storageEntries}
-              diagnostics={diagnostics}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
     </div>
   )
 }
