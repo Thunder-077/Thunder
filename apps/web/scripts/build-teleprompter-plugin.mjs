@@ -1,5 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
-import { dirname, resolve } from "node:path"
+import { dirname, resolve, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import postcss from "postcss"
 import tailwindcss from "@tailwindcss/postcss"
@@ -16,6 +16,7 @@ const workerEntryPoint = resolve(pluginRoot, "src", "worker.ts")
 const cssOutput = resolve(assetsOutDir, "main.css")
 const globalsCss = resolve(webRoot, "src", "app", "globals.css")
 const pluginUiRoot = resolve(workspaceRoot, "packages", "plugin-ui", "src")
+const sharedUiRoot = resolve(workspaceRoot, "packages", "ui", "src")
 const teleprompterUiRoot = resolve(workspaceRoot, "packages", "teleprompter-ui", "src")
 const teleprompterCoreRoot = resolve(workspaceRoot, "packages", "teleprompter-core", "src")
 const webNodeModules = resolve(webRoot, "node_modules")
@@ -73,13 +74,22 @@ await build({
 })
 
 const rawCss = await readFile(globalsCss, "utf8")
+const globalsCssDir = dirname(globalsCss)
 const pluginCssSources = [
   pluginRoot,
   pluginUiRoot,
+  sharedUiRoot,
   teleprompterUiRoot,
   teleprompterCoreRoot,
-].map((dir) => `@source "${toPosixPath(dir)}/**/*.{ts,tsx}";`)
-const processedCss = await postcss([tailwindcss()]).process(`${pluginCssSources.join("\n")}\n${rawCss}`, {
+].map((dir) => {
+  const relativePath = relative(globalsCssDir, dir)
+  return `@source "${toPosixPath(relativePath)}/**/*.{ts,tsx}";`
+})
+const processedCssContent = rawCss.includes('@import "tailwindcss";')
+  ? rawCss.replace('@import "tailwindcss";', `@import "tailwindcss";\n${pluginCssSources.join("\n")}`)
+  : `${pluginCssSources.join("\n")}\n${rawCss}`
+
+const processedCss = await postcss([tailwindcss()]).process(processedCssContent, {
   // 插件 CSS 产物需要显式扫描共享包源码，否则响应式类不会进入最终 bundle。
   from: globalsCss,
   to: cssOutput,

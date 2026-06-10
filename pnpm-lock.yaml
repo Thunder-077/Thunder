@@ -130,6 +130,9 @@ importers:
       '@thunder/teleprompter-core':
         specifier: workspace:*
         version: link:../../packages/teleprompter-core
+      '@thunder/teleprompter-ui':
+        specifier: workspace:*
+        version: link:../../packages/teleprompter-ui
       '@thunder/ui':
         specifier: workspace:*
         version: link:../../packages/ui

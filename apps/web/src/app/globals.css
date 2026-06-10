@@ -1,4 +1,11 @@
 @import "tailwindcss";
+/* 精准指定外部模块的 @source 扫描路径，解决中间层通配符目录解析失效的兼容性问题 */
+@source "../../../../packages/ui/src/**/*.{ts,tsx,js,jsx}";
+@source "../../../../packages/teleprompter-ui/src/**/*.{ts,tsx,js,jsx}";
+@source "../../../../plugins/desktop/teleprompter/src/**/*.{ts,tsx,js,jsx}";
+@source "../../packages/ui/src/**/*.{ts,tsx,js,jsx}";
+@source "../../packages/teleprompter-ui/src/**/*.{ts,tsx,js,jsx}";
+@source "../../plugins/desktop/teleprompter/src/**/*.{ts,tsx,js,jsx}";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 

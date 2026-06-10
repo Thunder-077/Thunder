@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
     "@thunder/plugin-sdk",
     "@thunder/vault",
     "@thunder/contracts",
+    "@thunder/ui",
+    "@thunder/teleprompter-ui",
   ],
   webpack: (config) => {
     config.experiments = {
