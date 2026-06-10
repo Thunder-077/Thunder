@@ -1,45 +1,17 @@
+import "fake-indexeddb/auto"
 import assert from "node:assert/strict"
 import {
   clearPluginStorage,
   createIsolatedPluginFrameUrl,
-  getRequiredPluginPermissionForBridgeMethod,
   getPluginStorageValue,
+  getRequiredPluginPermissionForBridgeMethod,
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
   listPluginStorageKeys,
   normalizePluginFrameHeight,
   normalizeStorageKey,
-  pluginStorageKey,
   setPluginStorageValue,
 } from "./desktop-plugin-bridge"
-
-class MemoryStorage implements Storage {
-  private readonly data = new Map<string, string>()
-
-  get length(): number {
-    return this.data.size
-  }
-
-  clear(): void {
-    this.data.clear()
-  }
-
-  getItem(key: string): string | null {
-    return this.data.get(key) ?? null
-  }
-
-  key(index: number): string | null {
-    return [...this.data.keys()][index] ?? null
-  }
-
-  removeItem(key: string): void {
-    this.data.delete(key)
-  }
-
-  setItem(key: string, value: string): void {
-    this.data.set(key, value)
-  }
-}
 
 function rejects(fn: () => unknown, label: string): void {
   let rejected = false
@@ -51,7 +23,7 @@ function rejects(fn: () => unknown, label: string): void {
   assert.equal(rejected, true, label)
 }
 
-function main() {
+async function main() {
   assert.equal(getRequiredPluginPermissionForBridgeMethod("plugin.getManifest"), null)
   assert.equal(getRequiredPluginPermissionForBridgeMethod("storage.get"), "storage")
   assert.equal(getRequiredPluginPermissionForBridgeMethod("notification.add"), "notifications")
@@ -88,18 +60,32 @@ function main() {
   rejects(() => normalizeStorageKey("x".repeat(129)), "storage key must enforce length")
   rejects(() => normalizeStorageKey("bad\nkey"), "storage key must reject control characters")
 
-  const storage = new MemoryStorage()
-  setPluginStorageValue(storage, "alpha", "theme", { compact: true })
-  setPluginStorageValue(storage, "alpha", "space key", 1)
-  setPluginStorageValue(storage, "beta", "theme", "dark")
-  assert.deepEqual(getPluginStorageValue(storage, "alpha", "theme"), { compact: true })
-  assert.equal(storage.getItem(pluginStorageKey("alpha", "space key")), "1")
-  assert.deepEqual(listPluginStorageKeys(storage, "alpha"), ["space key", "theme"])
-  clearPluginStorage(storage, "alpha")
-  assert.deepEqual(listPluginStorageKeys(storage, "alpha"), [])
-  assert.equal(getPluginStorageValue(storage, "beta", "theme"), "dark")
+  await setPluginStorageValue("alpha", "theme", { compact: true })
+  await setPluginStorageValue("alpha", "space key", 1)
+  await setPluginStorageValue("beta", "theme", "dark")
+  assert.deepEqual(await getPluginStorageValue("alpha", "theme"), { compact: true })
+  assert.deepEqual(await getPluginStorageValue("alpha", "space key"), 1)
+  assert.deepEqual(await listPluginStorageKeys("alpha"), ["space key", "theme"])
+  await clearPluginStorage("alpha")
+  assert.deepEqual(await listPluginStorageKeys("alpha"), [])
+  assert.equal(await getPluginStorageValue("beta", "theme"), "dark")
+
+  const bigValue = "x".repeat(200 * 1024)
+  await setPluginStorageValue("quota", "a", bigValue)
+  await setPluginStorageValue("quota", "b", bigValue)
+  await setPluginStorageValue("quota", "c", bigValue)
+  await setPluginStorageValue("quota", "d", bigValue)
+  await setPluginStorageValue("quota", "e", bigValue)
+  await assert.rejects(
+    setPluginStorageValue("quota", "f", bigValue),
+    /插件存储空间超过 1 MiB/,
+  )
+  await assert.rejects(
+    setPluginStorageValue("big", "huge", "z".repeat(256 * 1024 + 1)),
+    /插件单个存储值超过 256 KiB/,
+  )
 
   console.log("[desktop-plugin-bridge] tests passed")
 }
 
-main()
+void main()

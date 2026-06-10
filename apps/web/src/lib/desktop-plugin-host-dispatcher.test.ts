@@ -42,15 +42,15 @@ function createContext(): DesktopPluginHostContext & {
     notifications: [] as unknown[],
     activities: [] as unknown[],
     storage: {
-      get: (key: string) => values.get(key) ?? null,
-      set: (key: string, value: unknown) => {
+      get: async (key: string) => values.get(key) ?? null,
+      set: async (key: string, value: unknown) => {
         values.set(key, value)
       },
-      remove: (key: string) => {
+      remove: async (key: string) => {
         values.delete(key)
       },
-      keys: () => [...values.keys()].sort(),
-      clear: () => values.clear(),
+      keys: async () => [...values.keys()].sort(),
+      clear: async () => values.clear(),
     },
     setFrameHeight(height: number) {
       context.frameHeight = height

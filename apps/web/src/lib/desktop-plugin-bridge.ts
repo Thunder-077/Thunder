@@ -22,14 +22,6 @@ export type StorageRequestParams = {
   value?: unknown
 }
 
-type PluginStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">
-const MAX_PLUGIN_STORAGE_BYTES = 1024 * 1024
-const MAX_PLUGIN_STORAGE_VALUE_BYTES = 256 * 1024
-
-function utf8Size(value: string): number {
-  return new TextEncoder().encode(value).byteLength
-}
-
 export function getRequiredPluginPermissionForBridgeMethod(method: string): DesktopPluginPermission | null {
   return isPluginBridgeMethod(method) ? getRequiredPluginPermission(method) : null
 }
@@ -77,56 +69,169 @@ export function normalizePluginFrameHeight(height: number | undefined): number {
   return Math.max(320, Math.ceil(height))
 }
 
-export function pluginStoragePrefix(pluginId: string): string {
-  return `thunder:desktop-plugin:${pluginId}:storage:`
+// ===== IndexedDB-backed plugin storage =====
+
+const IDB_NAME = "thunder-desktop-plugins"
+const IDB_VERSION = 1
+const IDB_KV_STORE = "kv"
+const IDB_TOTALS_STORE = "totals"
+const MAX_PLUGIN_STORAGE_BYTES = 1024 * 1024
+const MAX_PLUGIN_STORAGE_VALUE_BYTES = 256 * 1024
+
+interface KvRecord {
+  pluginId: string
+  key: string
+  size: number
+  value: unknown
 }
 
-export function pluginStorageKey(pluginId: string, key: string): string {
-  return `${pluginStoragePrefix(pluginId)}${encodeURIComponent(key)}`
+interface TotalsRecord {
+  pluginId: string
+  bytes: number
 }
 
-export function listPluginStorageKeys(storage: PluginStorage, pluginId: string): string[] {
-  const prefix = pluginStoragePrefix(pluginId)
-  const keys: string[] = []
-  for (let index = 0; index < storage.length; index += 1) {
-    const storageKey = storage.key(index)
-    if (!storageKey?.startsWith(prefix)) continue
-    keys.push(decodeURIComponent(storageKey.slice(prefix.length)))
+function utf8Size(value: string): number {
+  return new TextEncoder().encode(value).byteLength
+}
+
+function serializeValue(value: unknown): string {
+  return JSON.stringify(value ?? null)
+}
+
+function getIdbFactory(): IDBFactory {
+  if (typeof indexedDB === "undefined") {
+    throw new Error("IndexedDB 不可用")
   }
-  return keys.sort((a, b) => a.localeCompare(b))
+  return indexedDB
 }
 
-export function getPluginStorageValue(storage: PluginStorage, pluginId: string, key: string): unknown {
-  const rawValue = storage.getItem(pluginStorageKey(pluginId, normalizeStorageKey(key)))
-  return rawValue === null ? null : JSON.parse(rawValue)
+let openPromise: Promise<IDBDatabase> | null = null
+
+function openIdb(): Promise<IDBDatabase> {
+  if (openPromise) return openPromise
+  openPromise = new Promise((resolve, reject) => {
+    const request = getIdbFactory().open(IDB_NAME, IDB_VERSION)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(IDB_KV_STORE)) {
+        db.createObjectStore(IDB_KV_STORE, { keyPath: ["pluginId", "key"] })
+      }
+      if (!db.objectStoreNames.contains(IDB_TOTALS_STORE)) {
+        db.createObjectStore(IDB_TOTALS_STORE, { keyPath: "pluginId" })
+      }
+    }
+    request.onsuccess = () => {
+      const db = request.result
+      db.onversionchange = () => {
+        openPromise = null
+        db.close()
+      }
+      resolve(db)
+    }
+    request.onerror = () => {
+      openPromise = null
+      reject(request.error ?? new Error("打开 IndexedDB 失败"))
+    }
+    request.onblocked = () => {
+      openPromise = null
+      reject(new Error("IndexedDB 升级被阻塞"))
+    }
+  })
+  return openPromise
 }
 
-export function setPluginStorageValue(storage: PluginStorage, pluginId: string, key: string, value: unknown): void {
-  const targetKey = pluginStorageKey(pluginId, normalizeStorageKey(key))
-  const serialized = JSON.stringify(value ?? null)
-  if (utf8Size(serialized) > MAX_PLUGIN_STORAGE_VALUE_BYTES) {
+function runIdb<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error("IndexedDB 请求失败"))
+  })
+}
+
+async function readTotalsBytes(db: IDBDatabase, pluginId: string): Promise<number> {
+  const tx = db.transaction(IDB_TOTALS_STORE, "readonly")
+  const record = (await runIdb(tx.objectStore(IDB_TOTALS_STORE).get(pluginId))) as
+    | TotalsRecord
+    | undefined
+  return record?.bytes ?? 0
+}
+
+async function getKvRecord(db: IDBDatabase, pluginId: string, key: string): Promise<KvRecord | undefined> {
+  const tx = db.transaction(IDB_KV_STORE, "readonly")
+  return (await runIdb(tx.objectStore(IDB_KV_STORE).get([pluginId, key]))) as KvRecord | undefined
+}
+
+export async function getPluginStorageValue(pluginId: string, key: string): Promise<unknown> {
+  const db = await openIdb()
+  const record = await getKvRecord(db, pluginId, normalizePluginStorageKey(key))
+  return record ? record.value : null
+}
+
+export async function setPluginStorageValue(
+  pluginId: string,
+  key: string,
+  value: unknown,
+): Promise<void> {
+  const normalizedKey = normalizePluginStorageKey(key)
+  const serialized = serializeValue(value)
+  const newSize = utf8Size(serialized)
+  if (newSize > MAX_PLUGIN_STORAGE_VALUE_BYTES) {
     throw new Error("插件单个存储值超过 256 KiB")
   }
 
-  const prefix = pluginStoragePrefix(pluginId)
-  let totalBytes = utf8Size(targetKey) + utf8Size(serialized)
-  for (let index = 0; index < storage.length; index += 1) {
-    const existingKey = storage.key(index)
-    if (!existingKey?.startsWith(prefix) || existingKey === targetKey) continue
-    totalBytes += utf8Size(existingKey) + utf8Size(storage.getItem(existingKey) ?? "")
-  }
-  if (totalBytes > MAX_PLUGIN_STORAGE_BYTES) {
+  const db = await openIdb()
+  const existing = await getKvRecord(db, pluginId, normalizedKey)
+  const oldSize = existing?.size ?? 0
+  const currentBytes = await readTotalsBytes(db, pluginId)
+  const nextBytes = currentBytes - oldSize + newSize
+  if (nextBytes > MAX_PLUGIN_STORAGE_BYTES) {
     throw new Error("插件存储空间超过 1 MiB")
   }
-  storage.setItem(targetKey, serialized)
+
+  const tx = db.transaction([IDB_KV_STORE, IDB_TOTALS_STORE], "readwrite")
+  await runIdb(
+    tx.objectStore(IDB_KV_STORE).put({
+      pluginId,
+      key: normalizedKey,
+      size: newSize,
+      value,
+    } satisfies KvRecord),
+  )
+  await runIdb(
+    tx
+      .objectStore(IDB_TOTALS_STORE)
+      .put({ pluginId, bytes: nextBytes } satisfies TotalsRecord),
+  )
 }
 
-export function removePluginStorageValue(storage: PluginStorage, pluginId: string, key: string): void {
-  storage.removeItem(pluginStorageKey(pluginId, normalizeStorageKey(key)))
+export async function removePluginStorageValue(pluginId: string, key: string): Promise<void> {
+  const normalizedKey = normalizePluginStorageKey(key)
+  const db = await openIdb()
+  const existing = await getKvRecord(db, pluginId, normalizedKey)
+  if (!existing) return
+
+  const tx = db.transaction([IDB_KV_STORE, IDB_TOTALS_STORE], "readwrite")
+  await runIdb(tx.objectStore(IDB_KV_STORE).delete([pluginId, normalizedKey]))
+  const currentBytes = await readTotalsBytes(db, pluginId)
+  const nextBytes = Math.max(0, currentBytes - existing.size)
+  await runIdb(
+    tx
+      .objectStore(IDB_TOTALS_STORE)
+      .put({ pluginId, bytes: nextBytes } satisfies TotalsRecord),
+  )
 }
 
-export function clearPluginStorage(storage: PluginStorage, pluginId: string): void {
-  for (const key of listPluginStorageKeys(storage, pluginId)) {
-    storage.removeItem(pluginStorageKey(pluginId, key))
-  }
+export async function listPluginStorageKeys(pluginId: string): Promise<string[]> {
+  const db = await openIdb()
+  const tx = db.transaction(IDB_KV_STORE, "readonly")
+  const range = IDBKeyRange.bound([pluginId, ""], [pluginId, "\uffff"])
+  const records = (await runIdb(tx.objectStore(IDB_KV_STORE).getAll(range))) as KvRecord[]
+  return records.map((record) => record.key).sort((a, b) => a.localeCompare(b))
+}
+
+export async function clearPluginStorage(pluginId: string): Promise<void> {
+  const db = await openIdb()
+  const tx = db.transaction([IDB_KV_STORE, IDB_TOTALS_STORE], "readwrite")
+  const range = IDBKeyRange.bound([pluginId, ""], [pluginId, "\uffff"])
+  await runIdb(tx.objectStore(IDB_KV_STORE).delete(range))
+  await runIdb(tx.objectStore(IDB_TOTALS_STORE).delete(pluginId))
 }

@@ -227,35 +227,12 @@ export default function DesktopPluginPage() {
         const dispatched = await dispatchDesktopPluginHostRequest(request, {
           manifest: currentPlugin.manifest as ThunderPluginManifest,
           storage: {
-            get: (key) =>
-              getPluginStorageValue(
-                window.localStorage,
-                currentPlugin.manifest.id,
-                key,
-              ),
+            get: (key) => getPluginStorageValue(currentPlugin.manifest.id, key),
             set: (key, value) =>
-              setPluginStorageValue(
-                window.localStorage,
-                currentPlugin.manifest.id,
-                key,
-                value,
-              ),
-            remove: (key) =>
-              removePluginStorageValue(
-                window.localStorage,
-                currentPlugin.manifest.id,
-                key,
-              ),
-            keys: () =>
-              listPluginStorageKeys(
-                window.localStorage,
-                currentPlugin.manifest.id,
-              ),
-            clear: () =>
-              clearPluginStorage(
-                window.localStorage,
-                currentPlugin.manifest.id,
-              ),
+              setPluginStorageValue(currentPlugin.manifest.id, key, value),
+            remove: (key) => removePluginStorageValue(currentPlugin.manifest.id, key),
+            keys: () => listPluginStorageKeys(currentPlugin.manifest.id),
+            clear: () => clearPluginStorage(currentPlugin.manifest.id),
           },
           setFrameHeight,
           addNotification: (params) => {

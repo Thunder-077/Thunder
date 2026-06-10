@@ -19,13 +19,6 @@ export interface PluginRegistry {
   list(): RegisteredPlugin[]
 }
 
-export interface PluginStorage {
-  readonly root: string
-  get<T>(pluginId: string, key: string): T | null
-  set(pluginId: string, key: string, value: unknown): void
-  delete(pluginId: string, key: string): boolean
-}
-
 export interface PluginInstallResult {
   manifest: ThunderPluginManifest
   pluginRoot: string

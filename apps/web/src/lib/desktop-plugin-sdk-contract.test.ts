@@ -54,15 +54,15 @@ async function main() {
         void dispatchDesktopPluginHostRequest(input, {
           manifest: activeManifest,
           storage: {
-            get: (key) => storage.get(key) ?? null,
-            set: (key, value) => {
+            get: async (key) => storage.get(key) ?? null,
+            set: async (key, value) => {
               storage.set(key, value)
             },
-            remove: (key) => {
+            remove: async (key) => {
               storage.delete(key)
             },
-            keys: () => [...storage.keys()].sort(),
-            clear: () => storage.clear(),
+            keys: async () => [...storage.keys()].sort(),
+            clear: async () => storage.clear(),
           },
           setFrameHeight(height) {
             frameHeight = height

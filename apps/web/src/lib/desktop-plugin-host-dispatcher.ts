@@ -10,11 +10,11 @@ import {
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
 export interface DesktopPluginHostStorage {
-  get(key: string): unknown | null
-  set(key: string, value: unknown): void
-  remove(key: string): void
-  keys(): string[]
-  clear(): void
+  get(key: string): Promise<unknown | null>
+  set(key: string, value: unknown): Promise<void>
+  remove(key: string): Promise<void>
+  keys(): Promise<string[]>
+  clear(): Promise<void>
 }
 
 export interface DesktopPluginHostContext {
@@ -61,19 +61,19 @@ export async function dispatchDesktopPluginHostRequest(
       context.setFrameHeight(request.params.height)
       break
     case "storage.get":
-      result = context.storage.get(request.params.key)
+      result = await context.storage.get(request.params.key)
       break
     case "storage.set":
-      context.storage.set(request.params.key, request.params.value)
+      await context.storage.set(request.params.key, request.params.value)
       break
     case "storage.remove":
-      context.storage.remove(request.params.key)
+      await context.storage.remove(request.params.key)
       break
     case "storage.keys":
-      result = context.storage.keys()
+      result = await context.storage.keys()
       break
     case "storage.clear":
-      context.storage.clear()
+      await context.storage.clear()
       break
     case "notification.add":
       context.addNotification(request.params)

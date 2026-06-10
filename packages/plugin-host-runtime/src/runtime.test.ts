@@ -6,7 +6,6 @@ import {
   createPipeClient,
   createPluginInstaller,
   createPluginRegistry,
-  createPluginStorage,
   createSandboxedRuntime,
   createTrustedRuntimeSupervisor,
   loadInstalledPluginManifest,
@@ -64,17 +63,6 @@ assert.equal(manifest.id, "teleprompter")
 const registry = createPluginRegistry(root)
 registry.register(pluginDir, manifest)
 assert.equal(registry.list().length, 1)
-
-const storage = createPluginStorage(root)
-storage.set("teleprompter", "draft", { text: "hello" })
-assert.deepEqual(storage.get("teleprompter", "draft"), { text: "hello" })
-assert.equal(storage.delete("teleprompter", "draft"), true)
-assert.equal(storage.get("teleprompter", "draft"), null)
-
-assert.throws(
-  () => storage.set("../escape", "draft", { text: "bad" }),
-  /Invalid plugin id for host runtime storage/,
-)
 
 const installer = createPluginInstaller(root)
 const installed = await installer.installFromDirectory(pluginDir)

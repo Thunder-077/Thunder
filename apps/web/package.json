@@ -55,6 +55,7 @@
     "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "fake-indexeddb": "^6.2.5",
     "postcss": "^8.5.15",
     "sharp": "^0.34.5",
     "stylelint": "^16.0.0",

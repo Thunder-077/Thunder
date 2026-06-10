@@ -126,6 +126,31 @@ origin 也必须已声明。当前不支持 Secrets、命令贡献点或设置�
 资源限制：插件存储总量 1 MiB、单值 256 KiB、Bridge 请求 512 KiB、
 网络请求体 1 MiB、网络响应 5 MiB、网络超时 10 秒。
 
+### 插件存储后端
+
+`storage.*` 桥接方法在宿主页 `apps/web/src/app/plugins/[pluginId]/page.tsx`
+中落到 IndexedDB（数据库 `thunder-desktop-plugins`），不再使用
+`window.localStorage`：
+
+- `kv` store：以 `[pluginId, key]` 为复合主键存 `{ size, value }`
+- `totals` store：以 `pluginId` 为主键存当前累计字节数
+
+宿主是 Tauri WebView 时，IndexedDB 落到 WebView 的用户数据目录
+（Windows 上是 `AppData/Local/com.thunder.desktop/EBWebView/`），跨应用
+重启持久化。未来 Web 端也使用同一份代码，存储直接走浏览器 IndexedDB
+配额（远大于 localStorage 的 5 MiB 上限）。
+
+配额校验改为 O(1)：每次写入只读取对应 pluginId 的 `totals` 记录并按
+delta 增减，扫描次数与键数量无关。`storage.set` 在写入前会：
+
+1. 序列化并计算新值字节数；超过 256 KiB 拒绝。
+2. 读取同 key 旧记录，计算 `nextBytes = currentBytes - oldSize + newSize`；
+   超过 1 MiB 拒绝。
+3. 在单个 readwrite 事务中写入新记录与新 totals。
+
+存储接口 `DesktopPluginHostStorage` 全部为 async；调用方（宿主页
+`page.tsx`）和 dispatcher 已经统一 `await`。
+
 ## Trusted Worker / Runtime
 
 trusted runtime 由平台统一托管，不暴露为插件自行控制的公开 HTTP 服务。

@@ -104,6 +104,10 @@ Host Bridge 的唯一协议源是 `packages/plugin-protocol`。它统一维护�
 版本、消息 envelope、方法参数、返回值和权限映射；SDK 与宿主不得各自
 维护方法清单。
 
+`storage.*` 方法的实际存储后端是宿主页（`apps/web/src/app/plugins/[pluginId]/page.tsx`）
+持有的 IndexedDB，详见 `docs/desktop-plugin-system.md#插件存储后端`。
+协议层只关心方法与权限，不耦合到具体存储实现。
+
 网络能力由 API 代理实现，并使用 `network:<origin>` 精确授权；iframe
 自身的 CSP 不开放外部连接。当前稳定能力不包含 Secrets、命令贡献点或
 设置贡献点。`runtime.*`、`secrets`、`contributes.commands` 和
