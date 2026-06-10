@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { createBrowserSpeechController, isBrowserSpeechRecognitionSupported } from "./adapters/browser-speech-controller"
 import type {
   SpeechRuntimeHealthResult,
   SpeechSessionFeedResult,
@@ -9,6 +10,56 @@ import type {
   SpeechWorkerModelRecord,
 } from "./adapters/speech-worker-types"
 import worker from "./worker"
+
+class FakeSpeechRecognition extends EventTarget {
+  static last: FakeSpeechRecognition | null = null
+  continuous = false
+  interimResults = false
+  lang = ""
+  maxAlternatives = 1
+  onend: (() => void) | null = null
+  onerror: ((event: Event & { error: string }) => void) | null = null
+  onresult: ((event: Event & {
+    resultIndex: number
+    results: ArrayLike<{
+      isFinal: boolean
+      0: { transcript: string; confidence: number }
+      item: (index: number) => { transcript: string; confidence: number }
+      length: number
+    }>
+  }) => void) | null = null
+
+  constructor() {
+    super()
+    FakeSpeechRecognition.last = this
+  }
+
+  start() {}
+  stop() {}
+  abort() {}
+
+  emitResult(transcript: string, isFinal: boolean) {
+    this.onresult?.({
+      resultIndex: 0,
+      results: [
+        {
+          isFinal,
+          0: { transcript, confidence: 0.91 },
+          item: () => ({ transcript, confidence: 0.91 }),
+          length: 1,
+        },
+      ],
+    } as unknown as Event & {
+      resultIndex: number
+      results: ArrayLike<{
+        isFinal: boolean
+        0: { transcript: string; confidence: number }
+        item: (index: number) => { transcript: string; confidence: number }
+        length: number
+      }>
+    })
+  }
+}
 
 function createJsonResponse<T>(data: T): Response {
   return new Response(JSON.stringify({ ok: true, data }), {
@@ -31,6 +82,41 @@ assert.equal(typeof worker.handlers["speech.models.activate"], "function")
 
 const originalBridgeUrl = process.env.THUNDER_DESKTOP_NATIVE_API_URL
 const originalFetch = globalThis.fetch
+const originalWindow = (globalThis as typeof globalThis & { window?: unknown }).window
+
+{
+  ;(globalThis as typeof globalThis & { window?: unknown }).window = {
+    SpeechRecognition: FakeSpeechRecognition,
+    setTimeout,
+  }
+
+  assert.equal(isBrowserSpeechRecognitionSupported(), true)
+  let browserStatus = "idle"
+  let browserResult: { text: string; isFinal: boolean } | null = null
+  let browserError: string | null = null
+  const controller = createBrowserSpeechController({
+    onResult: (result) => {
+      browserResult = result
+    },
+    onStatus: (status) => {
+      browserStatus = status
+    },
+    onError: (message) => {
+      browserError = message
+    },
+  })
+
+  await controller.start()
+  assert.equal(browserStatus, "listening")
+  FakeSpeechRecognition.last?.emitResult("插件 语音", false)
+  assert.deepEqual(browserResult, {
+    text: "插件 语音",
+    isFinal: false,
+  })
+  assert.equal(browserError, null)
+  controller.stop()
+  controller.dispose()
+}
 
 try {
   process.env.THUNDER_DESKTOP_NATIVE_API_URL = "http://127.0.0.1:43102"
@@ -174,6 +260,7 @@ try {
 } finally {
   process.env.THUNDER_DESKTOP_NATIVE_API_URL = originalBridgeUrl
   globalThis.fetch = originalFetch
+  ;(globalThis as typeof globalThis & { window?: unknown }).window = originalWindow
 }
 
 console.log("[teleprompter-v2] tests passed")
