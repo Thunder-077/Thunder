@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { SpeechProvider } from "@thunder/teleprompter-core"
+import {
+  createBrowserSpeechController,
+  isBrowserSpeechRecognitionSupported,
+} from "../adapters/browser-speech-controller"
 import { pluginSpeechRuntime } from "../adapters/plugin-speech-runtime"
 
 type PluginFollowSpeechResult = {
@@ -21,6 +25,28 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
   const [streamedSamples, setStreamedSamples] = useState(0)
   const sessionIdRef = useRef<string | null>(null)
   const statusRef = useRef<"idle" | "listening" | "paused" | "stopped" | "error">("idle")
+  const browserSpeechControllerRef = useRef(
+    createBrowserSpeechController({
+      onResult: (result) => {
+        setLastResult({
+          text: result.text,
+          isFinal: result.isFinal,
+        })
+      },
+      onStatus: (nextStatus) => {
+        if (nextStatus === "unsupported") {
+          return
+        }
+        setStatus(nextStatus)
+        statusRef.current = nextStatus
+      },
+      onError: (message) => {
+        setStatus("error")
+        statusRef.current = "error"
+        setError(message)
+      },
+    })
+  )
   const mediaResourcesRef = useRef<{
     stream: MediaStream | null
     audioContext: AudioContext | null
@@ -149,7 +175,11 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
 
     if (statusRef.current === "paused" && sessionIdRef.current) {
       try {
-        await startStreaming(sessionIdRef.current)
+        if (provider === "web-speech") {
+          await browserSpeechControllerRef.current.start()
+        } else {
+          await startStreaming(sessionIdRef.current)
+        }
         setStatus("listening")
         statusRef.current = "listening"
       } catch (startError) {
@@ -161,35 +191,50 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
     }
 
     setStreamedSamples(0)
-    const session = await pluginSpeechRuntime.startSession({
-      provider,
-    })
-    sessionIdRef.current = session.sessionId
-    setSessionId(session.sessionId)
-    setStatus(session.status)
-    statusRef.current = session.status
     try {
-      await startStreaming(session.sessionId)
+      const session = await pluginSpeechRuntime.startSession({
+        provider,
+      })
+      sessionIdRef.current = session.sessionId
+      setSessionId(session.sessionId)
+      setStatus(session.status)
+      statusRef.current = session.status
+
+      if (provider === "web-speech") {
+        await browserSpeechControllerRef.current.start()
+      } else {
+        await startStreaming(session.sessionId)
+      }
     } catch (startError) {
-      await pluginSpeechRuntime.stopSession({ sessionId: session.sessionId }).catch(() => undefined)
+      if (sessionIdRef.current) {
+        await pluginSpeechRuntime.stopSession({ sessionId: sessionIdRef.current }).catch(() => undefined)
+      }
       sessionIdRef.current = null
       setSessionId(null)
       setStatus("error")
       statusRef.current = "error"
       setError(startError instanceof Error ? startError.message : String(startError))
     }
-  }, [startStreaming])
+  }, [provider, startStreaming])
 
   const pause = useCallback(() => {
-    void stopStreaming(sessionIdRef.current, false)
+    if (provider === "web-speech") {
+      browserSpeechControllerRef.current.pause()
+    } else {
+      void stopStreaming(sessionIdRef.current, false)
+    }
     setStatus("paused")
     statusRef.current = "paused"
-  }, [stopStreaming])
+  }, [provider, stopStreaming])
 
   const stop = useCallback(() => {
     const activeSessionId = sessionIdRef.current
     void (async () => {
-      await stopStreaming(activeSessionId, true)
+      if (provider === "web-speech") {
+        browserSpeechControllerRef.current.stop()
+      } else {
+        await stopStreaming(activeSessionId, true)
+      }
       if (activeSessionId) {
         await pluginSpeechRuntime.stopSession({ sessionId: activeSessionId }).catch(() => undefined)
       }
@@ -198,7 +243,7 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
       setStatus("stopped")
       statusRef.current = "stopped"
     })()
-  }, [stopStreaming])
+  }, [provider, stopStreaming])
 
   const clearResult = useCallback(() => {
     setLastResult(null)
@@ -243,13 +288,14 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
 
   useEffect(() => () => {
     void cleanupMediaResources()
+    browserSpeechControllerRef.current.dispose()
   }, [cleanupMediaResources])
 
   return useMemo(() => ({
     status,
     error,
     lastResult,
-    isSupported: true,
+    isSupported: provider === "web-speech" ? isBrowserSpeechRecognitionSupported() : true,
     streamedSamples,
     streamingActive,
     start,
@@ -258,5 +304,5 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
     clearResult,
     clearError,
     submitTranscript,
-  }), [clearError, clearResult, error, lastResult, pause, start, status, stop, streamedSamples, streamingActive, submitTranscript])
+  }), [clearError, clearResult, error, lastResult, pause, provider, start, status, stop, streamedSamples, streamingActive, submitTranscript])
 }
