@@ -462,7 +462,7 @@ export default function DesktopPluginPage() {
     ? "allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
     : "allow-forms allow-modals allow-popups allow-scripts"
   return (
-    <div className="min-h-0">
+    <div className="min-h-0 overflow-hidden rounded-xl border border-border/30 bg-background shadow-sm">
       <iframe
         ref={iframeRef}
         title={plugin.manifest.name}

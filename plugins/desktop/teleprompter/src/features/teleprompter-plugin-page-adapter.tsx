@@ -48,7 +48,7 @@ export function TeleprompterPluginPageAdapter() {
   return (
     <TeleprompterPage
       header={(
-        <header className="mb-4 flex flex-col gap-4 border-b border-border/50 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <header className="flex flex-col gap-4 pb-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 max-w-3xl">
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">提词器</h1>
           </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/sidebar"
 import { UtilityCluster } from "@/components/utility-cluster"
@@ -8,10 +8,14 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { useDesktopTitlebar } from "@/hooks/use-desktop-titlebar"
 
+const SIDEBAR_COLLAPSED_KEY = "thunder-sidebar-collapsed"
+
 type AppShellContextValue = {
   hasPageHeader: boolean
   setHasPageHeader: (value: boolean) => void
   onToggleSidebar: () => void
+  sidebarCollapsed: boolean
+  toggleSidebarCollapsed: () => void
 }
 
 const AppShellContext = createContext<AppShellContextValue | null>(null)
@@ -136,6 +140,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [hasPageHeader, setHasPageHeader] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true"
+  })
+
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next))
+      return next
+    })
+  }, [])
 
   useDesktopTitlebar()
 
@@ -154,6 +170,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         hasPageHeader,
         setHasPageHeader,
         onToggleSidebar: () => setMobileSidebarOpen(true),
+        sidebarCollapsed,
+        toggleSidebarCollapsed,
       }}
     >
       <div className="surface-shell relative flex h-screen flex-col overflow-hidden bg-background">
@@ -162,8 +180,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </DesktopTitlebar>
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <AppSidebar
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={toggleSidebarCollapsed}
             className={cn(
-              "hidden shrink-0 md:flex"
+              "hidden shrink-0 border-r border-panel-border transition-[width] duration-200 ease-in-out md:flex"
             )}
           />
 
@@ -177,7 +197,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
 
-          <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden shadow-[-1px_0_0_0_var(--panel-border)]">
             <main className="flex-1 overflow-y-auto">
               <div className="web-utility-bar pointer-events-none sticky top-0 z-[var(--z-sticky)]">
                   <div className="pointer-events-auto flex justify-end px-4 pt-4 sm:px-6 sm:pt-5 xl:px-8">

@@ -142,7 +142,7 @@ services/*        → 非 TypeScript 独立服务（预留，仅通过 apps/api 
 - 页面遵循 `AppShell + Sidebar + Topbar + Content` 布局
 - 模块页面实现放在 `src/modules/{id}/page.tsx`，由统一动态路由挂载到 `src/app/modules/[moduleId]/`
 - 使用 `PageHeader` 作为页面标题，`EmptyState` 作为空状态
-- **Sidebar**: 固定展开（240px），不支持收起；底部只保留全局命令、主题切换、设置按钮
+- **Sidebar**: 展开宽度 240px，收起宽度 56px，支持用户切换；收起时仅显示图标 + Tooltip，状态持久化到 localStorage；底部包含设置入口和收起/展开按钮
 - Sidebar 导航来自 `ModuleRegistry`，禁止硬编码业务模块
 - 修改 UI / Sidebar 时同步更新 `docs/ui-design.md`
 

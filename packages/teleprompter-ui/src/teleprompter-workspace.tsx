@@ -566,10 +566,10 @@ export function TeleprompterWorkspace({
   }
 
   return (
-    <div className="flex flex-col gap-4" style={{ minHeight, height }}>
+    <div className="flex flex-col gap-4 rounded-xl bg-background p-4" style={{ minHeight, height }}>
       {header}
 
-      <div className="flex shrink-0 gap-2">
+      <div className="flex shrink-0 gap-2 pl-0.5">
         <Button
           variant="outline"
           onClick={() => {

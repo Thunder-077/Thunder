@@ -235,6 +235,7 @@
   --z-max: 999;
 
   --sidebar-width: 240px;
+  --sidebar-collapsed-width: 56px;
   --topbar-height: 48px;
   --content-max-width: 1200px;
   --input-height: 44px;
@@ -420,7 +421,9 @@
 
   .app-sidebar {
     background:
-      linear-gradient(180deg, color-mix(in srgb, var(--sidebar) 96%, transparent), color-mix(in srgb, var(--surface-2) 88%, transparent));
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--sidebar) 96%, var(--sidebar-foreground) 4%),
+        color-mix(in srgb, var(--surface-2) 92%, var(--sidebar-foreground) 8%));
   }
 
   .login-page-surface {

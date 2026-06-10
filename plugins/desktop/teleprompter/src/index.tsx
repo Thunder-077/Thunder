@@ -35,6 +35,9 @@ function PluginFrameAutoHeight() {
 
 function PluginThemeSync() {
   React.useEffect(() => {
+    // Ensure body background matches the theme variable
+    document.body.style.background = "var(--background)"
+
     const unsubscribe = thunder.theme.onChange((theme) => {
       document.documentElement.classList.toggle("dark", theme === "dark")
       document.documentElement.dataset.theme = theme

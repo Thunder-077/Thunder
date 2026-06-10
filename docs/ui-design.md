@@ -12,7 +12,7 @@
 
 ### 整体布局
 
-- Sidebar 固定展开，宽度 `240px`。
+- Sidebar 支持展开（240px）和收起（56px）两种状态，用户可切换，状态持久化到 localStorage。
 - 内容区使用 `AppShell` 统一承载。
 - Tauri 桌面端使用 `tauri-plugin-decorum` 创建 overlay 标题栏；Windows 窗口控制按钮由 decorum 注入并通过 CSS 定制，macOS 保留系统 traffic lights；业务工具组不得进入窗口标题栏。
 - 普通页面顶部使用统一 `PageHeader` 结构：左侧标题/描述，右侧操作区。
@@ -25,7 +25,7 @@
 
 ### Sidebar 规范
 
-- 固定展开，不支持桌面端折叠。
+- 支持桌面端折叠（收起态仅显示图标 + Tooltip，底部提供收起/展开按钮和设置入口）。
 - 顶部为品牌区，使用弱玻璃面板和轻品牌色强调。
 - 导航分为固定导航和模块分组导航。
 - 业务模块导航来自 `ModuleRegistry`；新增模块只补充模块 manifest 和对应图标映射，不在 Sidebar 中硬编码业务路由。

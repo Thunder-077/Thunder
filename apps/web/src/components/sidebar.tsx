@@ -13,6 +13,7 @@ import {
   Timer,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Film,
   ScrollText,
   Package,
@@ -23,6 +24,7 @@ import { useDesktopPlugins } from "@/hooks/use-desktop-plugins"
 import { desktopPluginToModuleManifest } from "@/lib/quick-access-modules"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ModuleCategory, ModuleManifest } from "@thunder/core"
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -57,6 +59,8 @@ const categoryOrder: ModuleCategory[] = [
 interface SidebarProps {
   className?: string
   onNavigate?: () => void
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
 }
 
 function SidebarNavItem({
@@ -65,19 +69,22 @@ function SidebarNavItem({
   label,
   active,
   onNavigate,
+  collapsed,
 }: {
   href: string
   icon: React.ComponentType<{ className?: string }>
   label: string
   active: boolean
   onNavigate?: () => void
+  collapsed?: boolean
 }) {
-  return (
+  const content = (
     <Link
       href={href}
       onClick={onNavigate}
       className={cn(
-        "group/sidebar-item flex h-8 w-full items-center gap-2 rounded-md px-2 text-[14px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
+        "group/sidebar-item flex h-8 w-full items-center gap-2 rounded-md text-[14px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
+        collapsed ? "justify-center px-0" : "px-2",
         active
           ? "bg-muted/70 text-foreground"
           : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -89,12 +96,39 @@ function SidebarNavItem({
           active ? "text-foreground" : "text-muted-foreground group-hover/sidebar-item:text-sidebar-accent-foreground"
         )}
       />
-      <span className={cn("flex-1 truncate", active ? "font-medium" : "font-normal")}>{label}</span>
+      {!collapsed && (
+        <span className={cn("flex-1 truncate", active ? "font-medium" : "font-normal")}>{label}</span>
+      )}
     </Link>
   )
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={<Link href={href} onClick={onNavigate} className={cn(
+            "group/sidebar-item flex h-8 w-full items-center justify-center rounded-md text-[14px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
+            active
+              ? "bg-muted/70 text-foreground"
+              : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          )} />}
+        >
+          <Icon
+            className={cn(
+              "h-4 w-4 shrink-0 transition-colors",
+              active ? "text-foreground" : "text-muted-foreground group-hover/sidebar-item:text-sidebar-accent-foreground"
+            )}
+          />
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8}>{label}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return content
 }
 
-export function AppSidebar({ className, onNavigate }: SidebarProps) {
+export function AppSidebar({ className, onNavigate, collapsed, onToggleCollapsed }: SidebarProps) {
   const pathname = usePathname()
   const registry = useModuleRegistry()
   const desktopPlugins = useDesktopPlugins()
@@ -141,99 +175,163 @@ export function AppSidebar({ className, onNavigate }: SidebarProps) {
     }))
   }
 
-  return (
-    <aside
+  // 收起态：底部设置项 + 展开按钮
+  const settingsContent = collapsed ? (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Link
+            href="/settings"
+            onClick={onNavigate}
+            className={cn(
+              "group/sidebar-item flex h-8 w-full items-center justify-center rounded-md text-[14px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
+              pathname === "/settings"
+                ? "bg-muted/70 text-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            )}
+            aria-label="设置"
+          />
+        }
+      >
+        <Settings
+          className={cn(
+            "h-4 w-4 shrink-0 transition-colors",
+            pathname === "/settings"
+              ? "text-foreground"
+              : "text-muted-foreground group-hover/sidebar-item:text-sidebar-accent-foreground"
+          )}
+        />
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={8}>设置</TooltipContent>
+    </Tooltip>
+  ) : (
+    <Link
+      href="/settings"
+      onClick={onNavigate}
       className={cn(
-        "app-sidebar surface-panel flex h-full w-[var(--sidebar-width)] flex-col overflow-hidden text-sidebar-foreground",
-        className
+        "group/sidebar-item flex h-8 w-full items-center gap-2 rounded-md px-2 text-[14px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
+        pathname === "/settings"
+          ? "bg-muted/70 text-foreground"
+          : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       )}
+      aria-label="设置"
     >
-      <ScrollArea className="flex-1 px-2 pt-4 pb-3">
-        <div className="space-y-3 px-1">
-          <nav className="flex flex-col gap-0.5">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href
-              return (
-                <SidebarNavItem
-                  key={item.href}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  active={isActive}
-                  onNavigate={onNavigate}
-                />
-              )
-            })}
-          </nav>
+      <Settings
+        className={cn(
+          "h-4 w-4 shrink-0 transition-colors",
+          pathname === "/settings"
+            ? "text-foreground"
+            : "text-muted-foreground group-hover/sidebar-item:text-sidebar-accent-foreground"
+        )}
+      />
+      <span className={pathname === "/settings" ? "font-medium" : "font-normal"}>设置</span>
+    </Link>
+  )
 
-          {groupedModules.length > 0 && (
-            <>
-              <Separator className="bg-sidebar-border/80" />
-              <div className="space-y-2">
-                {groupedModules.map(({ category, modules: categoryModules }) => {
-                  const expanded = expandedGroups[category] ?? true
-                  return (
-                    <section key={category} className="space-y-1">
-                      <button
-                        type="button"
-                        className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs text-sidebar-foreground/58 outline-none transition-all duration-normal ease-default hover:scale-[1.03] hover:bg-sidebar-group-hover hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset"
-                        onClick={() => toggleGroup(category)}
-                      >
-                        <span className="flex-1 text-left text-[13px] font-semibold">
-                          {categoryLabels[category]}
-                        </span>
-                        {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                      </button>
-                      {expanded && (
-                        <nav className="flex flex-col gap-0.5">
-                          {categoryModules.map((mod) => {
-                            const Icon = iconMap[mod.icon] ?? LayoutGrid
-                            const isActive = pathname === mod.route || pathname.startsWith(mod.route + "/")
-                            return (
-                              <SidebarNavItem
-                                key={mod.id}
-                                href={mod.route}
-                                icon={Icon}
-                                label={mod.name}
-                                active={isActive}
-                                onNavigate={onNavigate}
-                              />
-                            )
-                          })}
-                        </nav>
-                      )}
-                    </section>
-                  )
-                })}
-              </div>
-            </>
+  return (
+    <TooltipProvider delay={400}>
+      <aside
+        className={cn(
+          "app-sidebar surface-panel flex h-full flex-col overflow-hidden text-sidebar-foreground",
+          collapsed ? "w-[var(--sidebar-collapsed-width)]" : "w-[var(--sidebar-width)]",
+          className
+        )}
+      >
+        <ScrollArea className={cn("flex-1 pt-4 pb-3", collapsed ? "px-1.5" : "px-2")}>
+          <div className={cn("space-y-3", collapsed ? "px-0.5" : "px-1")}>
+            {/* 顶级导航 */}
+            <nav className="flex flex-col gap-0.5">
+              {navItems.map((item) => {
+                const isActive = pathname === item.href
+                return (
+                  <SidebarNavItem
+                    key={item.href}
+                    href={item.href}
+                    icon={item.icon}
+                    label={item.label}
+                    active={isActive}
+                    onNavigate={onNavigate}
+                    collapsed={collapsed}
+                  />
+                )
+              })}
+            </nav>
+
+            {/* 模块分组 */}
+            {groupedModules.length > 0 && (
+              <>
+                <Separator className="bg-sidebar-border/80" />
+                <div className="space-y-2">
+                  {groupedModules.map(({ category, modules: categoryModules }) => {
+                    const expanded = expandedGroups[category] ?? true
+                    return (
+                      <section key={category} className={collapsed ? "space-y-0.5" : "space-y-1"}>
+                        {/* 展开态：分类标题 + 折叠按钮 */}
+                        {!collapsed && (
+                          <button
+                            type="button"
+                            className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-xs text-sidebar-foreground/58 outline-none transition-all duration-normal ease-default hover:scale-[1.03] hover:bg-sidebar-group-hover hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset"
+                            onClick={() => toggleGroup(category)}
+                          >
+                            <span className="flex-1 text-left text-[13px] font-semibold">
+                              {categoryLabels[category]}
+                            </span>
+                            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+                        {/* 收起态：始终显示所有模块图标；展开态：根据 expanded 显示 */}
+                        {(collapsed || expanded) && (
+                          <nav className="flex flex-col gap-0.5">
+                            {categoryModules.map((mod) => {
+                              const Icon = iconMap[mod.icon] ?? LayoutGrid
+                              const isActive = pathname === mod.route || pathname.startsWith(mod.route + "/")
+                              return (
+                                <SidebarNavItem
+                                  key={mod.id}
+                                  href={mod.route}
+                                  icon={Icon}
+                                  label={mod.name}
+                                  active={isActive}
+                                  onNavigate={onNavigate}
+                                  collapsed={collapsed}
+                                />
+                              )
+                            })}
+                          </nav>
+                        )}
+                      </section>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* 底部区域：设置 + 收起按钮 */}
+        <div className={cn("border-t border-sidebar-border/80 py-2", collapsed ? "px-1.5 space-y-1" : "px-2.5 space-y-1")}>
+          {settingsContent}
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              className={cn(
+                "group/sidebar-item flex h-8 w-full items-center rounded-md text-[14px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                collapsed ? "justify-center px-0" : "gap-2 px-2"
+              )}
+              aria-label={collapsed ? "展开导航栏" : "收起导航栏"}
+            >
+              <ChevronLeft
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-transform",
+                  collapsed && "rotate-180"
+                )}
+              />
+              {!collapsed && <span className="font-normal">收起导航</span>}
+            </button>
           )}
         </div>
-      </ScrollArea>
-
-      <div className="border-t border-sidebar-border/80 px-2.5 py-2">
-        <Link
-          href="/settings"
-          onClick={onNavigate}
-          className={cn(
-            "group/sidebar-item flex h-8 w-full items-center gap-2 rounded-md px-2 text-[14px] font-medium leading-5 outline-none transition-all duration-normal ease-default hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring/45 focus-visible:ring-inset",
-            pathname === "/settings"
-              ? "bg-muted/70 text-foreground"
-              : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          )}
-          aria-label="设置"
-        >
-          <Settings
-            className={cn(
-              "h-4 w-4 shrink-0 transition-colors",
-              pathname === "/settings"
-                ? "text-foreground"
-                : "text-muted-foreground group-hover/sidebar-item:text-sidebar-accent-foreground"
-            )}
-          />
-          <span className={pathname === "/settings" ? "font-medium" : "font-normal"}>设置</span>
-        </Link>
-      </div>
-    </aside>
+      </aside>
+    </TooltipProvider>
   )
 }
