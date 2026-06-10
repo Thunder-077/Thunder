@@ -23,6 +23,12 @@ export type StorageRequestParams = {
 }
 
 type PluginStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">
+const MAX_PLUGIN_STORAGE_BYTES = 1024 * 1024
+const MAX_PLUGIN_STORAGE_VALUE_BYTES = 256 * 1024
+
+function utf8Size(value: string): number {
+  return new TextEncoder().encode(value).byteLength
+}
 
 export function getRequiredPluginPermissionForBridgeMethod(method: string): DesktopPluginPermission | null {
   return isPluginBridgeMethod(method) ? getRequiredPluginPermission(method) : null
@@ -96,7 +102,23 @@ export function getPluginStorageValue(storage: PluginStorage, pluginId: string, 
 }
 
 export function setPluginStorageValue(storage: PluginStorage, pluginId: string, key: string, value: unknown): void {
-  storage.setItem(pluginStorageKey(pluginId, normalizeStorageKey(key)), JSON.stringify(value ?? null))
+  const targetKey = pluginStorageKey(pluginId, normalizeStorageKey(key))
+  const serialized = JSON.stringify(value ?? null)
+  if (utf8Size(serialized) > MAX_PLUGIN_STORAGE_VALUE_BYTES) {
+    throw new Error("插件单个存储值超过 256 KiB")
+  }
+
+  const prefix = pluginStoragePrefix(pluginId)
+  let totalBytes = utf8Size(targetKey) + utf8Size(serialized)
+  for (let index = 0; index < storage.length; index += 1) {
+    const existingKey = storage.key(index)
+    if (!existingKey?.startsWith(prefix) || existingKey === targetKey) continue
+    totalBytes += utf8Size(existingKey) + utf8Size(storage.getItem(existingKey) ?? "")
+  }
+  if (totalBytes > MAX_PLUGIN_STORAGE_BYTES) {
+    throw new Error("插件存储空间超过 1 MiB")
+  }
+  storage.setItem(targetKey, serialized)
 }
 
 export function removePluginStorageValue(storage: PluginStorage, pluginId: string, key: string): void {

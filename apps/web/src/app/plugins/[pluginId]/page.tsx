@@ -19,12 +19,14 @@ import {
   type PluginBridgeRequest,
 } from "@/lib/desktop-plugin-bridge"
 import { dispatchDesktopPluginHostRequest } from "@/lib/desktop-plugin-host-dispatcher"
+import { DesktopPluginRateLimiter } from "@/lib/desktop-plugin-rate-limit"
 import {
   getDesktopPluginRuntimeStatus,
   getDesktopPlugin,
   getDesktopPluginEntryUrl,
   shouldLoadDesktopPlugins,
   invokeDesktopPluginWorker,
+  requestDesktopPluginNetwork,
   type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
 import { notificationStore } from "@/lib/notification-store"
@@ -46,6 +48,7 @@ export default function DesktopPluginPage() {
   const [devLogs, setDevLogs] = useState<PluginLogEntry[]>([])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previousWorkerStatusRef = useRef<string | null>(null)
+  const rateLimiterRef = useRef(new DesktopPluginRateLimiter())
   const { resolvedTheme } = useTheme()
 
   const appendLog = useCallback((level: PluginLogEntry["level"], message: string) => {
@@ -89,7 +92,7 @@ export default function DesktopPluginPage() {
   )
 
   const refreshWorkerStatus = useCallback(async () => {
-    if (!plugin) {
+    if (!plugin || plugin.manifest.kind === "sandboxed") {
       setWorkerStatus({ running: false })
       return
     }
@@ -215,6 +218,11 @@ export default function DesktopPluginPage() {
       }
 
       try {
+        const requestBytes = new TextEncoder().encode(JSON.stringify(request)).byteLength
+        if (requestBytes > 512 * 1024) {
+          throw new Error("插件 Host Bridge 请求超过 512 KiB")
+        }
+        rateLimiterRef.current.assertAllowed(request.method === "network.request")
         const startedAt = performance.now()
         const dispatched = await dispatchDesktopPluginHostRequest(request, {
           manifest: currentPlugin.manifest as ThunderPluginManifest,
@@ -278,6 +286,8 @@ export default function DesktopPluginPage() {
               method,
               payload,
             ),
+          requestNetwork: (params) =>
+            requestDesktopPluginNetwork(currentPlugin.manifest.id, params),
         })
 
         if (dispatched.request.method === "worker.invoke") {
@@ -367,9 +377,13 @@ export default function DesktopPluginPage() {
   }
 
   const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
-  const frameSandbox = isPluginFrameOriginIsolated(frameUrl, hostOrigin)
-    ? "allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
-    : "allow-forms allow-modals allow-popups allow-scripts"
+  const isolated = isPluginFrameOriginIsolated(frameUrl, hostOrigin)
+  const frameSandbox = plugin.manifest.kind === "sandboxed"
+    ? `allow-forms allow-scripts${isolated ? " allow-same-origin" : ""}`
+    : `allow-forms allow-modals allow-popups allow-scripts${isolated ? " allow-same-origin" : ""}`
+  const frameAllow = plugin.manifest.permissions.includes("microphone")
+    ? "microphone; fullscreen"
+    : "fullscreen"
   return (
     <div className="min-h-0 overflow-hidden rounded-xl border border-border/30 bg-background shadow-sm">
       <iframe
@@ -377,7 +391,7 @@ export default function DesktopPluginPage() {
         title={plugin.manifest.name}
         src={frameUrl}
         onLoad={() => appendLog("info", "插件 iframe 已加载")}
-        allow="microphone; fullscreen"
+        allow={frameAllow}
         sandbox={frameSandbox}
         referrerPolicy="no-referrer"
         className="block w-full border-0 bg-transparent"

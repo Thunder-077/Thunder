@@ -21,6 +21,21 @@ export interface PluginActivityParams {
   metadata?: Record<string, unknown>
 }
 
+export type PluginNetworkMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+
+export interface PluginNetworkRequestParams {
+  url: string
+  method?: PluginNetworkMethod
+  headers?: Record<string, string>
+  body?: string
+}
+
+export interface PluginNetworkResponse {
+  status: number
+  headers: Record<string, string>
+  body: string
+}
+
 export interface PluginBridgeMethodMap {
   "plugin.getManifest": {
     params: undefined
@@ -57,6 +72,10 @@ export interface PluginBridgeMethodMap {
   "activity.track": {
     params: PluginActivityParams
     result: undefined
+  }
+  "network.request": {
+    params: PluginNetworkRequestParams
+    result: PluginNetworkResponse
   }
   "worker.invoke": {
     params: { method: string; payload?: unknown }
@@ -103,6 +122,7 @@ export const pluginBridgeMethods = [
   "storage.clear",
   "notification.add",
   "activity.track",
+  "network.request",
   "worker.invoke",
 ] as const satisfies readonly PluginBridgeMethod[]
 
@@ -281,6 +301,39 @@ export function parsePluginBridgeParams(
       description: input.description,
       metadata: input.metadata,
     } as PluginActivityParams
+  }
+
+  if (method === "network.request") {
+    if (typeof input.url !== "string") invalidParams(method, "url is required")
+    let url: URL
+    try {
+      url = new URL(input.url)
+    } catch {
+      invalidParams(method, "url is invalid")
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      invalidParams(method, "url protocol is invalid")
+    }
+    const requestMethod = input.method ?? "GET"
+    if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(String(requestMethod))) {
+      invalidParams(method, "method is invalid")
+    }
+    if (
+      input.headers !== undefined &&
+      (!isRecord(input.headers) ||
+        Object.values(input.headers).some((value) => typeof value !== "string"))
+    ) {
+      invalidParams(method, "headers must contain string values")
+    }
+    if (input.body !== undefined && typeof input.body !== "string") {
+      invalidParams(method, "body must be a string")
+    }
+    return {
+      url: url.toString(),
+      method: requestMethod as PluginNetworkMethod,
+      headers: input.headers as Record<string, string> | undefined,
+      body: input.body as string | undefined,
+    }
   }
 
   return {

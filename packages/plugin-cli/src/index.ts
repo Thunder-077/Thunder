@@ -13,11 +13,12 @@ interface ParsedCliArgs {
   pluginName?: string
   targetDir?: string
   rootDir: string
+  template: "sandboxed-ui" | "trusted-app"
 }
 
 function printUsage(): void {
   console.log("Usage:")
-  console.log("  thunder-plugin create <plugin-name> [target-dir]")
+  console.log("  thunder-plugin create <plugin-name> [target-dir] [--template sandboxed-ui|trusted-app]")
   console.log("  thunder-plugin build [root-dir]")
   console.log("  thunder-plugin dev [root-dir]")
   console.log("  thunder-plugin pack [root-dir]")
@@ -59,20 +60,35 @@ async function printCreateNextSteps(targetDir: string): Promise<void> {
 }
 
 function parseCliArgs(argv: string[]): ParsedCliArgs {
-  const [command, firstArg, secondArg] = argv
+  const [command, firstArg] = argv
+  const templateIndex = argv.indexOf("--template")
+  const rawTemplateValue = templateIndex >= 0 ? argv[templateIndex + 1] : undefined
+  const templateValue: "sandboxed-ui" | "trusted-app" | undefined =
+    rawTemplateValue === "sandboxed-ui" || rawTemplateValue === "trusted-app"
+      ? rawTemplateValue
+      : undefined
+  if (rawTemplateValue && !templateValue) {
+    throw new Error(`Unsupported template: ${rawTemplateValue}`)
+  }
+  const positional = argv
+    .slice(2)
+    .filter((_, index) => templateIndex < 0 || (index + 2 !== templateIndex && index + 2 !== templateIndex + 1))
+  const targetDir = positional[0]
 
   if (command === "create") {
     return {
       command,
       pluginName: firstArg,
-      targetDir: secondArg,
-      rootDir: resolve(secondArg ?? firstArg ?? "."),
+      targetDir,
+      rootDir: resolve(targetDir ?? firstArg ?? "."),
+      template: templateValue ?? "sandboxed-ui",
     }
   }
 
   return {
     command,
     rootDir: resolve(firstArg ?? "."),
+    template: "sandboxed-ui",
   }
 }
 
@@ -89,7 +105,7 @@ export async function runPluginCli(argv: string[]): Promise<void> {
       const files = await createPluginProject(
         {
           name: args.pluginName,
-          template: "trusted-app",
+          template: args.template,
         },
         args.rootDir,
       )

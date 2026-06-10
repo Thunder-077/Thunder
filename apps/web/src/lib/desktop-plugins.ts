@@ -397,6 +397,30 @@ export async function invokeDesktopPluginWorker<TResult = unknown, TPayload = un
   return data.data.result
 }
 
+export async function requestDesktopPluginNetwork(
+  pluginId: string,
+  request: import("@thunder/plugin-protocol").PluginNetworkRequestParams,
+): Promise<import("@thunder/plugin-protocol").PluginNetworkResponse> {
+  const response = await fetch(
+    `/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/network/request`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(request),
+    },
+  )
+  const payload = (await response.json()) as {
+    ok: boolean
+    data?: import("@thunder/plugin-protocol").PluginNetworkResponse
+    message?: string
+  }
+  if (!response.ok || !payload.ok || !payload.data) {
+    throw new Error(payload.message || "插件网络请求失败")
+  }
+  return payload.data
+}
+
 const DESKTOP_PLUGIN_PERMISSION_LABELS: Record<string, string> = {
   storage: "保存插件私有数据",
   notifications: "显示通知",

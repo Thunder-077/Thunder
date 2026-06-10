@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 2,
+  "id": "__PLUGIN_ID__",
+  "name": "__PLUGIN_NAME__",
+  "version": "0.1.0",
+  "description": "",
+  "kind": "sandboxed",
+  "engines": { "thunder": "^2.0.0" },
+  "author": { "name": "Your Name" },
+  "icon": "Puzzle",
+  "permissions": ["storage", "notifications"],
+  "contributes": {
+    "sidebar": {
+      "title": "__PLUGIN_NAME__",
+      "icon": "Puzzle",
+      "entry": "dist/index.html"
+    }
+  }
+}

@@ -70,12 +70,42 @@ assert.throws(() =>
   /invalid permission: secrets/,
 );
 
-assert.throws(() =>
+assert.deepEqual(
   parseThunderPluginManifest({
     ...trustedManifest,
     permissions: ["network:https://example.com"],
-  }),
-  /invalid permission: network:https:\/\/example\.com/,
+  }).permissions,
+  ["network:https://example.com"],
+);
+
+assert.deepEqual(
+  parseThunderPluginManifest({
+    ...trustedManifest,
+    permissions: ["network:http://127.0.0.1:8787"],
+  }).permissions,
+  ["network:http://127.0.0.1:8787"],
+);
+
+for (const permission of [
+  "network:http://example.com",
+  "network:https://example.com/path",
+  "network:https://user@example.com",
+  "network:https://*.example.com",
+]) {
+  assert.throws(
+    () => parseThunderPluginManifest({ ...trustedManifest, permissions: [permission] }),
+    /invalid permission/,
+  );
+}
+
+assert.throws(
+  () =>
+    parseThunderPluginManifest({
+      ...trustedManifest,
+      kind: "sandboxed",
+      permissions: ["storage"],
+    }),
+  /sandboxed plugins cannot declare runtime/,
 );
 
 assert.throws(() =>

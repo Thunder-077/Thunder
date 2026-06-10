@@ -10,6 +10,8 @@ import {
   type PluginBridgeRequest,
   type PluginBridgeResponse,
   type PluginNotificationParams,
+  type PluginNetworkRequestParams,
+  type PluginNetworkResponse,
   type PluginThemeChangeEvent,
 } from "@thunder/plugin-protocol"
 
@@ -43,6 +45,11 @@ export interface ThunderBrowserPluginClient {
   }
   activity: {
     track(params: PluginActivityParams): Promise<void>
+  }
+  network: {
+    request(params: PluginNetworkRequestParams): Promise<PluginNetworkResponse>
+    get(url: string, headers?: Record<string, string>): Promise<PluginNetworkResponse>
+    post(url: string, body?: string, headers?: Record<string, string>): Promise<PluginNetworkResponse>
   }
 }
 
@@ -188,6 +195,13 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
       track: (params: PluginActivityParams) => {
         return postHostMessage<void>("activity.track", params)
       },
+    },
+    network: {
+      request: (params) => postHostMessage<PluginNetworkResponse>("network.request", params),
+      get: (url, headers) =>
+        postHostMessage<PluginNetworkResponse>("network.request", { url, method: "GET", headers }),
+      post: (url, body, headers) =>
+        postHostMessage<PluginNetworkResponse>("network.request", { url, method: "POST", body, headers }),
     },
   }
 }

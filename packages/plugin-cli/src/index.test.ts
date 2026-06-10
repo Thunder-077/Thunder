@@ -14,6 +14,10 @@ import {
 import { packPlugin } from "./commands/pack"
 
 const pluginRoot = await mkdtemp(join(tmpdir(), "thunder-plugin-cli-"))
+const sandboxedFiles = await createPluginProject({ name: "hello-sandboxed", template: "sandboxed-ui" }, pluginRoot)
+assert.equal(sandboxedFiles["plugin.json"].includes('"kind": "sandboxed"'), true)
+assert.equal("src/worker.ts" in sandboxedFiles, false)
+
 const files = await createPluginProject({ name: "teleprompter", template: "trusted-app" }, pluginRoot)
 
 assert.equal(files["plugin.json"].includes('"kind": "trusted"'), true)

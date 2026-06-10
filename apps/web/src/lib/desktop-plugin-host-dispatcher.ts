@@ -4,6 +4,8 @@ import {
   type PluginActivityParams,
   type PluginBridgeRequest,
   type PluginNotificationParams,
+  type PluginNetworkRequestParams,
+  type PluginNetworkResponse,
 } from "@thunder/plugin-protocol"
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
@@ -22,6 +24,7 @@ export interface DesktopPluginHostContext {
   addNotification(params: PluginNotificationParams): void
   trackActivity(params: PluginActivityParams): Promise<void>
   invokeWorker(method: string, payload: unknown): Promise<unknown>
+  requestNetwork(params: PluginNetworkRequestParams): Promise<PluginNetworkResponse>
 }
 
 export interface DesktopPluginDispatchResult {
@@ -78,6 +81,14 @@ export async function dispatchDesktopPluginHostRequest(
     case "activity.track":
       await context.trackActivity(request.params)
       break
+    case "network.request": {
+      const origin = new URL(request.params.url).origin
+      if (!context.manifest.permissions.includes(`network:${origin}`)) {
+        throw new Error(`插件未声明 network:${origin} 权限`)
+      }
+      result = await context.requestNetwork(request.params)
+      break
+    }
     case "worker.invoke": {
       const workerResult = await context.invokeWorker(
         request.params.method,

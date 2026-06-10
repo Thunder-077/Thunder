@@ -64,6 +64,9 @@ function createContext(): DesktopPluginHostContext & {
     async invokeWorker(method: string, payload: unknown) {
       return { method, payload }
     },
+    async requestNetwork() {
+      return { status: 200, headers: {}, body: "ok" }
+    },
   }
   return context
 }
@@ -91,12 +94,19 @@ const inputs: Record<PluginBridgeMethod, unknown> = {
   "storage.clear": undefined,
   "notification.add": { type: "success", title: "Saved" },
   "activity.track": { action: "save", title: "Saved draft" },
+  "network.request": { url: "https://example.com", method: "GET" },
   "worker.invoke": { method: "draft.normalize", payload: { text: "hello" } },
 }
 
 async function main() {
   for (const method of pluginBridgeMethods) {
     const context = createContext()
+    if (method === "network.request") {
+      context.manifest = {
+        ...manifest,
+        permissions: [...manifest.permissions, "network:https://example.com"],
+      }
+    }
     await dispatchDesktopPluginHostRequest(request(method, inputs[method]), context)
   }
 

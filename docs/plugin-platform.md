@@ -14,10 +14,11 @@ Thunder 当前的插件平台只面向 Desktop 端，目标是提供一套可商
 
 ## 当前正式形态
 
-当前正式插件系统采用单一形态：
+当前正式插件系统采用两层形态：
 
 - `manifestVersion: 2`
-- `kind: "trusted"`
+- `kind: "sandboxed"`：默认，仅包含 iframe UI 和显式 Host Bridge 能力
+- `kind: "trusted"`：显式选择，可包含受托管的本地 runtime
 - UI 入口：`contributes.sidebar.entry`
 - Worker 入口：`runtime.entry`
 - 安装目录：`plugins/desktop/{plugin-id}` 源目录，安装后复制到桌面数据目录
@@ -33,7 +34,7 @@ plugin.json
   -> Host Page 以 iframe 加载 dist/index.html
   -> Browser SDK 通过 postMessage 调用 Host Bridge
   -> Host Bridge 校验权限并转发到平台能力
-  -> Trusted Runtime Supervisor 托管 dist/worker.js
+  -> 可选：Trusted Runtime Supervisor 托管 dist/worker.js
 ```
 
 职责分工：
@@ -94,6 +95,7 @@ plugin.json
 - `storage.clear`
 - `notification.add`
 - `activity.track`
+- `network.request`
 - `worker.invoke`
 
 权限由宿主页按方法校验，不信任插件自行声称的能力。
@@ -102,10 +104,10 @@ Host Bridge 的唯一协议源是 `packages/plugin-protocol`。它统一维护�
 版本、消息 envelope、方法参数、返回值和权限映射；SDK 与宿主不得各自
 维护方法清单。
 
-当前稳定能力不包含 Secrets、网络代理、命令贡献点或设置贡献点。早期
-声明但未打通的 `runtime.*`、`network.*`、`secrets`、
-`contributes.commands` 和 `contributes.settings` 已直接删除，不提供
-兼容层。
+网络能力由 API 代理实现，并使用 `network:<origin>` 精确授权；iframe
+自身的 CSP 不开放外部连接。当前稳定能力不包含 Secrets、命令贡献点或
+设置贡献点。`runtime.*`、`secrets`、`contributes.commands` 和
+`contributes.settings` 不提供兼容层。
 
 ## Trusted Worker / Runtime
 

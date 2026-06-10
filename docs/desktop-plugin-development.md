@@ -10,7 +10,7 @@
 
 - 提供独立插件 UI
 - 通过 Browser SDK 访问宿主开放能力
-- 通过 trusted worker 实现本地业务逻辑
+- 默认使用 sandboxed 前端插件；只有确需本地能力时才使用 trusted worker
 - 复用公开插件基础设施，如 `@thunder/plugin-sdk`、`@thunder/plugin-ui`
 
 你不能做：
@@ -21,7 +21,16 @@
 
 ## 目录结构
 
-最小正式插件结构：
+默认创建方式：
+
+```bash
+thunder-plugin create my-plugin
+thunder-plugin create my-native-plugin --template trusted-app
+```
+
+第一个命令生成没有 runtime 的 `sandboxed-ui` 插件。trusted 模板必须显式选择。
+
+最小 sandboxed 插件结构：
 
 ```text
 my-plugin/
@@ -30,11 +39,11 @@ my-plugin/
   tsconfig.json
   src/
     index.tsx
-    worker.ts
   dist/
 ```
 
-当前正式插件 UI 与 worker 均使用构建产物：
+插件 UI 使用 `dist/index.html` 和 `dist/index.js`。只有 trusted 插件包含
+`src/worker.ts`、`runtime.entry` 和 `dist/worker.js`。
 
 - `dist/index.html`
 - `dist/index.js`
@@ -118,13 +127,12 @@ const result = await thunder.worker.invoke("speech.transcribe", { text: "hello w
 - `storage.*`
 - `notification.add`
 - `activity.track`
+- `network.request` / `network.get` / `network.post`
 - `worker.invoke`
 
-当前不提供网络代理、Secrets、命令或设置贡献点。不要在 Manifest 或
-插件代码中声明这些能力；平台会拒绝未支持的 Manifest 字段和权限。
-
-> 破坏性变更：早期 SDK 曾声明 `runtime.*` 和 `network.*`，但宿主没有
-> 对应实现。它们已从公开 SDK 删除，不提供兼容层。
+网络权限按精确 origin 声明，例如 `network:https://api.example.com`。
+iframe 不直接访问外网，请求由宿主代理执行，不转发 Cookie、Authorization
+或浏览器凭据。当前不提供 Secrets、命令或设置贡献点。
 
 ### Worker SDK
 

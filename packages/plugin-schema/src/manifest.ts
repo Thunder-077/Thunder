@@ -1,6 +1,7 @@
 import { ThunderPluginManifestError } from "./errors";
 import {
   isThunderPluginPermission,
+  normalizeThunderPluginNetworkPermission,
   type ThunderPluginPermission,
 } from "./permissions";
 
@@ -60,13 +61,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function parsePermissions(input: unknown): ThunderPluginPermission[] {
   assertManifest(Array.isArray(input), "permissions must be an array");
 
-  return input.map((permission) => {
+  const permissions = input.map((permission) => {
     assertManifest(
       typeof permission === "string" && isThunderPluginPermission(permission),
       `invalid permission: ${String(permission)}`,
     );
-    return permission;
+    return normalizeThunderPluginNetworkPermission(permission) ?? permission;
   });
+  assertManifest(new Set(permissions).size === permissions.length, "permissions must not contain duplicates");
+  return permissions;
 }
 
 function parseRuntime(
@@ -81,6 +84,7 @@ function parseRuntime(
     return undefined;
   }
 
+  assertManifest(kind === "trusted", "sandboxed plugins cannot declare runtime");
   assertManifest(isRecord(input), "runtime must be an object");
   assertManifest(
     typeof input.entry === "string" && input.entry.length > 0,

@@ -20,7 +20,7 @@ const manifest: ThunderPluginManifest = {
   version: "1.0.0",
   kind: "trusted",
   engines: { thunder: "^2.0.0" },
-  permissions: ["storage", "notifications", "activity", "native-runtime"],
+  permissions: ["storage", "notifications", "activity", "native-runtime", "network:https://example.com"],
   contributes: {
     sidebar: {
       title: "SDK Contract",
@@ -76,6 +76,9 @@ async function main() {
           async invokeWorker(method, payload) {
             return { method, payload }
           },
+          async requestNetwork() {
+            return { status: 200, headers: { "content-type": "text/plain" }, body: "ok" }
+          },
         })
           .then((dispatched) => {
             seenMethods.add(dispatched.request.method)
@@ -121,6 +124,7 @@ async function main() {
   await thunder.storage.clear()
   thunder.notification.add({ type: "success", title: "Saved" })
   await thunder.activity.track({ action: "save", title: "Saved" })
+  assert.equal((await thunder.network.get("https://example.com/status")).body, "ok")
   assert.deepEqual(
     await thunder.worker.invoke("draft.normalize", { text: "hello" }),
     {

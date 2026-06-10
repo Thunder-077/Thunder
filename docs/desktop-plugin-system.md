@@ -1,6 +1,6 @@
 # 桌面端插件系统
 
-Thunder 当前的运行时插件系统只面向 Desktop 端，并且已经统一为一套正式 trusted plugin 体系。插件作者指南见 `docs/desktop-plugin-development.md`，整体平台设计见 `docs/plugin-platform.md`。
+Thunder 运行时插件系统只面向 Desktop 端，采用 `sandboxed` 默认、`trusted` 例外的两层模型。插件作者指南见 `docs/desktop-plugin-development.md`，整体平台设计见 `docs/plugin-platform.md`。
 
 ## 范围
 
@@ -9,7 +9,7 @@ Thunder 当前的运行时插件系统只面向 Desktop 端，并且已经统一
 - 仅 Desktop 生效。
 - 通过安装进入插件市场与侧边栏。
 - UI 在独立 iframe 中运行。
-- 本地能力通过 Host Bridge 和 trusted worker/runtime 暴露。
+- 默认插件通过 Host Bridge 使用受控能力；只有 trusted 插件可以使用 worker/runtime。
 
 ## 存储布局
 
@@ -82,6 +82,7 @@ AppData/com.thunder.desktop/
 - `microphone`
 - `native-runtime`
 - `filesystem:plugin-data`
+- `network:<origin>`，例如 `network:https://api.example.com`
 
 平台不会做细粒度动态授权弹窗。用户安装插件即表示允许插件使用 Manifest 中声明的平台能力。当前也不提供单独的 trust / untrust 按钮；停用通过卸载完成。
 
@@ -102,6 +103,7 @@ AppData/com.thunder.desktop/
 | `storage.clear` | `storage` | 清空插件存储 |
 | `notification.add` | `notifications` | 触发桌面通知 |
 | `activity.track` | `activity` | 记录活动 |
+| `network.request` | `network:<origin>` | 通过宿主代理访问精确授权的 origin |
 | `worker.invoke` | `native-runtime` | 调用 trusted worker handler |
 
 宿主会同时校验：
@@ -117,8 +119,12 @@ AppData/com.thunder.desktop/
 Bridge 契约统一定义在 `packages/plugin-protocol`。Browser SDK 与 Web
 宿主共享同一套方法、参数、响应和权限映射，并通过契约测试防止两端漂移。
 
-当前不支持 Secrets、网络代理、命令贡献点或设置贡献点。Manifest 声明
+网络请求由 API 代理执行，不向 iframe 开放外部 `connect-src`，重定向后的
+origin 也必须已声明。当前不支持 Secrets、命令贡献点或设置贡献点。Manifest 声明
 `secrets`、`contributes.commands` 或 `contributes.settings` 会被拒绝。
+
+资源限制：插件存储总量 1 MiB、单值 256 KiB、Bridge 请求 512 KiB、
+网络请求体 1 MiB、网络响应 5 MiB、网络超时 10 秒。
 
 ## Trusted Worker / Runtime
 

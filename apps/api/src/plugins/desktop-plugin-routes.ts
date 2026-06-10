@@ -13,6 +13,9 @@ import {
   uninstallDesktopPlugin,
   invokeDesktopPluginWorker,
 } from "./desktop-plugin-manager"
+import {
+  proxyDesktopPluginNetworkRequest,
+} from "./desktop-plugin-network"
 
 export const desktopPlugins = new Hono()
 
@@ -152,6 +155,26 @@ desktopPlugins.post("/:id/worker/invoke", async (c) => {
 
     const result = await invokeDesktopPluginWorker(c.req.param("id"), body.method, body.payload)
     return c.json({ ok: true, data: { ok: true, result } })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.post("/:id/network/request", async (c) => {
+  try {
+    const rawBody = await c.req.text()
+    if (Buffer.byteLength(rawBody, "utf8") > 1024 * 1024) {
+      throw new DesktopPluginError("插件网络请求超过 1 MiB", 400)
+    }
+    let body: unknown
+    try {
+      body = JSON.parse(rawBody)
+    } catch {
+      throw new DesktopPluginError("插件网络请求 JSON 无效", 400)
+    }
+    const plugin = await getInstalledPlugin(c.req.param("id"))
+    const result = await proxyDesktopPluginNetworkRequest(plugin.manifest, body)
+    return c.json({ ok: true, data: result })
   } catch (error) {
     return jsonError(error)
   }

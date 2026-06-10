@@ -18,6 +18,7 @@ assert.deepEqual(pluginBridgeMethods, [
   "storage.clear",
   "notification.add",
   "activity.track",
+  "network.request",
   "worker.invoke",
 ])
 assert.equal(getRequiredPluginPermission("plugin.getManifest"), null)
@@ -41,18 +42,15 @@ assert.deepEqual(
   },
 )
 
-assert.throws(
-  () =>
-    parsePluginBridgeRequest({
-      source: PLUGIN_BRIDGE_REQUEST_SOURCE,
-      version: PLUGIN_BRIDGE_VERSION,
-      id: "request-2",
-      method: "network.request",
-      params: {},
-    }),
-  (error) =>
-    error instanceof PluginProtocolError &&
-    error.code === "UNSUPPORTED_METHOD",
+assert.deepEqual(
+  parsePluginBridgeRequest({
+    source: PLUGIN_BRIDGE_REQUEST_SOURCE,
+    version: PLUGIN_BRIDGE_VERSION,
+    id: "request-2",
+    method: "network.request",
+    params: { url: "https://example.com/api", method: "GET" },
+  }).params,
+  { url: "https://example.com/api", method: "GET", headers: undefined, body: undefined },
 )
 
 assert.throws(
