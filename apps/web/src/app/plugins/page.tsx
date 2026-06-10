@@ -4,26 +4,21 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   Box,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Code2,
   Download,
   FileText,
-  Grid2X2,
-  Layers3,
   Link2,
-  ListChecks,
   Package,
   Paintbrush,
   Palette,
   Plus,
+  ScrollText,
   Search,
   Settings2,
   ShieldCheck,
-  Sparkles,
   Star,
-  Table2,
   Tags,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -51,125 +46,34 @@ type PluginVisual = {
   entry?: DesktopPluginMarketplaceEntry
 }
 
-const recommendedPlaceholders: PluginVisual[] = [
-  {
-    id: "custom-themes",
-    name: "Custom Themes",
-    author: "janneck",
-    description: "轻松创建和管理主题，实时预览，完美定制。",
-    downloads: "128.6K",
-    rating: "4.8",
-    icon: Paintbrush,
-    iconClassName: "bg-violet-100 text-violet-600",
-  },
-  {
-    id: "calendar",
-    name: "Calendar",
-    author: "liamcain",
-    description: "在日历视图中查看和管理你的笔记。",
-    downloads: "86.3K",
-    rating: "4.6",
-    icon: CalendarDays,
-    iconClassName: "bg-sky-100 text-sky-600",
-  },
-  {
-    id: "dataview",
-    name: "Dataview",
-    author: "blacksmithgu",
-    description: "强大的数据视图和查询工具。",
-    downloads: "319.7K",
-    rating: "4.9",
-    icon: ListChecks,
-    iconClassName: "bg-slate-100 text-slate-700",
-  },
-  {
-    id: "templater",
-    name: "Templater",
-    author: "SilentVoid",
-    description: "使用模板快速插入内容，提升效率。",
-    downloads: "241.2K",
-    rating: "4.8",
-    icon: Sparkles,
-    iconClassName: "bg-indigo-100 text-indigo-600",
-  },
-]
+const lucideIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  Box,
+  Code2,
+  FileText,
+  Package,
+  Paintbrush,
+  Palette,
+  ScrollText,
+  Search,
+  Settings2,
+  ShieldCheck,
+  Star,
+}
 
-const trendingPlaceholders: PluginVisual[] = [
-  {
-    id: "excalidraw",
-    name: "Excalidraw",
-    author: "zsviczian",
-    description: "在笔记中绘制草图和图表",
-    downloads: "542K",
-    rating: "4.9",
-    icon: Palette,
-    iconClassName: "bg-violet-100 text-violet-600",
-  },
-  {
-    id: "advanced-tables",
-    name: "Advanced Tables",
-    author: "Tony Grosinger",
-    description: "更强大的表格功能",
-    downloads: "215K",
-    rating: "4.7",
-    icon: Table2,
-    iconClassName: "bg-blue-100 text-blue-600",
-  },
-  {
-    id: "better-word-count",
-    name: "Better Word Count",
-    author: "Oli",
-    description: "显示笔记和文档的详细字数统计",
-    downloads: "124K",
-    rating: "4.6",
-    icon: Grid2X2,
-    iconClassName: "bg-slate-100 text-slate-700",
-  },
-  {
-    id: "style-settings",
-    name: "Style Settings",
-    author: "mgmeyers",
-    description: "自定义主题和样式",
-    downloads: "98K",
-    rating: "4.6",
-    icon: Settings2,
-    iconClassName: "bg-slate-100 text-slate-600",
-  },
-  {
-    id: "file-explorer-note-count",
-    name: "File Explorer Note Count",
-    author: "Yermolovich",
-    description: "在文件浏览器里显示笔记数量",
-    downloads: "87K",
-    rating: "4.5",
-    icon: FileText,
-    iconClassName: "bg-slate-100 text-slate-600",
-  },
-  {
-    id: "clipboard-image",
-    name: "Clipboard Image",
-    author: "johanneshorge",
-    description: "将剪贴板图片直接粘贴到笔记中",
-    downloads: "76K",
-    rating: "4.4",
-    icon: Layers3,
-    iconClassName: "bg-indigo-100 text-indigo-600",
-  },
-]
+function resolveIcon(name?: string): React.ComponentType<{ className?: string }> {
+  return (name && lucideIconMap[name]) || Box
+}
 
 const sidebarItems = [
   { label: "精选", icon: Star, active: true },
-  { label: "全部插件", icon: Package, count: 18 },
-  { label: "已安装", icon: ShieldCheck, count: 18 },
-  { label: "更新", icon: Settings2, count: 3 },
+  { label: "全部插件", icon: Package },
+  { label: "已安装", icon: ShieldCheck },
+  { label: "更新", icon: Settings2 },
 ]
-
 const categories = [
   { label: "主题", icon: Palette },
-  { label: "用户界面", icon: Layers3 },
   { label: "编辑器", icon: Paintbrush },
   { label: "文件与链接", icon: Link2 },
-  { label: "生产力", icon: Sparkles },
   { label: "开发工具", icon: Code2 },
   { label: "搜索", icon: Search },
   { label: "笔记增强", icon: FileText },
@@ -180,11 +84,11 @@ function marketplaceEntryToVisual(entry: DesktopPluginMarketplaceEntry): PluginV
   return {
     id: entry.id,
     name: entry.name,
-    author: entry.source === "bundled" ? "Thunder" : "marketplace",
+    author: entry.source === "bundled" ? "Thunder" : entry.author?.name ?? "marketplace",
     description: entry.description,
-    downloads: entry.source === "bundled" ? "52K" : "18K",
-    rating: entry.source === "bundled" ? "4.9" : "4.7",
-    icon: Box,
+    downloads: "暂无",
+    rating: "暂无",
+    icon: resolveIcon(entry.icon),
     iconClassName: "bg-blue-100 text-blue-600",
     entry,
   }
@@ -205,6 +109,11 @@ export default function DesktopPluginMarketplacePage() {
   const [message, setMessage] = useState<string | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
 
+  const sidebarCounts = useMemo(() => ({
+    "全部插件": marketplace.length,
+    "已安装": installed.length,
+  }), [marketplace.length, installed.length])
+
   const installedIds = useMemo(
     () => new Set(installed.map((plugin) => plugin.manifest.id)),
     [installed]
@@ -216,12 +125,12 @@ export default function DesktopPluginMarketplacePage() {
   )
 
   const recommended = useMemo(
-    () => [...realMarketplaceCards, ...recommendedPlaceholders].slice(0, 4),
+    () => realMarketplaceCards.slice(0, 4),
     [realMarketplaceCards]
   )
 
   const trending = useMemo(
-    () => [...realMarketplaceCards, ...trendingPlaceholders].slice(0, 6),
+    () => realMarketplaceCards.slice(0, 6),
     [realMarketplaceCards]
   )
 
@@ -305,7 +214,11 @@ export default function DesktopPluginMarketplacePage() {
               >
                 <item.icon className="h-4 w-4" />
                 <span className="flex-1">{item.label}</span>
-                {item.count && <span className="text-xs text-muted-foreground">{item.count}</span>}
+                {sidebarCounts[item.label as keyof typeof sidebarCounts] !== undefined && (
+                  <span className="text-xs text-muted-foreground">
+                    {sidebarCounts[item.label as keyof typeof sidebarCounts]}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -377,6 +290,15 @@ export default function DesktopPluginMarketplacePage() {
           </div>
         </section>
 
+        {realMarketplaceCards.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
+            <Package className="mb-3 h-10 w-10 text-muted-foreground/60" />
+            <h3 className="text-sm font-semibold text-foreground">暂无可用插件</h3>
+            <p className="mt-1 max-w-[280px] text-xs text-muted-foreground">
+              插件市场当前暂无插件。请稍后再来查看。
+            </p>
+          </div>
+        ) : (<>
         <section>
           <div className="mb-2.5 flex items-center justify-between">
             <h2 className="text-base font-semibold">为你推荐</h2>
@@ -415,6 +337,7 @@ export default function DesktopPluginMarketplacePage() {
             </div>
           </div>
         </section>
+        </>)}
       </main>
     </div>
   )

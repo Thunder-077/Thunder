@@ -3,20 +3,16 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
-  CalendarDays,
-  Check,
+  Box,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Code2,
-  Download,
   ExternalLink,
   FileText,
   Grid2X2,
   LayoutList,
-  Layers3,
   Link2,
-  ListChecks,
   Package,
   Paintbrush,
   Palette,
@@ -27,9 +23,7 @@ import {
   Settings,
   Settings2,
   ShieldCheck,
-  Sparkles,
   Star,
-  Table2,
   Tags,
   Trash2,
   X,
@@ -55,265 +49,49 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 
-
-// -------------------------------------------------------------
-// High-Fidelity Mock Plugins matching the provided design image
-// -------------------------------------------------------------
-
-type MockPlugin = {
+type InstalledPluginVisual = {
   id: string
   name: string
   author: string
   description: string
   version: string
-  downloads: string
-  downloadsRaw: number
-  rating: string
-  ratingCount: number
   installedDate: string
   icon: React.ComponentType<{ className?: string }>
   iconClassName: string
   tags: string[]
-  detailedDescription: string
-  features: string[]
-  compatibility: string
-  permissions?: string[]
-  sourceType?: "mock" | "desktop"
+  permissions: string[]
 }
 
-const mockPluginsData: MockPlugin[] = [
-  {
-    id: "custom-themes",
-    name: "Custom Themes",
-    author: "janneck",
-    description: "轻松创建和管理主题，实时预览，完美定制。",
-    version: "v1.3.9",
-    downloads: "128.6K",
-    downloadsRaw: 128600,
-    rating: "4.8",
-    ratingCount: 356,
-    installedDate: "2024-05-18",
-    icon: Paintbrush,
-    iconClassName: "bg-gradient-to-br from-violet-600 to-violet-800 text-primary-foreground shadow-md",
-    tags: ["主题", "外观", "自定义", "用户界面"],
-    detailedDescription: "轻松创建和管理主题，支持实时预览和细致的样式定制，让你的工作空间独一无二。",
-    features: [
-      "可视化主题编辑器",
-      "实时预览效果",
-      "导入/导出配置",
-      "支持亮色/暗色模式切换",
-      "高级样式自定义选项",
-    ],
-    compatibility: "1.5.0+",
-  },
-  {
-    id: "calendar",
-    name: "Calendar",
-    author: "liamcain",
-    description: "在日历视图中查看和管理你的笔记。",
-    version: "v1.5.2",
-    downloads: "86.3K",
-    downloadsRaw: 86300,
-    rating: "4.6",
-    ratingCount: 124,
-    installedDate: "2024-05-20",
-    icon: CalendarDays,
-    iconClassName: "bg-gradient-to-br from-orange-500 to-orange-700 text-primary-foreground shadow-md",
-    tags: ["日历", "生产力", "时间管理", "笔记增强"],
-    detailedDescription: "在日历视图中查看和管理你的笔记。可以轻松创建每日日记，并在时间线上查看笔记的创建和修改历史。",
-    features: [
-      "直观的月度和周度视图",
-      "双击日期快速创建/打开日记",
-      "显示每天的笔记字数或任务进度",
-      "拖拽重新安排任务日期",
-      "高度可定制的日历样式",
-    ],
-    compatibility: "1.2.0+",
-  },
-  {
-    id: "dataview",
-    name: "Dataview",
-    author: "blacksmithgu",
-    description: "强大的数据视图和查询工具。",
-    version: "v0.5.66",
-    downloads: "319.7K",
-    downloadsRaw: 319700,
-    rating: "4.9",
-    ratingCount: 842,
-    installedDate: "2024-05-15",
-    icon: ListChecks,
-    iconClassName: "bg-gradient-to-br from-slate-700 to-slate-900 text-primary-foreground shadow-md",
-    tags: ["数据查询", "表格", "自动化", "生产力"],
-    detailedDescription: "将你的笔记库视为数据库，使用强大的查询语言对笔记进行动态过滤、排序和展示。支持表格、列表、任务和日历视图。",
-    features: [
-      "基于 DQL (Dataview Query Language) 的强力查询",
-      "支持 JavaScript API 进行复杂定制",
-      "动态汇总任务、标签和元数据",
-      "自动生成交互式数据表格",
-      "毫秒级的大型笔记库索引性能",
-    ],
-    compatibility: "1.0.0+",
-  },
-  {
-    id: "templater",
-    name: "Templater",
-    author: "SilentVoid",
-    description: "使用模板快速插入内容，提升效率。",
-    version: "v2.4.0",
-    downloads: "241.2K",
-    downloadsRaw: 241200,
-    rating: "4.8",
-    ratingCount: 512,
-    installedDate: "2024-05-12",
-    icon: Sparkles,
-    iconClassName: "bg-gradient-to-br from-indigo-500 to-indigo-700 text-primary-foreground shadow-md",
-    tags: ["模板", "自动化", "JavaScript", "效率"],
-    detailedDescription: "高级模板系统，允许你向笔记中插入动态内容。不仅支持替换日期、标题等基本变量，还能运行复杂的 JavaScript 脚本。",
-    features: [
-      "支持原生 JavaScript 代码执行",
-      "丰富的系统和用户自定义函数",
-      "创建笔记时自动应用指定模板",
-      "快捷键与命令面板完美集成",
-      "支持提示用户输入并动态生成内容",
-    ],
-    compatibility: "1.4.0+",
-  },
-  {
-    id: "excalidraw",
-    name: "Excalidraw",
-    author: "zsviczian",
-    description: "在笔记中绘制草图和图表",
-    version: "v2.1.17",
-    downloads: "542K",
-    downloadsRaw: 542000,
-    rating: "4.9",
-    ratingCount: 1024,
-    installedDate: "2024-05-22",
-    icon: Palette,
-    iconClassName: "bg-gradient-to-br from-purple-500 to-purple-700 text-primary-foreground shadow-md",
-    tags: ["绘图", "白板", "可视化", "脑图"],
-    detailedDescription: "将手绘风格的白板工具 Excalidraw 无缝集成到笔记中。可以直接在笔记中画流程图、线框图或手绘草图，并支持双向链接。",
-    features: [
-      "手绘风格的矢量绘图板",
-      "支持双向链接到库中其他笔记",
-      "支持将文字、图片拖入白板",
-      "强大的图形库和自定义模板库",
-      "支持实时协同编辑和导出为 PNG/SVG",
-    ],
-    compatibility: "1.6.0+",
-  },
-  {
-    id: "advanced-tables",
-    name: "Advanced Tables",
-    author: "Tony Grosinger",
-    description: "更强大的表格功能",
-    version: "v0.19.3",
-    downloads: "215K",
-    downloadsRaw: 215000,
-    rating: "4.7",
-    ratingCount: 289,
-    installedDate: "2024-05-09",
-    icon: Table2,
-    iconClassName: "bg-gradient-to-br from-blue-500 to-blue-700 text-primary-foreground shadow-md",
-    tags: ["表格", "格式化", "编辑器", "效率"],
-    detailedDescription: "为 Markdown 编辑器添加高级表格编辑 and 格式化功能。自动对齐表格、智能换行、支持 Tab 键导航以及公式计算。",
-    features: [
-      "智能自动格式化和对齐",
-      "使用 Tab 和 Enter 键轻松导航和加行",
-      "支持行与列的排序和移动",
-      "内置强大的类似 Excel 的求和与公式计算",
-      "一键将 CSV/Excel 数据转换为 Markdown 表格",
-    ],
-    compatibility: "1.1.0+",
-  },
-  {
-    id: "better-word-count",
-    name: "Better Word Count",
-    author: "Oli",
-    description: "显示笔记和文档的详细字数统计",
-    version: "v0.10.3",
-    downloads: "124K",
-    downloadsRaw: 124000,
-    rating: "4.6",
-    ratingCount: 152,
-    installedDate: "2024-05-05",
-    icon: Grid2X2,
-    iconClassName: "bg-gradient-to-br from-slate-800 to-slate-950 text-primary-foreground shadow-md",
-    tags: ["字数统计", "编辑器", "阅读时间", "统计数据"],
-    detailedDescription: "提供高度可定制的字数统计，可在状态栏显示当前选中区域、当前文件或整个笔记库的字数、字符数、句子数和估计阅读时间。",
-    features: [
-      "支持选中文字实时字数和字符数统计",
-      "显示段落数、句子数和估计阅读时间",
-      "高度可配置的状态栏显示项",
-      "支持排除特定格式的文本(如 Markdown 标记、代码块)",
-      "提供每日写作目标和进度条",
-    ],
-    compatibility: "1.0.0+",
-  },
-  {
-    id: "style-settings",
-    name: "Style Settings",
-    author: "mgmeyers",
-    description: "自定义主题和样式",
-    version: "v1.0.7",
-    downloads: "98K",
-    downloadsRaw: 98000,
-    rating: "4.6",
-    ratingCount: 98,
-    installedDate: "2024-05-01",
-    icon: Settings2,
-    iconClassName: "bg-gradient-to-br from-zinc-700 to-zinc-900 text-primary-foreground shadow-md",
-    tags: ["主题定制", "样式", "无代码", "外观"],
-    detailedDescription: "允许主题和插件开发者提供图形化的配置界面。用户无需修改 CSS，即可轻松调整字体大小、配色、边距等视觉元素。",
-    features: [
-      "图形化 Theme / Plugin 样式配置界面",
-      "实时渲染所做的每一项更改",
-      "支持导出和导入自定义配置文件",
-      "支持重置单项或全局样式到默认值",
-      "完全兼容社区中绝大多数主流主题",
-    ],
-    compatibility: "1.3.0+",
-  },
-  {
-    id: "file-explorer-note-count",
-    name: "File Explorer Note Count",
-    author: "Yermolovich",
-    description: "在文件资源管理器中显示笔记数量",
-    version: "v1.2.10",
-    downloads: "87K",
-    downloadsRaw: 87000,
-    rating: "4.5",
-    ratingCount: 67,
-    installedDate: "2024-04-28",
-    icon: FileText,
-    iconClassName: "bg-gradient-to-br from-gray-600 to-gray-800 text-primary-foreground shadow-md",
-    tags: ["文件管理器", "笔记数量", "数据统计", "用户界面"],
-    detailedDescription: "在侧边栏的文件浏览器中，为每个文件夹和子文件夹显示其下包含的 Markdown 笔记数量。",
-    features: [
-      "实时计算文件夹内的笔记总数",
-      "支持显示包含/排除子文件夹的数量",
-      "轻量级设计，不影响文件系统读取性能",
-      "支持自定义笔记数量的数字格式与样式",
-      "可动态开启或关闭特定顶级文件夹的计数",
-    ],
-    compatibility: "1.0.0+",
-  },
-]
+const lucideIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  Box,
+  Code2,
+  FileText,
+  Package,
+  Paintbrush,
+  Palette,
+  ScrollText,
+  Search,
+  Settings2,
+  ShieldCheck,
+  Star,
+}
+
+function resolveIcon(name?: string): React.ComponentType<{ className?: string }> {
+  return (name && lucideIconMap[name]) || ScrollText
+}
 
 // Sidebar and Category items
 const sidebarItems = [
   { label: "精选", icon: Star },
-  { label: "全部插件", icon: Package, count: 128 },
-  { label: "已安装", icon: ShieldCheck, count: 18, active: true },
-  { label: "更新", icon: Settings2, count: 3 },
+  { label: "全部插件", icon: Package },
+  { label: "已安装", icon: ShieldCheck, active: true },
+  { label: "更新", icon: Settings2 },
 ]
 
 const categories = [
   { label: "主题", icon: Palette },
-  { label: "用户界面", icon: Layers3 },
   { label: "编辑器", icon: Paintbrush },
   { label: "文件与链接", icon: Link2 },
-  { label: "生产力", icon: Sparkles },
   { label: "开发工具", icon: Code2 },
   { label: "搜索", icon: Search },
   { label: "笔记增强", icon: FileText },
@@ -323,12 +101,11 @@ const categories = [
 export default function InstalledPluginsPage() {
   const router = useRouter()
   const [realPlugins, setRealPlugins] = useState<DesktopInstalledPlugin[]>([])
-  const [mockPlugins, setMockPlugins] = useState<MockPlugin[]>(mockPluginsData)
   const [disabledPluginIds, setDisabledPluginIds] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortOption, setSortOption] = useState<"default" | "name" | "downloads" | "rating">("default")
+  const [sortOption, setSortOption] = useState<"default" | "name" | "date">("default")
   const [view, setView] = useState<"grid" | "list">("grid")
-  const [selectedPluginId, setSelectedPluginId] = useState<string>("custom-themes")
+  const [selectedPluginId, setSelectedPluginId] = useState<string>("")
   const [currentPage, setCurrentPage] = useState(1)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
@@ -368,60 +145,37 @@ export default function InstalledPluginsPage() {
 
   const uninstallPlugin = async (pluginId: string) => {
     const realPlugin = realPlugins.find((plugin) => plugin.manifest.id === pluginId)
-    if (realPlugin) {
-      try {
-        await uninstallDesktopPlugin(pluginId)
-        setRealPlugins((prev) => prev.filter((p) => p.manifest.id !== pluginId))
-        triggerToast(`${realPlugin.manifest.name} 插件已成功卸载`)
-      } catch (err) {
-        triggerToast("卸载失败: " + (err instanceof Error ? err.message : "未知错误"))
-      }
-      return
+    if (!realPlugin) return
+    try {
+      await uninstallDesktopPlugin(pluginId)
+      setRealPlugins((prev) => prev.filter((p) => p.manifest.id !== pluginId))
+      triggerToast(`${realPlugin.manifest.name} 插件已成功卸载`)
+    } catch (err) {
+      triggerToast("卸载失败: " + (err instanceof Error ? err.message : "未知错误"))
     }
-
-    // Otherwise, simulate mock uninstall
-    setMockPlugins((prev) => prev.filter((p) => p.id !== pluginId))
-    triggerToast("插件已卸载")
     if (selectedPluginId === pluginId) {
       setSelectedPluginId("")
     }
   }
 
-  // Combine real plugins and mock plugins
+  // Convert real plugins to visual format
   const allPlugins = useMemo(() => {
-    // Convert real plugins to the visual format
-    const convertedReal: MockPlugin[] = realPlugins.map((p) => ({
+    return realPlugins.map((p): InstalledPluginVisual => ({
       id: p.manifest.id,
       name: p.manifest.name,
       author: p.manifest.author?.name || "Thunder",
       description: p.manifest.description,
       version: p.manifest.version,
-      downloads: "3.5K",
-      downloadsRaw: 3500,
-      rating: "4.9",
-      ratingCount: 18,
-      installedDate: getDesktopPluginInstalledAt(p)?.split("T")[0] ?? "2024-05-25",
-      icon: ScrollText,
+      installedDate: getDesktopPluginInstalledAt(p)?.split("T")[0] ?? "暂无",
+      icon: resolveIcon(p.manifest.icon),
       iconClassName: "bg-gradient-to-br from-emerald-500 to-emerald-700 text-primary-foreground shadow-md",
       tags: [
-        "正式插件",
         p.manifest.kind === "trusted" ? "Trusted Runtime" : "Sandboxed Runtime",
         ...p.manifest.permissions.slice(0, 2).map(describeDesktopPluginPermission),
       ],
-      detailedDescription: p.manifest.description,
-      features: [
-        "通过公开 Plugin SDK 注册界面与命令",
-        "通过 trusted worker/runtime 执行本地能力",
-        "支持 Host Bridge 存储、通知与活动记录",
-        "支持 worker.invoke 方式调用受控本地逻辑",
-      ],
-      compatibility: "^2.0.0",
       permissions: [...p.manifest.permissions],
-      sourceType: "desktop",
     }))
-
-    return [...mockPlugins, ...convertedReal]
-  }, [realPlugins, mockPlugins])
+  }, [realPlugins])
 
   // Filter & Sort
   const filteredAndSortedPlugins = useMemo(() => {
@@ -438,10 +192,8 @@ export default function InstalledPluginsPage() {
     result.sort((a, b) => {
       if (sortOption === "name") {
         return a.name.localeCompare(b.name)
-      } else if (sortOption === "downloads") {
-        return b.downloadsRaw - a.downloadsRaw
-      } else if (sortOption === "rating") {
-        return parseFloat(b.rating) - parseFloat(a.rating)
+      } else if (sortOption === "date") {
+        return b.installedDate.localeCompare(a.installedDate)
       }
       return 0
     })
@@ -574,14 +326,12 @@ export default function InstalledPluginsPage() {
               >
                 <item.icon className="h-4 w-4" />
                 <span className="flex-1">{item.label}</span>
-                {item.count !== undefined && (
+                {item.active && (
                   <span className={cn(
                     "text-xs px-1.5 py-0.5 rounded-full",
-                    item.active
-                      ? "bg-blue-100/50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400"
-                      : "text-muted-foreground"
+                    "bg-blue-100/50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400"
                   )}>
-                    {item.label === "已安装" ? allPlugins.length : item.count}
+                    {allPlugins.length}
                   </span>
                 )}
               </button>
@@ -656,15 +406,14 @@ export default function InstalledPluginsPage() {
                   <select
                     value={sortOption}
                     onChange={(e) => {
-                      setSortOption(e.target.value as "default" | "name" | "downloads" | "rating")
+                      setSortOption(e.target.value as "default" | "name" | "date")
                       setCurrentPage(1)
                     }}
                     className="appearance-none bg-background hover:bg-muted/50 border border-border rounded-lg pl-3 pr-8 py-1.5 text-xs font-medium text-foreground outline-none cursor-pointer h-8"
                   >
                     <option value="default">默认排序</option>
                     <option value="name">按名称排序</option>
-                    <option value="downloads">按下载量排序</option>
-                    <option value="rating">按评分排序</option>
+                    <option value="date">按安装日期排序</option>
                   </select>
                   <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                 </div>
@@ -774,13 +523,11 @@ export default function InstalledPluginsPage() {
 
                         {/* List view metadata & operations */}
                         <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <span className="hidden sm:flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <Download className="h-3 w-3" />
-                            {plugin.downloads}
+                          <span className="hidden sm:inline text-[11px] text-muted-foreground">
+                            {plugin.version}
                           </span>
-                          <span className="hidden sm:flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                            {plugin.rating}
+                          <span className="hidden sm:inline text-[11px] text-muted-foreground">
+                            {plugin.installedDate}
                           </span>
 
                           <div className="flex items-center gap-1.5">
@@ -862,16 +609,7 @@ export default function InstalledPluginsPage() {
                         {/* Stats Info */}
                         <div className="mt-4 flex items-center justify-between text-[11px] text-muted-foreground/80">
                           <span>{plugin.version}</span>
-                          <div className="flex items-center gap-3">
-                            <span className="flex items-center gap-1">
-                              <Download className="h-3 w-3 text-muted-foreground/60" />
-                              {plugin.downloads}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                              {plugin.rating}
-                            </span>
-                          </div>
+                          <span>{plugin.installedDate}</span>
                         </div>
                       </div>
 
@@ -1054,34 +792,17 @@ export default function InstalledPluginsPage() {
                     <span className="text-muted-foreground/80">已安装</span>
                     <span className="font-semibold text-foreground">{selectedPlugin.installedDate}</span>
                   </div>
-                  <div className="flex justify-between items-start text-xs">
-                    <span className="text-muted-foreground/80 shrink-0">最新版本</span>
-                    <div className="text-right">
-                      <span className="font-semibold text-foreground">{selectedPlugin.version}</span>
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block sm:inline-block sm:ml-1.5">
-                        当前已是最新版本
-                      </span>
-                    </div>
-                  </div>
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-muted-foreground/80">下载量</span>
-                    <span className="font-semibold text-foreground">{selectedPlugin.downloadsRaw.toLocaleString()}</span>
+                    <span className="font-semibold text-foreground">暂无</span>
                   </div>
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-muted-foreground/80">评分</span>
-                    <div className="flex items-center gap-1 font-semibold text-foreground">
-                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                      <span>{selectedPlugin.rating}</span>
-                      <span className="text-[10px] text-muted-foreground">({selectedPlugin.ratingCount} 评分)</span>
-                    </div>
+                    <span className="font-semibold text-foreground">暂无</span>
                   </div>
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-muted-foreground/80">作者</span>
                     <span className="font-semibold text-foreground">{selectedPlugin.author}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground/80">兼容性</span>
-                    <span className="font-semibold text-foreground">{selectedPlugin.compatibility}</span>
                   </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-muted-foreground/80">插件 ID</span>
@@ -1105,22 +826,12 @@ export default function InstalledPluginsPage() {
                 </div>
               )}
 
-              {/* Features & description content */}
+              {/* Description */}
               <div className="mt-5 border-t border-border/50 pt-5">
                   <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">插件描述</h3>
                   <p className="mt-2 text-xs text-muted-foreground/90 leading-relaxed">
-                    {selectedPlugin.detailedDescription}
+                    {selectedPlugin.description}
                   </p>
-                  
-                  {/* Bullet points checkmark features */}
-                  <ul className="mt-3.5 space-y-2">
-                    {selectedPlugin.features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-foreground/80">
-                        <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
 
                 {/* Bottom documentation hyperlink */}
