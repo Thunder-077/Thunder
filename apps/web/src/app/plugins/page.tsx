@@ -190,7 +190,7 @@ export default function DesktopPluginMarketplacePage() {
   }
 
   return (
-    <div className="grid gap-6 lg:-mt-10 lg:grid-cols-[224px_minmax(0,1fr)]">
+    <div className="grid gap-6 lg:grid-cols-[224px_minmax(0,1fr)]">
       <aside className="hidden border-r border-border/70 pr-5 lg:block">
         <div className="sticky top-20 space-y-5">
           <h2 className="text-base font-semibold tracking-tight">插件市场</h2>
