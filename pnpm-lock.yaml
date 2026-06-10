@@ -121,6 +121,9 @@ importers:
       '@thunder/plugin-devtools':
         specifier: workspace:*
         version: link:../../packages/plugin-devtools
+      '@thunder/plugin-protocol':
+        specifier: workspace:*
+        version: link:../../packages/plugin-protocol
       '@thunder/plugin-schema':
         specifier: workspace:*
         version: link:../../packages/plugin-schema
@@ -403,6 +406,22 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/plugin-protocol:
+    dependencies:
+      '@thunder/plugin-schema':
+        specifier: workspace:*
+        version: link:../plugin-schema
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/plugin-schema:
     devDependencies:
       '@types/node':
@@ -417,6 +436,9 @@ importers:
 
   packages/plugin-sdk:
     dependencies:
+      '@thunder/plugin-protocol':
+        specifier: workspace:*
+        version: link:../plugin-protocol
       '@thunder/plugin-schema':
         specifier: workspace:*
         version: link:../plugin-schema

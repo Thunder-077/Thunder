@@ -1,7 +1,13 @@
 import type { DesktopPluginPermission } from "@/lib/desktop-plugins"
+import {
+  PLUGIN_BRIDGE_REQUEST_SOURCE,
+  PLUGIN_BRIDGE_VERSION,
+  getRequiredPluginPermission,
+  isPluginBridgeMethod,
+  normalizePluginStorageKey,
+} from "@thunder/plugin-protocol"
 
-export const PLUGIN_BRIDGE_REQUEST_SOURCE = "thunder-plugin"
-export const PLUGIN_BRIDGE_VERSION = 1
+export { PLUGIN_BRIDGE_REQUEST_SOURCE, PLUGIN_BRIDGE_VERSION }
 
 export type PluginBridgeRequest = {
   source?: string
@@ -18,20 +24,8 @@ export type StorageRequestParams = {
 
 type PluginStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">
 
-const BRIDGE_METHOD_PERMISSIONS: Partial<Record<string, DesktopPluginPermission>> = {
-  "storage.get": "storage",
-  "storage.set": "storage",
-  "storage.remove": "storage",
-  "storage.keys": "storage",
-  "storage.clear": "storage",
-  "notification.add": "notifications",
-  "activity.track": "activity",
-  "worker.invoke": "native-runtime",
-  "runtime.request": "native-runtime",
-}
-
 export function getRequiredPluginPermissionForBridgeMethod(method: string): DesktopPluginPermission | null {
-  return BRIDGE_METHOD_PERMISSIONS[method] ?? null
+  return isPluginBridgeMethod(method) ? getRequiredPluginPermission(method) : null
 }
 
 function getIsolatedLoopbackHostname(hostname: string): string | null {
@@ -66,11 +60,7 @@ export function isPluginFrameOriginIsolated(frameUrl: string, hostOrigin: string
 }
 
 export function normalizeStorageKey(key: string | undefined): string {
-  const rawKey = key?.trim()
-  if (!rawKey || rawKey.length > 128 || /[\u0000-\u001f\u007f]/.test(rawKey)) {
-    throw new Error("插件存储 key 无效")
-  }
-  return rawKey
+  return normalizePluginStorageKey(key)
 }
 
 export function normalizePluginFrameHeight(height: number | undefined): number {

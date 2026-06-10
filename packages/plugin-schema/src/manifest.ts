@@ -18,23 +18,8 @@ export interface ThunderPluginSidebarContribution {
   entry: string;
 }
 
-export interface ThunderPluginCommandContribution {
-  id: string;
-  title: string;
-}
-
-export interface ThunderPluginSettingContribution {
-  key: string;
-  type: string;
-  title: string;
-  default?: unknown;
-  options?: string[];
-}
-
 export interface ThunderPluginContributes {
   sidebar?: ThunderPluginSidebarContribution;
-  commands?: ThunderPluginCommandContribution[];
-  settings?: ThunderPluginSettingContribution[];
 }
 
 export interface ThunderPluginRuntime {
@@ -153,85 +138,20 @@ function parseAuthor(input: unknown): ThunderPluginAuthor | undefined {
   return author;
 }
 
-function parseCommands(input: unknown): ThunderPluginCommandContribution[] | undefined {
-  if (input == null) {
-    return undefined;
-  }
-
-  assertManifest(Array.isArray(input), "contributes.commands must be an array");
-
-  return input.map((command, index) => {
-    assertManifest(
-      isRecord(command),
-      `contributes.commands[${index}] must be an object`,
-    );
-    assertManifest(
-      typeof command.id === "string" && command.id.length > 0,
-      `contributes.commands[${index}].id is required`,
-    );
-    assertManifest(
-      typeof command.title === "string" && command.title.length > 0,
-      `contributes.commands[${index}].title is required`,
-    );
-
-    return {
-      id: command.id,
-      title: command.title,
-    };
-  });
-}
-
-function parseSettings(input: unknown): ThunderPluginSettingContribution[] | undefined {
-  if (input == null) {
-    return undefined;
-  }
-
-  assertManifest(Array.isArray(input), "contributes.settings must be an array");
-
-  return input.map((setting, index) => {
-    assertManifest(
-      isRecord(setting),
-      `contributes.settings[${index}] must be an object`,
-    );
-    assertManifest(
-      typeof setting.key === "string" && setting.key.length > 0,
-      `contributes.settings[${index}].key is required`,
-    );
-    assertManifest(
-      typeof setting.type === "string" && setting.type.length > 0,
-      `contributes.settings[${index}].type is required`,
-    );
-    assertManifest(
-      typeof setting.title === "string" && setting.title.length > 0,
-      `contributes.settings[${index}].title is required`,
-    );
-
-    if (setting.options != null) {
-      assertManifest(
-        Array.isArray(setting.options) &&
-          setting.options.every(
-            (option) => typeof option === "string" && option.length > 0,
-          ),
-        `contributes.settings[${index}].options must be a string array`,
-      );
-    }
-
-    return {
-      key: setting.key,
-      type: setting.type,
-      title: setting.title,
-      default: setting.default,
-      options: Array.isArray(setting.options) ? [...setting.options] : undefined,
-    };
-  });
-}
-
 function parseContributes(input: unknown): ThunderPluginContributes | undefined {
   if (input == null) {
     return undefined;
   }
 
   assertManifest(isRecord(input), "contributes must be an object");
+  assertManifest(
+    input.commands == null,
+    "contributes.commands is not supported",
+  );
+  assertManifest(
+    input.settings == null,
+    "contributes.settings is not supported",
+  );
 
   const contributes: ThunderPluginContributes = {};
 
@@ -255,9 +175,6 @@ function parseContributes(input: unknown): ThunderPluginContributes | undefined 
           : undefined,
     };
   }
-
-  contributes.commands = parseCommands(input.commands);
-  contributes.settings = parseSettings(input.settings);
 
   return contributes;
 }

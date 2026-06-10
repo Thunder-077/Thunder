@@ -29,21 +29,6 @@ const trustedManifest: ThunderPluginManifest = {
       icon: "ScrollText",
       entry: "dist/index.html",
     },
-    commands: [
-      {
-        id: "teleprompter.open",
-        title: "Open Teleprompter",
-      },
-    ],
-    settings: [
-      {
-        key: "speechProvider",
-        type: "select",
-        title: "Speech Provider",
-        default: "local",
-        options: ["local", "web-speech"],
-      },
-    ],
   },
   author: {
     name: "Thunder",
@@ -57,8 +42,6 @@ const trustedManifest: ThunderPluginManifest = {
 const parsedTrustedManifest = parseThunderPluginManifest(trustedManifest);
 
 assert.equal(parsedTrustedManifest.kind, "trusted");
-assert.deepEqual(parsedTrustedManifest.contributes?.commands, trustedManifest.contributes?.commands);
-assert.deepEqual(parsedTrustedManifest.contributes?.settings, trustedManifest.contributes?.settings);
 assert.deepEqual(parsedTrustedManifest.author, trustedManifest.author);
 
 assert.throws(() =>
@@ -82,33 +65,17 @@ assert.throws(() =>
 assert.throws(() =>
   parseThunderPluginManifest({
     ...trustedManifest,
-    permissions: ["network:foo"],
+    permissions: ["secrets"],
   }),
-  /invalid permission: network:foo/,
+  /invalid permission: secrets/,
 );
 
 assert.throws(() =>
   parseThunderPluginManifest({
     ...trustedManifest,
-    permissions: ["network:*"],
+    permissions: ["network:https://example.com"],
   }),
-  /invalid permission: network:\*/,
-);
-
-assert.throws(() =>
-  parseThunderPluginManifest({
-    ...trustedManifest,
-    permissions: ["network:https://example.com/path"],
-  }),
-  /invalid permission: network:https:\/\/example\.com\/path/,
-);
-
-assert.throws(() =>
-  parseThunderPluginManifest({
-    ...trustedManifest,
-    permissions: ["network"],
-  }),
-  /invalid permission: network/,
+  /invalid permission: network:https:\/\/example\.com/,
 );
 
 assert.throws(() =>
@@ -133,7 +100,7 @@ assert.throws(() =>
       ],
     },
   }),
-  /contributes\.commands\[0\]\.id is required/,
+  /contributes\.commands is not supported/,
 );
 
 assert.throws(() =>
@@ -151,14 +118,7 @@ assert.throws(() =>
       ],
     },
   }),
-  /contributes\.settings\[0\]\.options must be a string array/,
-);
-
-assert.doesNotThrow(() =>
-  parseThunderPluginManifest({
-    ...trustedManifest,
-    permissions: ["network:https://example.com"],
-  }),
+  /contributes\.settings is not supported/,
 );
 
 assert.throws(() =>

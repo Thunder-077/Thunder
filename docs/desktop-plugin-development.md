@@ -119,8 +119,12 @@ const result = await thunder.worker.invoke("speech.transcribe", { text: "hello w
 - `notification.add`
 - `activity.track`
 - `worker.invoke`
-- `runtime.request` / `runtime.get` / `runtime.post`
-- `network.request` / `network.get` / `network.post`
+
+当前不提供网络代理、Secrets、命令或设置贡献点。不要在 Manifest 或
+插件代码中声明这些能力；平台会拒绝未支持的 Manifest 字段和权限。
+
+> 破坏性变更：早期 SDK 曾声明 `runtime.*` 和 `network.*`，但宿主没有
+> 对应实现。它们已从公开 SDK 删除，不提供兼容层。
 
 ### Worker SDK
 

@@ -1,0 +1,97 @@
+import {
+  getRequiredPluginPermission,
+  parsePluginBridgeRequest,
+  type PluginActivityParams,
+  type PluginBridgeRequest,
+  type PluginNotificationParams,
+} from "@thunder/plugin-protocol"
+import type { ThunderPluginManifest } from "@thunder/plugin-schema"
+
+export interface DesktopPluginHostStorage {
+  get(key: string): unknown | null
+  set(key: string, value: unknown): void
+  remove(key: string): void
+  keys(): string[]
+  clear(): void
+}
+
+export interface DesktopPluginHostContext {
+  manifest: ThunderPluginManifest
+  storage: DesktopPluginHostStorage
+  setFrameHeight(height: number): void
+  addNotification(params: PluginNotificationParams): void
+  trackActivity(params: PluginActivityParams): Promise<void>
+  invokeWorker(method: string, payload: unknown): Promise<unknown>
+}
+
+export interface DesktopPluginDispatchResult {
+  request: PluginBridgeRequest
+  result: unknown
+  diagnosticMethod: string
+}
+
+/**
+ * Validates and dispatches one untrusted iframe request against explicit host
+ * capabilities. Browser origin/source validation remains the page's concern.
+ */
+export async function dispatchDesktopPluginHostRequest(
+  input: unknown,
+  context: DesktopPluginHostContext,
+): Promise<DesktopPluginDispatchResult> {
+  const request = parsePluginBridgeRequest(input)
+  const requiredPermission = getRequiredPluginPermission(request.method)
+  if (
+    requiredPermission &&
+    !context.manifest.permissions.includes(requiredPermission)
+  ) {
+    throw new Error(`插件未声明 ${requiredPermission} 权限`)
+  }
+
+  let result: unknown
+  let diagnosticMethod: string = request.method
+
+  switch (request.method) {
+    case "plugin.getManifest":
+      result = context.manifest
+      break
+    case "layout.setFrameHeight":
+      context.setFrameHeight(request.params.height)
+      break
+    case "storage.get":
+      result = context.storage.get(request.params.key)
+      break
+    case "storage.set":
+      context.storage.set(request.params.key, request.params.value)
+      break
+    case "storage.remove":
+      context.storage.remove(request.params.key)
+      break
+    case "storage.keys":
+      result = context.storage.keys()
+      break
+    case "storage.clear":
+      context.storage.clear()
+      break
+    case "notification.add":
+      context.addNotification(request.params)
+      break
+    case "activity.track":
+      await context.trackActivity(request.params)
+      break
+    case "worker.invoke": {
+      const workerResult = await context.invokeWorker(
+        request.params.method,
+        request.params.payload,
+      )
+      result = { ok: true, result: workerResult }
+      diagnosticMethod = `${request.method}:${request.params.method}`
+      break
+    }
+  }
+
+  return {
+    request,
+    result,
+    diagnosticMethod,
+  }
+}

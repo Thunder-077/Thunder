@@ -11,6 +11,7 @@
     "./worker": "./src/worker.ts"
   },
   "dependencies": {
+    "@thunder/plugin-protocol": "workspace:*",
     "@thunder/plugin-schema": "workspace:*",
     "@thunder/plugin-sdk-worker": "workspace:*"
   },

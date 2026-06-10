@@ -2,7 +2,6 @@ import assert from "node:assert/strict"
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 import {
   createThunderPluginClient,
-  normalizeThunderPluginRuntimePath,
   normalizeThunderPluginStorageKey,
 } from "./browser"
 
@@ -90,14 +89,6 @@ function createBridgeWindow() {
 }
 
 async function main() {
-  assert.equal(normalizeThunderPluginRuntimePath("status"), "status")
-  assert.equal(normalizeThunderPluginRuntimePath("native/sherpa/models?fresh=1"), "native/sherpa/models?fresh=1")
-  rejects(() => normalizeThunderPluginRuntimePath("/status"), "runtime path must reject leading slash")
-  rejects(() => normalizeThunderPluginRuntimePath("../secret"), "runtime path must reject parent segment")
-  rejects(() => normalizeThunderPluginRuntimePath("native/%2e%2e/secret"), "runtime path must reject encoded parent segment")
-  rejects(() => normalizeThunderPluginRuntimePath("native/%2Fsecret"), "runtime path must reject encoded slash")
-  rejects(() => normalizeThunderPluginRuntimePath("native//status"), "runtime path must reject empty segment")
-
   assert.equal(normalizeThunderPluginStorageKey(" theme "), "theme")
   rejects(() => normalizeThunderPluginStorageKey(""), "storage key must reject empty string")
   rejects(() => normalizeThunderPluginStorageKey("x".repeat(129)), "storage key must reject overlong keys")
@@ -119,67 +110,6 @@ async function main() {
     },
   })
   rejects(() => thunder.plugin.setFrameHeight(Number.NaN), "frame height must reject invalid numbers")
-
-  const runtimePromise = thunder.runtime.request<{ ok: true }>("native/sherpa/models", {
-    method: "POST",
-    headers: { authorization: "Bearer token" },
-    body: { refresh: true },
-    cache: "no-store",
-  })
-  assert.deepEqual(bridge.postedRequests.at(-1), {
-    source: "thunder-plugin",
-    version: 1,
-    id: bridge.postedRequests.at(-1)?.id,
-    method: "runtime.request",
-    params: {
-      path: "native/sherpa/models",
-      method: "POST",
-      headers: {
-        authorization: "Bearer token",
-      },
-      cache: "no-store",
-      body: {
-        refresh: true,
-      },
-    },
-  })
-  bridge.respond({
-    status: 200,
-    ok: true,
-    headers: {},
-    data: { ok: true },
-  })
-  assert.deepEqual(await runtimePromise, {
-    status: 200,
-    ok: true,
-    headers: {},
-    data: { ok: true },
-  })
-
-  const networkPromise = thunder.network.post<{ ok: boolean }>("https://api.example.com/v1/test", { ping: true })
-  assert.deepEqual(bridge.postedRequests.at(-1), {
-    source: "thunder-plugin",
-    version: 1,
-    id: bridge.postedRequests.at(-1)?.id,
-    method: "network.request",
-    params: {
-      url: "https://api.example.com/v1/test",
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: {
-        ping: true,
-      },
-    },
-  })
-  bridge.respond({
-    status: 201,
-    ok: true,
-    headers: {},
-    data: { ok: true },
-  })
-  assert.deepEqual(await networkPromise, { ok: true })
 
   const workerInvokePromise = thunder.worker.invoke<{ normalized: string }, { text: string }>("speech.transcribe", {
     text: "  hello  ",
@@ -294,14 +224,14 @@ async function main() {
   bridge.respond(manifest)
   assert.equal((await manifestPromise).manifestVersion, 2)
 
-  const failedRequest = thunder.runtime.get("status")
+  const failedRequest = thunder.storage.get("missing")
   bridge.reject("bridge failed")
   await assert.rejects(failedRequest, /bridge failed/)
 
   delete (globalThis as { window?: unknown }).window
   const unavailableClient = createThunderPluginClient()
   await assert.rejects(
-    unavailableClient.runtime.get("status"),
+    unavailableClient.storage.get("status"),
     /Thunder plugin host bridge is unavailable/
   )
 

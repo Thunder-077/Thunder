@@ -1,0 +1,290 @@
+import type {
+  ThunderPluginManifest,
+  ThunderPluginPermission,
+} from "@thunder/plugin-schema"
+import { PluginProtocolError } from "./errors"
+
+export const PLUGIN_BRIDGE_REQUEST_SOURCE = "thunder-plugin"
+export const PLUGIN_BRIDGE_RESPONSE_SOURCE = "thunder-host"
+export const PLUGIN_BRIDGE_VERSION = 1
+
+export interface PluginNotificationParams {
+  type?: "info" | "success" | "error"
+  title?: string
+  description?: string
+}
+
+export interface PluginActivityParams {
+  action: string
+  title: string
+  description?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface PluginBridgeMethodMap {
+  "plugin.getManifest": {
+    params: undefined
+    result: ThunderPluginManifest
+  }
+  "layout.setFrameHeight": {
+    params: { height: number }
+    result: undefined
+  }
+  "storage.get": {
+    params: { key: string }
+    result: unknown | null
+  }
+  "storage.set": {
+    params: { key: string; value: unknown }
+    result: undefined
+  }
+  "storage.remove": {
+    params: { key: string }
+    result: undefined
+  }
+  "storage.keys": {
+    params: undefined
+    result: string[]
+  }
+  "storage.clear": {
+    params: undefined
+    result: undefined
+  }
+  "notification.add": {
+    params: PluginNotificationParams
+    result: undefined
+  }
+  "activity.track": {
+    params: PluginActivityParams
+    result: undefined
+  }
+  "worker.invoke": {
+    params: { method: string; payload?: unknown }
+    result: { ok: true; result: unknown }
+  }
+}
+
+export type PluginBridgeMethod = keyof PluginBridgeMethodMap
+
+export type PluginBridgeRequest<
+  TMethod extends PluginBridgeMethod = PluginBridgeMethod,
+> = TMethod extends PluginBridgeMethod
+  ? {
+      source: typeof PLUGIN_BRIDGE_REQUEST_SOURCE
+      version: typeof PLUGIN_BRIDGE_VERSION
+      id: string
+      method: TMethod
+      params: PluginBridgeMethodMap[TMethod]["params"]
+    }
+  : never
+
+export type PluginBridgeResponse<TResult = unknown> = {
+  source: typeof PLUGIN_BRIDGE_RESPONSE_SOURCE
+  version: typeof PLUGIN_BRIDGE_VERSION
+  id: string
+  ok: boolean
+  data?: TResult
+  error?: string
+}
+
+export type PluginThemeChangeEvent = {
+  source: typeof PLUGIN_BRIDGE_RESPONSE_SOURCE
+  type: "theme.change"
+  theme: "light" | "dark"
+}
+
+export const pluginBridgeMethods = [
+  "plugin.getManifest",
+  "layout.setFrameHeight",
+  "storage.get",
+  "storage.set",
+  "storage.remove",
+  "storage.keys",
+  "storage.clear",
+  "notification.add",
+  "activity.track",
+  "worker.invoke",
+] as const satisfies readonly PluginBridgeMethod[]
+
+const METHOD_PERMISSIONS: Partial<
+  Record<PluginBridgeMethod, ThunderPluginPermission>
+> = {
+  "storage.get": "storage",
+  "storage.set": "storage",
+  "storage.remove": "storage",
+  "storage.keys": "storage",
+  "storage.clear": "storage",
+  "notification.add": "notifications",
+  "activity.track": "activity",
+  "worker.invoke": "native-runtime",
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function invalidParams(method: PluginBridgeMethod, message: string): never {
+  throw new PluginProtocolError(
+    "INVALID_PARAMS",
+    `Invalid parameters for ${method}: ${message}`,
+  )
+}
+
+export function normalizePluginStorageKey(key: unknown): string {
+  if (typeof key !== "string") {
+    throw new PluginProtocolError("INVALID_PARAMS", "Plugin storage key must be a string")
+  }
+
+  const normalized = key.trim()
+  if (
+    !normalized ||
+    normalized.length > 128 ||
+    /[\u0000-\u001f\u007f]/.test(normalized)
+  ) {
+    throw new PluginProtocolError("INVALID_PARAMS", "Plugin storage key is invalid")
+  }
+  return normalized
+}
+
+export function normalizePluginWorkerMethod(method: unknown): string {
+  if (
+    typeof method !== "string" ||
+    !method.trim() ||
+    method.trim().length > 128 ||
+    !/^[a-z0-9._-]+$/i.test(method.trim())
+  ) {
+    throw new PluginProtocolError("INVALID_PARAMS", "Plugin worker method is invalid")
+  }
+  return method.trim()
+}
+
+export function getRequiredPluginPermission(
+  method: PluginBridgeMethod,
+): ThunderPluginPermission | null {
+  return METHOD_PERMISSIONS[method] ?? null
+}
+
+export function isPluginBridgeMethod(value: string): value is PluginBridgeMethod {
+  return (pluginBridgeMethods as readonly string[]).includes(value)
+}
+
+export function parsePluginBridgeRequest(input: unknown): PluginBridgeRequest {
+  if (!isRecord(input)) {
+    throw new PluginProtocolError("INVALID_ENVELOPE", "Plugin bridge request must be an object")
+  }
+  if (
+    input.source !== PLUGIN_BRIDGE_REQUEST_SOURCE ||
+    input.version !== PLUGIN_BRIDGE_VERSION ||
+    typeof input.id !== "string" ||
+    !input.id.trim()
+  ) {
+    throw new PluginProtocolError("INVALID_ENVELOPE", "Plugin bridge request envelope is invalid")
+  }
+  if (typeof input.method !== "string" || !isPluginBridgeMethod(input.method)) {
+    throw new PluginProtocolError(
+      "UNSUPPORTED_METHOD",
+      `Unsupported plugin bridge method: ${String(input.method)}`,
+    )
+  }
+
+  const method = input.method
+  const params = parsePluginBridgeParams(method, input.params)
+  return {
+    source: PLUGIN_BRIDGE_REQUEST_SOURCE,
+    version: PLUGIN_BRIDGE_VERSION,
+    id: input.id,
+    method,
+    params,
+  } as PluginBridgeRequest
+}
+
+export function parsePluginBridgeParams(
+  method: PluginBridgeMethod,
+  input: unknown,
+): PluginBridgeMethodMap[PluginBridgeMethod]["params"] {
+  if (
+    method === "plugin.getManifest" ||
+    method === "storage.keys" ||
+    method === "storage.clear"
+  ) {
+    if (input !== undefined) invalidParams(method, "parameters are not accepted")
+    return undefined
+  }
+
+  if (!isRecord(input)) invalidParams(method, "an object is required")
+
+  if (method === "layout.setFrameHeight") {
+    if (typeof input.height !== "number" || !Number.isFinite(input.height)) {
+      invalidParams(method, "height must be a finite number")
+    }
+    return { height: Math.max(320, Math.ceil(input.height)) }
+  }
+
+  if (method === "storage.get" || method === "storage.remove") {
+    return { key: normalizePluginStorageKey(input.key) }
+  }
+
+  if (method === "storage.set") {
+    return {
+      key: normalizePluginStorageKey(input.key),
+      value: input.value,
+    }
+  }
+
+  if (method === "notification.add") {
+    const type = input.type
+    if (
+      type !== undefined &&
+      type !== "info" &&
+      type !== "success" &&
+      type !== "error"
+    ) {
+      invalidParams(method, "type is invalid")
+    }
+    if (input.title !== undefined && typeof input.title !== "string") {
+      invalidParams(method, "title must be a string")
+    }
+    if (
+      input.description !== undefined &&
+      typeof input.description !== "string"
+    ) {
+      invalidParams(method, "description must be a string")
+    }
+    return {
+      type,
+      title: input.title,
+      description: input.description,
+    } as PluginNotificationParams
+  }
+
+  if (method === "activity.track") {
+    if (
+      typeof input.action !== "string" ||
+      !input.action.trim() ||
+      typeof input.title !== "string" ||
+      !input.title.trim()
+    ) {
+      invalidParams(method, "action and title are required")
+    }
+    if (
+      input.description !== undefined &&
+      typeof input.description !== "string"
+    ) {
+      invalidParams(method, "description must be a string")
+    }
+    if (input.metadata !== undefined && !isRecord(input.metadata)) {
+      invalidParams(method, "metadata must be an object")
+    }
+    return {
+      action: input.action.trim(),
+      title: input.title.trim(),
+      description: input.description,
+      metadata: input.metadata,
+    } as PluginActivityParams
+  }
+
+  return {
+    method: normalizePluginWorkerMethod(input.method),
+    ...(input.payload === undefined ? {} : { payload: input.payload }),
+  }
+}

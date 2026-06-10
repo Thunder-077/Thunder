@@ -103,8 +103,6 @@ AppData/com.thunder.desktop/
 | `notification.add` | `notifications` | 触发桌面通知 |
 | `activity.track` | `activity` | 记录活动 |
 | `worker.invoke` | `native-runtime` | 调用 trusted worker handler |
-| `runtime.request` | `native-runtime` | 向 trusted runtime 发送 HTTP 请求 |
-| `network.request` | 无 | 发起外部网络请求 |
 
 宿主会同时校验：
 
@@ -115,6 +113,12 @@ AppData/com.thunder.desktop/
 - 对应方法所需权限
 
 插件页面不会被允许直接作为同源页面访问 Thunder 内部 API。
+
+Bridge 契约统一定义在 `packages/plugin-protocol`。Browser SDK 与 Web
+宿主共享同一套方法、参数、响应和权限映射，并通过契约测试防止两端漂移。
+
+当前不支持 Secrets、网络代理、命令贡献点或设置贡献点。Manifest 声明
+`secrets`、`contributes.commands` 或 `contributes.settings` 会被拒绝。
 
 ## Trusted Worker / Runtime
 

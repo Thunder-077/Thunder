@@ -39,6 +39,7 @@ plugin.json
 职责分工：
 
 - `packages/plugin-schema`: Manifest 定义与校验。
+- `packages/plugin-protocol`: Host Bridge 协议、参数校验和权限映射。
 - `packages/plugin-sdk`: 浏览器端与 worker 端公开 SDK。
 - `packages/plugin-host-runtime`: trusted worker/runtime 的托管与 RPC。
 - `apps/api/src/plugins/*`: 安装、清单读取、运行时生命周期、UI 资源读取。
@@ -94,10 +95,17 @@ plugin.json
 - `notification.add`
 - `activity.track`
 - `worker.invoke`
-- `runtime.request`
-- `network.request`
 
 权限由宿主页按方法校验，不信任插件自行声称的能力。
+
+Host Bridge 的唯一协议源是 `packages/plugin-protocol`。它统一维护协议
+版本、消息 envelope、方法参数、返回值和权限映射；SDK 与宿主不得各自
+维护方法清单。
+
+当前稳定能力不包含 Secrets、网络代理、命令贡献点或设置贡献点。早期
+声明但未打通的 `runtime.*`、`network.*`、`secrets`、
+`contributes.commands` 和 `contributes.settings` 已直接删除，不提供
+兼容层。
 
 ## Trusted Worker / Runtime
 

@@ -7,22 +7,18 @@ import { PageHeader } from "@/components/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { useTheme } from "@/components/theme-provider"
 import {
-  PLUGIN_BRIDGE_REQUEST_SOURCE,
   PLUGIN_BRIDGE_VERSION,
   clearPluginStorage,
   createIsolatedPluginFrameUrl,
-  getRequiredPluginPermissionForBridgeMethod,
   getPluginStorageValue,
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
   listPluginStorageKeys,
-  normalizePluginFrameHeight,
-  normalizeStorageKey,
   removePluginStorageValue,
   setPluginStorageValue,
   type PluginBridgeRequest,
-  type StorageRequestParams,
 } from "@/lib/desktop-plugin-bridge"
+import { dispatchDesktopPluginHostRequest } from "@/lib/desktop-plugin-host-dispatcher"
 import {
   getDesktopPluginRuntimeStatus,
   getDesktopPlugin,
@@ -34,6 +30,8 @@ import {
 import { notificationStore } from "@/lib/notification-store"
 import { ActivityClient } from "@thunder/api-client"
 import type { PluginLogEntry, PluginRpcLogEntry, PluginWorkerStatus } from "@thunder/plugin-devtools"
+import { PLUGIN_BRIDGE_RESPONSE_SOURCE } from "@thunder/plugin-protocol"
+import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
 export default function DesktopPluginPage() {
   const params = useParams<{ pluginId: string }>()
@@ -77,7 +75,7 @@ export default function DesktopPluginPage() {
     (targetOrigin: string, id: string, ok: boolean, data?: unknown, bridgeError?: string) => {
       iframeRef.current?.contentWindow?.postMessage(
         {
-          source: "thunder-host",
+          source: PLUGIN_BRIDGE_RESPONSE_SOURCE,
           version: PLUGIN_BRIDGE_VERSION,
           id,
           ok,
@@ -156,13 +154,17 @@ export default function DesktopPluginPage() {
     const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
     const frameOrigin = new URL(frameUrl).origin
     iframeRef.current?.contentWindow?.postMessage(
-      { source: "thunder-host", type: "theme.change", theme: resolvedTheme },
+      { source: PLUGIN_BRIDGE_RESPONSE_SOURCE, type: "theme.change", theme: resolvedTheme },
       frameOrigin
     )
   }, [hostOrigin, plugin, resolvedTheme])
 
   useEffect(() => {
-    void refreshWorkerStatus()
+    const timer = window.setTimeout(() => {
+      void refreshWorkerStatus()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [refreshWorkerStatus])
 
   useEffect(() => {
@@ -206,8 +208,6 @@ export default function DesktopPluginPage() {
         !isAllowedPluginBridgeOrigin(event.origin, frameUrl) ||
         event.source !== iframeRef.current?.contentWindow ||
         !request ||
-        request.source !== PLUGIN_BRIDGE_REQUEST_SOURCE ||
-        request.version !== PLUGIN_BRIDGE_VERSION ||
         typeof request.id !== "string" ||
         typeof request.method !== "string"
       ) {
@@ -216,177 +216,86 @@ export default function DesktopPluginPage() {
 
       try {
         const startedAt = performance.now()
-        const requiredPermission = getRequiredPluginPermissionForBridgeMethod(request.method)
-        if (requiredPermission && !currentPlugin.manifest.permissions.includes(requiredPermission)) {
-          throw new Error(`插件未声明 ${requiredPermission} 权限`)
-        }
+        const dispatched = await dispatchDesktopPluginHostRequest(request, {
+          manifest: currentPlugin.manifest as ThunderPluginManifest,
+          storage: {
+            get: (key) =>
+              getPluginStorageValue(
+                window.localStorage,
+                currentPlugin.manifest.id,
+                key,
+              ),
+            set: (key, value) =>
+              setPluginStorageValue(
+                window.localStorage,
+                currentPlugin.manifest.id,
+                key,
+                value,
+              ),
+            remove: (key) =>
+              removePluginStorageValue(
+                window.localStorage,
+                currentPlugin.manifest.id,
+                key,
+              ),
+            keys: () =>
+              listPluginStorageKeys(
+                window.localStorage,
+                currentPlugin.manifest.id,
+              ),
+            clear: () =>
+              clearPluginStorage(
+                window.localStorage,
+                currentPlugin.manifest.id,
+              ),
+          },
+          setFrameHeight,
+          addNotification: (params) => {
+            notificationStore.addNotification({
+              type:
+                params.type === "success" || params.type === "error"
+                  ? params.type
+                  : "info",
+              title: params.title?.trim() || currentPlugin.manifest.name,
+              description: params.description?.trim() || "",
+            })
+          },
+          trackActivity: async (params) => {
+            const activityClient = new ActivityClient()
+            await activityClient.recordActivity({
+              module: `plugin:${currentPlugin.manifest.id}`,
+              action: params.action,
+              title: params.title,
+              description: params.description,
+              metadataJson: params.metadata
+                ? JSON.stringify(params.metadata)
+                : undefined,
+            })
+          },
+          invokeWorker: (method, payload) =>
+            invokeDesktopPluginWorker(
+              currentPlugin.manifest.id,
+              method,
+              payload,
+            ),
+        })
 
-        if (request.method === "plugin.getManifest") {
-          postBridgeResponse(frameOrigin, request.id, true, currentPlugin.manifest)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-            result: currentPlugin.manifest,
-          })
-          return
-        }
-
-        if (request.method === "layout.setFrameHeight") {
-          const params = request.params as { height?: number } | null
-          setFrameHeight(normalizePluginFrameHeight(params?.height))
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        if (request.method === "worker.invoke") {
-          const params = request.params as {
-            method?: string
-            payload?: unknown
-          } | null
-
-          if (!params?.method || typeof params.method !== "string") {
-            throw new Error("worker.invoke 缺少 method")
-          }
-
-          const result = await invokeDesktopPluginWorker(currentPlugin.manifest.id, params.method, params.payload)
+        if (dispatched.request.method === "worker.invoke") {
           await refreshWorkerStatus()
-          postBridgeResponse(frameOrigin, request.id, true, {
-            ok: true,
-            result,
-          })
-          appendRpcCall({
-            method: `${request.method}:${params.method}`,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: params.payload,
-            result,
-          })
-          return
         }
-
-        if (request.method === "notification.add") {
-          const params = request.params as {
-            type?: "info" | "success" | "error"
-            title?: string
-            description?: string
-          } | null
-          notificationStore.addNotification({
-            type: params?.type === "success" || params?.type === "error" ? params.type : "info",
-            title: params?.title?.trim() || currentPlugin.manifest.name,
-            description: params?.description?.trim() || "",
-          })
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        if (request.method === "storage.get") {
-          const params = request.params as StorageRequestParams | null
-          const key = normalizeStorageKey(params?.key)
-          postBridgeResponse(
-            frameOrigin,
-            request.id,
-            true,
-            getPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key)
-          )
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-            result: getPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key),
-          })
-          return
-        }
-
-        if (request.method === "storage.set") {
-          const params = request.params as StorageRequestParams | null
-          const key = normalizeStorageKey(params?.key)
-          setPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key, params?.value)
-          postBridgeResponse(frameOrigin, request.id, true)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        if (request.method === "storage.remove") {
-          const params = request.params as StorageRequestParams | null
-          const key = normalizeStorageKey(params?.key)
-          removePluginStorageValue(window.localStorage, currentPlugin.manifest.id, key)
-          postBridgeResponse(frameOrigin, request.id, true)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        if (request.method === "storage.keys") {
-          const keys = listPluginStorageKeys(window.localStorage, currentPlugin.manifest.id)
-          postBridgeResponse(frameOrigin, request.id, true, keys)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            result: keys,
-          })
-          return
-        }
-
-        if (request.method === "storage.clear") {
-          clearPluginStorage(window.localStorage, currentPlugin.manifest.id)
-          postBridgeResponse(frameOrigin, request.id, true)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-          })
-          return
-        }
-
-        if (request.method === "activity.track") {
-          const params = request.params as {
-            action?: string
-            title?: string
-            description?: string
-            metadata?: Record<string, unknown>
-          } | null
-          const activityClient = new ActivityClient()
-          await activityClient.recordActivity({
-            module: `plugin:${currentPlugin.manifest.id}`,
-            action: params?.action ?? "",
-            title: params?.title ?? "",
-            description: params?.description,
-            metadataJson: params?.metadata ? JSON.stringify(params.metadata) : undefined,
-          })
-          postBridgeResponse(frameOrigin, request.id, true)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        throw new Error(`未知插件 Host API: ${request.method}`)
+        postBridgeResponse(
+          frameOrigin,
+          dispatched.request.id,
+          true,
+          dispatched.result,
+        )
+        appendRpcCall({
+          method: dispatched.diagnosticMethod,
+          status: "ok",
+          durationMs: Math.round(performance.now() - startedAt),
+          payload: dispatched.request.params,
+          result: dispatched.result,
+        })
       } catch (err) {
         appendRpcCall({
           method: request.method,

@@ -31,12 +31,10 @@
 
 export type {
   ThunderPluginAuthor,
-  ThunderPluginCommandContribution,
   ThunderPluginContributes,
   ThunderPluginKind,
   ThunderPluginManifest,
   ThunderPluginPermission,
   ThunderPluginRuntime,
-  ThunderPluginSettingContribution,
   ThunderPluginSidebarContribution,
 } from "@thunder/plugin-schema"
