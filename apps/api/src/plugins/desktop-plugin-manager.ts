@@ -47,6 +47,8 @@ export interface StaticPluginAsset {
   bytes: Buffer
   contentType: string
   contentSecurityPolicy?: string
+  etag?: string
+  lastModified?: string
 }
 
 export function isDesktopPluginRuntimeEnabled(): boolean {
@@ -433,16 +435,25 @@ export async function readDesktopPluginUiAsset(id: string, assetPathParts: strin
     throw new DesktopPluginError("插件 UI 资源路径越界", 403)
   }
 
-  const bytes = await readFile(resolvedAssetPath).catch(() => null)
-  if (!bytes) {
+  const fileStat = await stat(resolvedAssetPath).catch(() => null)
+  if (!fileStat || !fileStat.isFile()) {
     throw new DesktopPluginError("插件 UI 资源不存在", 404)
   }
+
+  const bytes = await readFile(resolvedAssetPath)
+
+  // Weak ETag based on file size + mtime — cheap to compute, good enough
+  // for immutable build artifacts that only change on plugin re-install.
+  const etag = `W/"${fileStat.size.toString(16)}-${fileStat.mtimeMs.toString(16)}"`
+  const lastModified = fileStat.mtime.toUTCString()
 
   return {
     bytes,
     contentType: STATIC_CONTENT_TYPES[extname(resolvedAssetPath).toLowerCase()] ?? "application/octet-stream",
     contentSecurityPolicy:
       "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'",
+    etag,
+    lastModified,
   }
 }
 

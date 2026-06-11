@@ -217,16 +217,50 @@ desktopPlugins.get("/:id/ui/*", async (c) => {
         .filter(Boolean)
     )
 
-    return new Response(new Uint8Array(asset.bytes), {
-      headers: {
-        "content-type": asset.contentType,
-        "cache-control": "no-store, max-age=0",
-        pragma: "no-cache",
-        expires: "0",
-        "content-security-policy": asset.contentSecurityPolicy ?? "",
-        "x-content-type-options": "nosniff",
-      },
-    })
+    // Support conditional requests — avoid re-transmitting unchanged assets.
+    if (asset.etag) {
+      const ifNoneMatch = c.req.header("if-none-match")
+      if (ifNoneMatch && ifNoneMatch === asset.etag) {
+        return new Response(null, {
+          status: 304,
+          headers: {
+            etag: asset.etag,
+            "cache-control": "max-age=3600, must-revalidate",
+          },
+        })
+      }
+    }
+
+    if (asset.lastModified) {
+      const ifModifiedSince = c.req.header("if-modified-since")
+      if (ifModifiedSince && ifModifiedSince === asset.lastModified) {
+        return new Response(null, {
+          status: 304,
+          headers: {
+            "last-modified": asset.lastModified,
+            "cache-control": "max-age=3600, must-revalidate",
+          },
+        })
+      }
+    }
+
+    const headers: Record<string, string> = {
+      "content-type": asset.contentType,
+      "cache-control": "max-age=3600, must-revalidate",
+      "x-content-type-options": "nosniff",
+    }
+
+    if (asset.etag) {
+      headers["etag"] = asset.etag
+    }
+    if (asset.lastModified) {
+      headers["last-modified"] = asset.lastModified
+    }
+    if (asset.contentSecurityPolicy) {
+      headers["content-security-policy"] = asset.contentSecurityPolicy
+    }
+
+    return new Response(new Uint8Array(asset.bytes), { headers })
   } catch (error) {
     return jsonError(error)
   }
