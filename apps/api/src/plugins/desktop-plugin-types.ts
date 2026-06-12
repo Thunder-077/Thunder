@@ -41,14 +41,15 @@ export interface InstalledDesktopPlugin {
 
 export interface DesktopPluginRuntimeStatus {
   pluginId: string
+  phase: import("@thunder/plugin-host-runtime").PluginRuntimePhase
   running: boolean
   pid?: number
-  port?: number
-  baseUrl?: string
-  endpoint?: string
   startedAt?: string
   lastExitAt?: string
   lastExitCode?: number | null
+  lastExitSignal?: NodeJS.Signals | null
+  consecutiveCrashCount: number
+  circuitOpenUntil?: string
   lastError?: string
 }
 
