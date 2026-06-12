@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { Worker } from "node:worker_threads"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { createPluginRuntimeStatus } from "./runtime-policy"
 import { createPipeServer, type PipeServer } from "./rpc/pipe-server"
 import type {
   PluginRuntimeStatus,
@@ -181,14 +182,13 @@ export function createTrustedRuntimeSupervisor(
         },
       })
 
-      const status: PluginRuntimeStatus = {
+      const status = createPluginRuntimeStatus({
         pluginId: plugin.manifest.id,
         kind: "trusted",
         phase: "running",
-        running: true,
         startedAt: new Date().toISOString(),
         consecutiveCrashCount: 0,
-      }
+      })
 
       servers.set(plugin.manifest.id, server)
       statuses.set(plugin.manifest.id, status)
@@ -222,26 +222,25 @@ export function createTrustedRuntimeSupervisor(
         workers.delete(pluginId)
       }
 
-      const status: PluginRuntimeStatus = {
+      const status = createPluginRuntimeStatus({
         pluginId,
         kind: "trusted",
         phase: "stopped",
-        running: false,
         consecutiveCrashCount: 0,
-      }
+      })
 
       statuses.set(pluginId, status)
       return status
     },
     getStatus(pluginId: string) {
       return (
-        statuses.get(pluginId) ?? {
+        statuses.get(pluginId) ??
+        createPluginRuntimeStatus({
           pluginId,
           kind: "trusted",
           phase: "stopped",
-          running: false,
           consecutiveCrashCount: 0,
-        }
+        })
       )
     },
     getEndpoint(pluginId: string) {

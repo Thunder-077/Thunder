@@ -1,3 +1,5 @@
+import type { PluginRuntimeStatus } from "./types"
+
 const MEBIBYTE = 1024 * 1024
 const MINUTE_MS = 60_000
 
@@ -25,6 +27,19 @@ export interface TrustedRuntimeEnvironmentOptions {
 export type TrustedRuntimeEnvironment = NodeJS.ProcessEnv & {
   THUNDER_PLUGIN_ID: string
   THUNDER_PLUGIN_DATA_DIR?: string
+}
+
+/**
+ * Create a runtime status while enforcing the phase/running compatibility
+ * invariant at the single construction boundary.
+ */
+export function createPluginRuntimeStatus(
+  input: Omit<PluginRuntimeStatus, "running">,
+): PluginRuntimeStatus {
+  return {
+    ...input,
+    running: input.phase === "running" || input.phase === "degraded",
+  }
 }
 
 /**

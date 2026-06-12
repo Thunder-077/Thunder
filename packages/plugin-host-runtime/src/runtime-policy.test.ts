@@ -1,11 +1,34 @@
 import assert from "node:assert/strict"
 import {
   calculateCrashBackoff,
+  createPluginRuntimeStatus,
   createTrustedRuntimeEnvironment,
   shouldOpenRuntimeCircuit,
   TRUSTED_RUNTIME_LIMITS,
 } from "./runtime-policy"
 import { createRuntimeLogBuffer } from "./runtime-logs"
+import type { PluginRuntimePhase } from "./types"
+
+const phaseRunningCases: ReadonlyArray<
+  readonly [PluginRuntimePhase, boolean]
+> = [
+  ["stopped", false],
+  ["starting", false],
+  ["running", true],
+  ["degraded", true],
+  ["crashed", false],
+  ["stopping", false],
+]
+
+for (const [phase, expectedRunning] of phaseRunningCases) {
+  const status = createPluginRuntimeStatus({
+    pluginId: "status-test",
+    kind: "trusted",
+    phase,
+    consecutiveCrashCount: 0,
+  })
+  assert.equal(status.running, expectedRunning)
+}
 
 assert.equal(calculateCrashBackoff(1), 1_000)
 assert.equal(calculateCrashBackoff(2), 5_000)
