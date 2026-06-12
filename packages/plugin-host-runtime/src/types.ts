@@ -9,6 +9,7 @@ export interface LoadedPluginManifest {
 export interface RegisteredPlugin {
   manifest: ThunderPluginManifest
   pluginRoot: string
+  dataDirectory?: string
 }
 
 export interface PluginRegistry {
@@ -65,8 +66,15 @@ export interface SandboxedPluginRuntime {
 }
 
 export interface TrustedPluginRuntimeSupervisor {
-  start(plugin: RegisteredPlugin): Promise<PluginRuntimeStatus>
+  start(
+    plugin: RegisteredPlugin,
+    options?: { manual?: boolean },
+  ): Promise<PluginRuntimeStatus>
+  invoke(
+    plugin: RegisteredPlugin,
+    method: string,
+    payload?: unknown,
+  ): Promise<unknown>
   stop(pluginId: string): Promise<PluginRuntimeStatus>
   getStatus(pluginId: string): PluginRuntimeStatus
-  getEndpoint(pluginId: string): string | null
 }

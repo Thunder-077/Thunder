@@ -299,7 +299,7 @@ export async function createPipeClient(
       })
     },
     async close() {
-      if (closed || socket.destroyed) {
+      if (closed) {
         return
       }
 
@@ -311,6 +311,9 @@ export async function createPipeClient(
           "RPC pipe client closed",
         ),
       )
+      if (socket.destroyed) {
+        return
+      }
       await new Promise<void>((resolvePromise) => {
         socket.end(() => resolvePromise())
       })

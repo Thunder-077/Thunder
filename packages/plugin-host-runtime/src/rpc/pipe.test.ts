@@ -458,6 +458,29 @@ async function testServerCloseWithActiveClient(): Promise<void> {
   await client.close()
 }
 
+async function testDestroyedSocketRejectsPendingRequest(): Promise<void> {
+  const server = await createPipeServer({
+    pluginId: PLUGIN_ID,
+    capability: CAPABILITY,
+    async handle() {
+      await new Promise(() => undefined)
+    },
+  })
+  const client = await createPipeClient(server.endpoint, {
+    pluginId: PLUGIN_ID,
+    capability: CAPABILITY,
+  })
+  const pendingRejection = assertRuntimeError(
+    () => client.invoke("never.returns"),
+    "RUNTIME_CRASHED",
+  )
+
+  await delay(20)
+  await server.close()
+  await pendingRejection
+  await client.close()
+}
+
 async function testOversizedResponse(): Promise<void> {
   const server = await createPipeServer({
     pluginId: PLUGIN_ID,
@@ -582,6 +605,7 @@ await testUnauthorizedCapability()
 await testOversizedRequest()
 await testInvocationTimeout()
 await testServerCloseWithActiveClient()
+await testDestroyedSocketRejectsPendingRequest()
 await testOversizedResponse()
 await testStructuredMethodNotFound()
 await testOversizedHandlerError()

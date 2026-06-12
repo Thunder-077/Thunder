@@ -1,9 +1,18 @@
 import { randomUUID } from "node:crypto"
-import { Worker } from "node:worker_threads"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
-import { createPluginRuntimeStatus } from "./runtime-policy"
-import { createPipeServer, type PipeServer } from "./rpc/pipe-server"
+import { spawn, type ChildProcess } from "node:child_process"
+import { existsSync } from "node:fs"
+import { access } from "node:fs/promises"
+import { join, resolve } from "node:path"
+import { createPipeClient, type PipeClient } from "./rpc/pipe-client"
+import { PluginRuntimeError } from "./runtime-errors"
+import {
+  calculateCrashBackoff,
+  createPluginRuntimeStatus,
+  createTrustedRuntimeEnvironment,
+  shouldOpenRuntimeCircuit,
+  TRUSTED_RUNTIME_LIMITS,
+} from "./runtime-policy"
+import { createRuntimeLogBuffer, type RuntimeLogBuffer } from "./runtime-logs"
 import type {
   PluginRuntimeStatus,
   RegisteredPlugin,
@@ -11,251 +20,424 @@ import type {
 } from "./types"
 
 export interface TrustedRuntimeSupervisorOptions {
-  handleRpc?(
-    plugin: RegisteredPlugin,
-    method: string,
-    payload: unknown,
-  ): Promise<unknown> | unknown
+  bootstrapPath?: string
+  executablePath?: string
   socketDirectory?: string
+  now?: () => number
 }
 
-export interface TrustedRuntimeConnectionInfo {
-  endpoint: string
-  capability: string
+interface RuntimeRecord {
+  plugin: RegisteredPlugin
+  status: PluginRuntimeStatus
+  child?: ChildProcess
+  client?: PipeClient
+  capability?: string
+  startPromise?: Promise<PluginRuntimeStatus>
+  activeInvocations: number
+  crashTimestamps: number[]
+  nextRestartAt: number
+  stopping: boolean
+  healthyResetTimer?: NodeJS.Timeout
+  stdout: RuntimeLogBuffer
+  stderr: RuntimeLogBuffer
 }
 
-export interface TrustedRuntimeSupervisorWithConnectionInfo
-  extends TrustedPluginRuntimeSupervisor {
-  /**
-   * @internal
-   * @deprecated Temporary bridge until Task 4 owns trusted runtime clients.
-   */
-  getConnectionInfo(pluginId: string): TrustedRuntimeConnectionInfo | null
+type BootstrapMessage =
+  | { type: "bootstrap-ready"; version: number }
+  | { type: "ready"; version: number; pluginId: string; endpoint: string }
+  | { type: "init-error"; version: number; error: string }
+  | { type: "stopped"; version: number }
+
+function defaultBootstrapPath(): string {
+  const candidates = [
+    process.env.THUNDER_TRUSTED_RUNTIME_BOOTSTRAP_PATH,
+    typeof __dirname === "string"
+      ? join(__dirname, "trusted-process-bootstrap.mjs")
+      : undefined,
+    resolve(process.cwd(), "src", "trusted-process-bootstrap.mjs"),
+    resolve(
+      process.cwd(),
+      "packages",
+      "plugin-host-runtime",
+      "src",
+      "trusted-process-bootstrap.mjs",
+    ),
+    resolve(
+      process.cwd(),
+      "..",
+      "..",
+      "packages",
+      "plugin-host-runtime",
+      "src",
+      "trusted-process-bootstrap.mjs",
+    ),
+  ].filter((candidate): candidate is string => Boolean(candidate))
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]
 }
 
-/**
- * Resolve the absolute path to the worker thread bootstrap script.
- *
- * Dynamically resolved to support both ESM (via import.meta.url in package test)
- * and CommonJS (via __dirname in consuming apps/api).
- */
-let currentDir: string
-try {
-  // @ts-ignore
-  currentDir = __dirname
-} catch {
-  // @ts-ignore
-  currentDir = dirname(fileURLToPath(import.meta.url))
+function wait(ms: number): Promise<void> {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms))
 }
 
-const WORKER_BOOTSTRAP_PATH = join(currentDir, "worker-thread-bootstrap.mjs")
-
-type PendingInvoke = {
-  resolve(value: unknown): void
-  reject(error: Error): void
+function sanitizeError(error: unknown): string {
+  if (error instanceof PluginRuntimeError) return error.message
+  return "Trusted runtime failed"
 }
 
-interface IsolatedWorker {
-  worker: Worker
-  pending: Map<string, PendingInvoke>
-}
-
-/**
- * Spawn a worker thread that loads the plugin's `dist/worker.js` in
- * isolation.  Returns the `Worker` handle once the child thread reports
- * `ready`.  From that point the parent can send `invoke` messages and
- * receive `result`/`error` replies keyed by request id.
- */
-async function spawnIsolatedWorker(
-  plugin: RegisteredPlugin,
-): Promise<IsolatedWorker> {
-  const entry = plugin.manifest.runtime?.entry
-  if (!entry) {
-    throw new Error(
-      `Trusted plugin ${plugin.manifest.id} is missing runtime.entry`,
-    )
-  }
-
-  const pending = new Map<string, PendingInvoke>()
-
-  const worker = new Worker(WORKER_BOOTSTRAP_PATH, {
-    workerData: {
-      pluginId: plugin.manifest.id,
-      pluginRoot: plugin.pluginRoot,
-      runtimeEntry: entry,
-    },
-  })
-
-  await new Promise<void>((resolve, reject) => {
-    const onMessage = (msg: { type: string; error?: string }) => {
-      if (msg.type === "ready") {
-        worker.off("error", onError)
-        worker.off("exit", onExit)
-        resolve()
-      } else if (msg.type === "init-error") {
-        worker.off("error", onError)
-        worker.off("exit", onExit)
-        reject(new Error(msg.error ?? "Worker init failed"))
-      }
-    }
-
-    const onError = (err: Error) => {
-      worker.off("message", onMessage)
-      worker.off("exit", onExit)
-      reject(err)
-    }
-
-    const onExit = (code: number) => {
-      worker.off("message", onMessage)
-      worker.off("error", onError)
-      reject(new Error(`Worker exited during init with code ${code}`))
-    }
-
-    worker.once("message", onMessage)
-    worker.once("error", onError)
-    worker.once("exit", onExit)
-  })
-
-  // After init, set up permanent message listener for RPC responses.
-  worker.on(
-    "message",
-    (msg: { type: string; id?: string; result?: unknown; error?: string }) => {
-      if (msg.type === "result" && msg.id) {
-        const p = pending.get(msg.id)
-        if (p) {
-          pending.delete(msg.id)
-          p.resolve(msg.result)
-        }
-      } else if (msg.type === "error" && msg.id) {
-        const p = pending.get(msg.id)
-        if (p) {
-          pending.delete(msg.id)
-          p.reject(new Error(msg.error ?? "Worker RPC failed"))
-        }
-      }
-    },
-  )
-
-  // If the worker dies unexpectedly, reject any pending calls.
-  worker.on("exit", () => {
-    for (const [, p] of pending) {
-      p.reject(new Error("Worker thread exited unexpectedly"))
-    }
-    pending.clear()
-  })
-
-  worker.on("error", (err) => {
-    for (const [, p] of pending) {
-      p.reject(err)
-    }
-    pending.clear()
-  })
-
-  return { worker, pending }
+function clearHealthyResetTimer(record: RuntimeRecord): void {
+  if (!record.healthyResetTimer) return
+  clearTimeout(record.healthyResetTimer)
+  record.healthyResetTimer = undefined
 }
 
 export function createTrustedRuntimeSupervisor(
   options: TrustedRuntimeSupervisorOptions = {},
-): TrustedRuntimeSupervisorWithConnectionInfo {
-  const statuses = new Map<string, PluginRuntimeStatus>()
-  const servers = new Map<string, PipeServer>()
-  const capabilities = new Map<string, string>()
-  const workers = new Map<string, IsolatedWorker>()
+): TrustedPluginRuntimeSupervisor {
+  const records = new Map<string, RuntimeRecord>()
+  const now = options.now ?? Date.now
+  const bootstrapPath = options.bootstrapPath ?? defaultBootstrapPath()
+  const executablePath = options.executablePath ?? process.execPath
 
-  return {
-    async start(plugin: RegisteredPlugin) {
-      // Tear down any existing instance for this plugin first.
-      const existingServer = servers.get(plugin.manifest.id)
-      if (existingServer) {
-        await existingServer.close()
-        servers.delete(plugin.manifest.id)
-        capabilities.delete(plugin.manifest.id)
+  function getRecord(plugin: RegisteredPlugin): RuntimeRecord {
+    let record = records.get(plugin.manifest.id)
+    if (!record) {
+      record = {
+        plugin,
+        status: createPluginRuntimeStatus({
+          pluginId: plugin.manifest.id,
+          kind: "trusted",
+          phase: "stopped",
+          consecutiveCrashCount: 0,
+        }),
+        activeInvocations: 0,
+        crashTimestamps: [],
+        nextRestartAt: 0,
+        stopping: false,
+        stdout: createRuntimeLogBuffer(),
+        stderr: createRuntimeLogBuffer(),
       }
-      const existingWorker = workers.get(plugin.manifest.id)
-      if (existingWorker) {
-        await existingWorker.worker.terminate()
-        workers.delete(plugin.manifest.id)
-      }
+      records.set(plugin.manifest.id, record)
+    } else {
+      record.plugin = plugin
+    }
+    return record
+  }
 
-      // Spawn the plugin worker in an isolated thread.
-      const isolated = await spawnIsolatedWorker(plugin)
-      workers.set(plugin.manifest.id, isolated)
+  function validatePlugin(plugin: RegisteredPlugin): void {
+    if (plugin.manifest.kind !== "trusted") {
+      throw new PluginRuntimeError("RUNTIME_START_FAILED", "Only trusted plugins can start a runtime")
+    }
+    if (!plugin.manifest.permissions.includes("native-runtime")) {
+      throw new PluginRuntimeError("RUNTIME_START_FAILED", "Trusted plugin is missing native-runtime permission")
+    }
+    if (!plugin.manifest.runtime?.entry) {
+      throw new PluginRuntimeError("RUNTIME_START_FAILED", "Trusted plugin is missing runtime.entry")
+    }
+  }
 
-      // Create the pipe server in the main thread; it forwards RPC
-      // calls to the isolated worker thread via MessagePort.
-      const capability = randomUUID()
-      const server = await createPipeServer({
-        pluginId: plugin.manifest.id,
-        capability,
-        socketDirectory: options.socketDirectory,
-        async handle(method, payload) {
-          if (options.handleRpc) {
-            return options.handleRpc(plugin, method, payload)
-          }
+  async function start(
+    plugin: RegisteredPlugin,
+    startOptions: { manual?: boolean } = {},
+  ): Promise<PluginRuntimeStatus> {
+    validatePlugin(plugin)
+    const record = getRecord(plugin)
+    if (record.status.phase === "running" || record.status.phase === "degraded") {
+      return record.status
+    }
+    if (record.startPromise) return record.startPromise
 
-          const id = randomUUID()
-          return new Promise<unknown>((resolve, reject) => {
-            isolated.pending.set(id, { resolve, reject })
-            isolated.worker.postMessage({ type: "invoke", id, method, payload })
-          })
-        },
+    const currentTime = now()
+    if (startOptions.manual) {
+      record.crashTimestamps = []
+      record.nextRestartAt = 0
+      record.status = createPluginRuntimeStatus({
+        ...record.status,
+        phase: "stopped",
+        consecutiveCrashCount: 0,
+        circuitOpenUntil: undefined,
+        lastError: undefined,
+      })
+    } else if (record.status.circuitOpenUntil && Date.parse(record.status.circuitOpenUntil) > currentTime) {
+      throw new PluginRuntimeError("RUNTIME_CIRCUIT_OPEN", "Trusted runtime circuit is open", {
+        retryable: true,
+      })
+    } else if (record.nextRestartAt > currentTime) {
+      await wait(record.nextRestartAt - currentTime)
+    }
+
+    record.startPromise = (async () => {
+      await access(bootstrapPath).catch((error) => {
+        throw new PluginRuntimeError("RUNTIME_START_FAILED", "Trusted runtime bootstrap is missing", {
+          cause: error,
+        })
+      })
+      record.status = createPluginRuntimeStatus({
+        ...record.status,
+        phase: "starting",
+        lastError: undefined,
       })
 
-      const status = createPluginRuntimeStatus({
+      const capability = randomUUID()
+      const child = spawn(
+        executablePath,
+        [`--max-old-space-size=${TRUSTED_RUNTIME_LIMITS.maxOldSpaceMb}`, bootstrapPath],
+        {
+          cwd: plugin.pluginRoot,
+          shell: false,
+          detached: process.platform !== "win32",
+          stdio: ["ignore", "pipe", "pipe", "ipc"],
+          env: createTrustedRuntimeEnvironment(process.env, {
+            pluginId: plugin.manifest.id,
+            pluginDataDir: plugin.dataDirectory,
+          }),
+        },
+      )
+      record.child = child
+      record.capability = capability
+      record.stopping = false
+      child.stdout?.on("data", (chunk) => record.stdout.append(String(chunk)))
+      child.stderr?.on("data", (chunk) => record.stderr.append(String(chunk)))
+
+      const onRuntimeExit = (
+        code: number | null,
+        signal: NodeJS.Signals | null,
+      ) => {
+        if (!record.stopping) {
+          void handleCrash(record, code, signal)
+        }
+      }
+      const ready = await new Promise<{ endpoint: string }>((resolvePromise, rejectPromise) => {
+        const timeout = setTimeout(() => {
+          fail(new PluginRuntimeError("RUNTIME_START_FAILED", "Trusted runtime startup timed out"))
+        }, TRUSTED_RUNTIME_LIMITS.startupTimeoutMs)
+
+        let settled = false
+        const onError = (error: Error) => fail(error)
+        const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+          fail(new Error(`Trusted runtime exited during startup (${code ?? signal ?? "unknown"})`))
+        }
+        const cleanup = () => {
+          clearTimeout(timeout)
+          child.off("error", onError)
+          child.off("exit", onExit)
+          child.off("message", onMessage)
+        }
+        const fail = (error: unknown) => {
+          if (settled) return
+          settled = true
+          cleanup()
+          rejectPromise(
+            error instanceof PluginRuntimeError
+              ? error
+              : new PluginRuntimeError("RUNTIME_START_FAILED", "Trusted runtime failed during startup", {
+                  cause: error,
+                }),
+          )
+        }
+
+        const onMessage = (raw: unknown) => {
+          const message = raw as BootstrapMessage
+          if (message.type === "bootstrap-ready" && message.version === 1) {
+            child.send({
+              type: "initialize",
+              config: {
+                pluginId: plugin.manifest.id,
+                pluginRoot: plugin.pluginRoot,
+                runtimeEntry: plugin.manifest.runtime?.entry,
+                capability,
+                socketDirectory: options.socketDirectory,
+                maxRequestBytes: TRUSTED_RUNTIME_LIMITS.maxRequestBytes,
+                maxResponseBytes: TRUSTED_RUNTIME_LIMITS.maxResponseBytes,
+              },
+            })
+          } else if (
+            message.type === "ready" &&
+            message.version === 1 &&
+            message.pluginId === plugin.manifest.id &&
+            typeof message.endpoint === "string"
+          ) {
+            if (settled) return
+            settled = true
+            // Install lifecycle monitoring before releasing the startup wait.
+            child.on("exit", onRuntimeExit)
+            cleanup()
+            resolvePromise({ endpoint: message.endpoint })
+          } else if (message.type === "init-error") {
+            fail(new Error(message.error))
+          }
+        }
+        child.once("error", onError)
+        child.once("exit", onExit)
+        child.on("message", onMessage)
+      })
+
+      record.client = await createPipeClient(ready.endpoint, {
+        pluginId: plugin.manifest.id,
+        capability,
+      })
+      record.status = createPluginRuntimeStatus({
         pluginId: plugin.manifest.id,
         kind: "trusted",
         phase: "running",
-        startedAt: new Date().toISOString(),
-        consecutiveCrashCount: 0,
+        pid: child.pid,
+        startedAt: new Date(now()).toISOString(),
+        consecutiveCrashCount: record.status.consecutiveCrashCount,
       })
 
-      servers.set(plugin.manifest.id, server)
-      capabilities.set(plugin.manifest.id, capability)
-      statuses.set(plugin.manifest.id, status)
-      return status
-    },
-    async stop(pluginId: string) {
-      const server = servers.get(pluginId)
+      clearHealthyResetTimer(record)
+      record.healthyResetTimer = setTimeout(() => {
+        if (record.child !== child || record.status.phase !== "running") return
+        record.crashTimestamps = []
+        record.nextRestartAt = 0
+        record.status = createPluginRuntimeStatus({
+          ...record.status,
+          consecutiveCrashCount: 0,
+          circuitOpenUntil: undefined,
+        })
+      }, TRUSTED_RUNTIME_LIMITS.healthyResetMs)
+      record.healthyResetTimer.unref()
+      return record.status
+    })()
 
-      if (server) {
-        await server.close()
-        servers.delete(pluginId)
+    try {
+      return await record.startPromise
+    } catch (error) {
+      await terminateChild(record)
+      record.status = createPluginRuntimeStatus({
+        ...record.status,
+        phase: "crashed",
+        lastError: sanitizeError(error),
+      })
+      throw error
+    } finally {
+      record.startPromise = undefined
+    }
+  }
+
+  async function handleCrash(
+    record: RuntimeRecord,
+    code: number | null,
+    signal: NodeJS.Signals | null,
+  ): Promise<void> {
+    const timestamp = now()
+    clearHealthyResetTimer(record)
+    await record.client?.close().catch(() => undefined)
+    record.client = undefined
+    record.child = undefined
+    record.capability = undefined
+    record.crashTimestamps.push(timestamp)
+    record.crashTimestamps = record.crashTimestamps.filter(
+      (item) => item >= timestamp - TRUSTED_RUNTIME_LIMITS.crashWindowMs,
+    )
+    const count = record.status.consecutiveCrashCount + 1
+    record.nextRestartAt = timestamp + calculateCrashBackoff(count)
+    const circuitOpen = shouldOpenRuntimeCircuit(record.crashTimestamps, timestamp)
+    record.status = createPluginRuntimeStatus({
+      pluginId: record.plugin.manifest.id,
+      kind: "trusted",
+      phase: "crashed",
+      lastExitAt: new Date(timestamp).toISOString(),
+      lastExitCode: code,
+      lastExitSignal: signal,
+      consecutiveCrashCount: count,
+      circuitOpenUntil: circuitOpen
+        ? new Date(timestamp + TRUSTED_RUNTIME_LIMITS.circuitDurationMs).toISOString()
+        : undefined,
+      lastError: "Trusted runtime exited unexpectedly",
+    })
+  }
+
+  async function terminateChild(record: RuntimeRecord): Promise<void> {
+    const child = record.child
+    if (!child?.pid) return
+    if (process.platform === "win32") {
+      await new Promise<void>((resolvePromise) => {
+        const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+          windowsHide: true,
+          stdio: "ignore",
+        })
+        killer.once("exit", () => resolvePromise())
+        killer.once("error", () => resolvePromise())
+      })
+    } else {
+      try {
+        process.kill(-child.pid, "SIGKILL")
+      } catch {
+        child.kill("SIGKILL")
       }
-      capabilities.delete(pluginId)
+    }
+  }
 
-      const isolated = workers.get(pluginId)
-      if (isolated) {
-        // Try graceful shutdown first, then force-terminate.
-        try {
-          isolated.worker.postMessage({ type: "shutdown" })
-          await Promise.race([
-            new Promise<void>((resolve) => {
-              isolated.worker.once("exit", () => resolve())
-            }),
-            new Promise<void>((resolve) =>
-              setTimeout(() => resolve(), 3000),
-            ),
-          ])
-        } catch {
-          // ignore
-        }
-        await isolated.worker.terminate()
-        workers.delete(pluginId)
-      }
-
-      const status = createPluginRuntimeStatus({
+  async function stop(pluginId: string): Promise<PluginRuntimeStatus> {
+    const record = records.get(pluginId)
+    if (!record) {
+      return createPluginRuntimeStatus({
         pluginId,
         kind: "trusted",
         phase: "stopped",
         consecutiveCrashCount: 0,
       })
+    }
+    if (record.startPromise) {
+      await record.startPromise.catch(() => undefined)
+    }
+    record.stopping = true
+    clearHealthyResetTimer(record)
+    record.status = createPluginRuntimeStatus({ ...record.status, phase: "stopping" })
 
-      statuses.set(pluginId, status)
-      return status
+    const invocationDeadline = now() + TRUSTED_RUNTIME_LIMITS.shutdownGraceMs
+    while (record.activeInvocations > 0 && now() < invocationDeadline) await wait(25)
+
+    await record.client?.close().catch(() => undefined)
+    record.client = undefined
+    const child = record.child
+    if (child?.connected) child.send({ type: "shutdown" })
+    if (child) {
+      const exited = await Promise.race([
+        new Promise<boolean>((resolvePromise) => child.once("exit", () => resolvePromise(true))),
+        wait(TRUSTED_RUNTIME_LIMITS.shutdownGraceMs).then(() => false),
+      ])
+      if (!exited) await terminateChild(record)
+    }
+    record.child = undefined
+    record.capability = undefined
+    record.status = createPluginRuntimeStatus({
+      pluginId,
+      kind: "trusted",
+      phase: "stopped",
+      consecutiveCrashCount: record.status.consecutiveCrashCount,
+    })
+    return record.status
+  }
+
+  return {
+    start,
+    async invoke(plugin, method, payload) {
+      const record = getRecord(plugin)
+      if (record.activeInvocations >= TRUSTED_RUNTIME_LIMITS.maxActiveInvocations) {
+        throw new PluginRuntimeError(
+          "RPC_CONCURRENCY_LIMIT",
+          "Trusted runtime concurrency limit reached",
+          { retryable: true },
+        )
+      }
+      await start(plugin)
+      if (!record.client) {
+        throw new PluginRuntimeError("RUNTIME_NOT_READY", "Trusted runtime is not ready", {
+          retryable: true,
+        })
+      }
+      record.activeInvocations += 1
+      try {
+        return await record.client.invoke(method, payload)
+      } finally {
+        record.activeInvocations -= 1
+      }
     },
-    getStatus(pluginId: string) {
+    stop,
+    getStatus(pluginId) {
       return (
-        statuses.get(pluginId) ??
+        records.get(pluginId)?.status ??
         createPluginRuntimeStatus({
           pluginId,
           kind: "trusted",
@@ -263,22 +445,6 @@ export function createTrustedRuntimeSupervisor(
           consecutiveCrashCount: 0,
         })
       )
-    },
-    getEndpoint(pluginId: string) {
-      return servers.get(pluginId)?.endpoint ?? null
-    },
-    getConnectionInfo(pluginId: string) {
-      const server = servers.get(pluginId)
-      const capability = capabilities.get(pluginId)
-
-      if (!server || !capability) {
-        return null
-      }
-
-      return {
-        endpoint: server.endpoint,
-        capability,
-      }
     },
   }
 }

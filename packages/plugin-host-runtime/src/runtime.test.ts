@@ -3,7 +3,6 @@ import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
-  createPipeClient,
   createPluginInstaller,
   createPluginRegistry,
   createSandboxedRuntime,
@@ -22,6 +21,14 @@ writeFileSync(
     '  handlers: {',
     '    async "speech.transcribe"(payload) {',
     '      return { normalized: String(payload?.text ?? "").trim() }',
+    '    },',
+    '    async "runtime.environment"() {',
+    '      return {',
+    '        pluginId: process.env.THUNDER_PLUGIN_ID ?? null,',
+    '        dataDirectory: process.env.THUNDER_PLUGIN_DATA_DIR ?? null,',
+    '        leakedSecret: process.env.THUNDER_RUNTIME_TEST_SECRET ?? null,',
+    '        pid: process.pid,',
+    '      }',
     '    },',
     '  },',
     '}',
@@ -91,36 +98,63 @@ assert.equal(stoppedSandboxedStatus.phase, "stopped")
 assert.equal(stoppedSandboxedStatus.running, false)
 
 const trustedRuntime = createTrustedRuntimeSupervisor()
-const trustedStatus = await trustedRuntime.start({
+const trustedPlugin = {
   manifest,
   pluginRoot: join(root, "plugins", "teleprompter"),
-})
+  dataDirectory: join(root, "plugin-data", "teleprompter"),
+}
+process.env.THUNDER_RUNTIME_TEST_SECRET = "must-not-leak"
+const [trustedStatus, duplicateTrustedStatus] = await Promise.all([
+  trustedRuntime.start(trustedPlugin),
+  trustedRuntime.start(trustedPlugin),
+])
 assert.equal(trustedStatus.pluginId, "teleprompter")
 assert.equal(trustedStatus.kind, "trusted")
 assert.equal(trustedStatus.phase, "running")
 assert.equal(trustedStatus.running, true)
 assert.equal(trustedStatus.consecutiveCrashCount, 0)
+assert.equal(typeof trustedStatus.pid, "number")
+assert.equal(duplicateTrustedStatus.pid, trustedStatus.pid)
 
-const trustedConnection = trustedRuntime.getConnectionInfo("teleprompter")
-assert.ok(trustedConnection)
-const trustedClient = await createPipeClient(trustedConnection.endpoint, {
-  pluginId: "teleprompter",
-  capability: trustedConnection.capability,
-})
-const trustedRpcResult = await trustedClient.invoke<{
-  normalized: string
-}>("speech.transcribe", {
+const trustedRpcResult = await trustedRuntime.invoke(trustedPlugin, "speech.transcribe", {
   text: "  hello  ",
-})
+}) as {
+  normalized: string
+}
 assert.deepEqual(trustedRpcResult, {
   normalized: "hello",
 })
-await trustedClient.close()
+
+const runtimeEnvironment = await trustedRuntime.invoke(
+  trustedPlugin,
+  "runtime.environment",
+  undefined,
+) as {
+  pluginId: string
+  dataDirectory: string
+  leakedSecret: string | null
+  pid: number
+}
+assert.deepEqual(runtimeEnvironment, {
+  pluginId: "teleprompter",
+  dataDirectory: trustedPlugin.dataDirectory,
+  leakedSecret: null,
+  pid: trustedStatus.pid,
+})
+
+process.kill(trustedStatus.pid as number, "SIGKILL")
+for (let attempt = 0; attempt < 100; attempt += 1) {
+  if (trustedRuntime.getStatus("teleprompter").phase === "crashed") break
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 10))
+}
+const crashedTrustedStatus = trustedRuntime.getStatus("teleprompter")
+assert.equal(crashedTrustedStatus.phase, "crashed")
+assert.equal(crashedTrustedStatus.consecutiveCrashCount, 1)
+
 const stoppedTrustedStatus = await trustedRuntime.stop("teleprompter")
 assert.equal(stoppedTrustedStatus.phase, "stopped")
 assert.equal(stoppedTrustedStatus.running, false)
-assert.equal(trustedRuntime.getEndpoint("teleprompter"), null)
-assert.equal(trustedRuntime.getConnectionInfo("teleprompter"), null)
+delete process.env.THUNDER_RUNTIME_TEST_SECRET
 
 const symlinkRoot = mkdtempSync(join(tmpdir(), "thunder-plugin-host-symlink-"))
 const symlinkPluginDir = join(symlinkRoot, "teleprompter")
