@@ -30,11 +30,27 @@ export interface PluginInstaller {
   installFromDirectory(sourcePath: string): Promise<PluginInstallResult>
 }
 
+export type PluginRuntimePhase =
+  | "stopped"
+  | "starting"
+  | "running"
+  | "degraded"
+  | "crashed"
+  | "stopping"
+
 export interface PluginRuntimeStatus {
   pluginId: string
-  kind: ThunderPluginManifest["kind"]
+  kind: "trusted" | "sandboxed"
+  phase: PluginRuntimePhase
   running: boolean
-  endpoint?: string
+  pid?: number
+  startedAt?: string
+  lastExitAt?: string
+  lastExitCode?: number | null
+  lastExitSignal?: NodeJS.Signals | null
+  consecutiveCrashCount: number
+  circuitOpenUntil?: string
+  lastError?: string
 }
 
 export interface SandboxedPluginRuntime {
