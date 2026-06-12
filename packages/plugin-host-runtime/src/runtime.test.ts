@@ -82,9 +82,13 @@ const sandboxedStatus = await sandboxedRuntime.start({
 assert.deepEqual(sandboxedStatus, {
   pluginId: "teleprompter",
   kind: "sandboxed",
+  phase: "running",
   running: true,
+  consecutiveCrashCount: 0,
 })
-assert.equal((await sandboxedRuntime.stop("teleprompter")).running, false)
+const stoppedSandboxedStatus = await sandboxedRuntime.stop("teleprompter")
+assert.equal(stoppedSandboxedStatus.phase, "stopped")
+assert.equal(stoppedSandboxedStatus.running, false)
 
 const trustedRuntime = createTrustedRuntimeSupervisor()
 const trustedStatus = await trustedRuntime.start({
@@ -93,11 +97,13 @@ const trustedStatus = await trustedRuntime.start({
 })
 assert.equal(trustedStatus.pluginId, "teleprompter")
 assert.equal(trustedStatus.kind, "trusted")
+assert.equal(trustedStatus.phase, "running")
 assert.equal(trustedStatus.running, true)
-assert.equal(typeof trustedStatus.endpoint, "string")
-assert.equal(trustedRuntime.getEndpoint("teleprompter"), trustedStatus.endpoint ?? null)
+assert.equal(trustedStatus.consecutiveCrashCount, 0)
 
-const trustedClient = await createPipeClient(trustedStatus.endpoint ?? "")
+const trustedEndpoint = trustedRuntime.getEndpoint("teleprompter")
+assert.equal(typeof trustedEndpoint, "string")
+const trustedClient = await createPipeClient(trustedEndpoint ?? "")
 const trustedRpcResult = await trustedClient.invoke<{
   normalized: string
 }>("speech.transcribe", {
@@ -107,7 +113,9 @@ assert.deepEqual(trustedRpcResult, {
   normalized: "hello",
 })
 await trustedClient.close()
-assert.equal((await trustedRuntime.stop("teleprompter")).running, false)
+const stoppedTrustedStatus = await trustedRuntime.stop("teleprompter")
+assert.equal(stoppedTrustedStatus.phase, "stopped")
+assert.equal(stoppedTrustedStatus.running, false)
 assert.equal(trustedRuntime.getEndpoint("teleprompter"), null)
 
 const symlinkRoot = mkdtempSync(join(tmpdir(), "thunder-plugin-host-symlink-"))

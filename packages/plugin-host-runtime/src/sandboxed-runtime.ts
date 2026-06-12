@@ -7,8 +7,10 @@ export function createSandboxedRuntime(): SandboxedPluginRuntime {
     async start(plugin: RegisteredPlugin) {
       const status: PluginRuntimeStatus = {
         pluginId: plugin.manifest.id,
-        kind: plugin.manifest.kind,
+        kind: "sandboxed",
+        phase: "running",
         running: true,
+        consecutiveCrashCount: 0,
       }
 
       statuses.set(plugin.manifest.id, status)
@@ -18,7 +20,9 @@ export function createSandboxedRuntime(): SandboxedPluginRuntime {
       const status: PluginRuntimeStatus = {
         pluginId,
         kind: "sandboxed",
+        phase: "stopped",
         running: false,
+        consecutiveCrashCount: 0,
       }
 
       statuses.set(pluginId, status)
@@ -29,7 +33,9 @@ export function createSandboxedRuntime(): SandboxedPluginRuntime {
         statuses.get(pluginId) ?? {
           pluginId,
           kind: "sandboxed",
+          phase: "stopped",
           running: false,
+          consecutiveCrashCount: 0,
         }
       )
     },

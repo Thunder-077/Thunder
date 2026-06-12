@@ -10,12 +10,28 @@ import { createRuntimeLogBuffer } from "./runtime-logs"
 assert.equal(calculateCrashBackoff(1), 1_000)
 assert.equal(calculateCrashBackoff(2), 5_000)
 assert.equal(calculateCrashBackoff(3), 30_000)
+assert.equal(calculateCrashBackoff(4), 30_000)
+assert.equal(calculateCrashBackoff(0), 1_000)
+assert.equal(calculateCrashBackoff(-1), 1_000)
+assert.equal(calculateCrashBackoff(Number.NaN), 1_000)
+assert.equal(calculateCrashBackoff(Number.POSITIVE_INFINITY), 1_000)
 
 const now = Date.parse("2026-06-12T00:05:00.000Z")
 assert.equal(
   shouldOpenRuntimeCircuit(
     [
       now - TRUSTED_RUNTIME_LIMITS.crashWindowMs + 1,
+      now - 60_000,
+      now,
+    ],
+    now,
+  ),
+  true,
+)
+assert.equal(
+  shouldOpenRuntimeCircuit(
+    [
+      now - TRUSTED_RUNTIME_LIMITS.crashWindowMs,
       now - 60_000,
       now,
     ],
@@ -50,6 +66,7 @@ const environment = createTrustedRuntimeEnvironment(
     pluginId: "teleprompter",
     pluginDataDir: "C:\\Thunder\\plugins\\teleprompter",
   },
+  "win32",
 )
 assert.equal(environment.THUNDER_PLUGIN_ID, "teleprompter")
 assert.equal(
@@ -59,15 +76,55 @@ assert.equal(
 assert.equal(environment.DATABASE_URL, undefined)
 assert.equal(environment.NODE_OPTIONS, undefined)
 assert.equal(environment.THUNDER_API_SECRET, undefined)
-assert.equal(environment.Path ?? environment.PATH, "C:\\Windows\\System32")
+assert.equal(environment.PATH, "C:\\Windows\\System32")
+assert.equal(environment.Path, undefined)
 
 const environmentWithoutDataDir = createTrustedRuntimeEnvironment(
   { PATH: "/usr/bin" },
   { pluginId: "minimal-plugin" },
+  "linux",
 )
 const requiredPluginId: string = environmentWithoutDataDir.THUNDER_PLUGIN_ID
 assert.equal(requiredPluginId, "minimal-plugin")
 assert.equal(environmentWithoutDataDir.THUNDER_PLUGIN_DATA_DIR, undefined)
+
+const windowsEnvironment = createTrustedRuntimeEnvironment(
+  {
+    PATH: "preferred-path",
+    Path: "alternate-path",
+    pAtHeXt: ".EXE;.CMD",
+  },
+  { pluginId: "windows-plugin" },
+  "win32",
+)
+assert.equal(windowsEnvironment.PATH, "preferred-path")
+assert.equal(windowsEnvironment.Path, undefined)
+assert.equal(windowsEnvironment.PATHEXT, ".EXE;.CMD")
+
+const windowsMixedCasePath = createTrustedRuntimeEnvironment(
+  { pAtH: "mixed-case-path" },
+  { pluginId: "windows-mixed-case-plugin" },
+  "win32",
+)
+assert.equal(windowsMixedCasePath.PATH, "mixed-case-path")
+
+const posixEnvironment = createTrustedRuntimeEnvironment(
+  {
+    PATH: "/usr/local/bin",
+    Path: "ignored-path",
+  },
+  { pluginId: "posix-plugin" },
+  "linux",
+)
+assert.equal(posixEnvironment.PATH, "/usr/local/bin")
+assert.equal(posixEnvironment.Path, undefined)
+
+const posixEnvironmentWithoutCanonicalPath = createTrustedRuntimeEnvironment(
+  { Path: "ignored-path" },
+  { pluginId: "posix-no-path-plugin" },
+  "linux",
+)
+assert.equal(posixEnvironmentWithoutCanonicalPath.PATH, undefined)
 
 const lineBuffer = createRuntimeLogBuffer({
   maxLines: 2,

@@ -41,7 +41,12 @@ export type PluginRuntimePhase =
 export interface PluginRuntimeStatus {
   pluginId: string
   kind: "trusted" | "sandboxed"
+  /** Canonical lifecycle state for the runtime. */
   phase: PluginRuntimePhase
+  /**
+   * Compatibility-derived flag. It must be true only when phase is
+   * "running" or "degraded".
+   */
   running: boolean
   pid?: number
   startedAt?: string

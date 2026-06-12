@@ -183,9 +183,11 @@ export function createTrustedRuntimeSupervisor(
 
       const status: PluginRuntimeStatus = {
         pluginId: plugin.manifest.id,
-        kind: plugin.manifest.kind,
+        kind: "trusted",
+        phase: "running",
         running: true,
-        endpoint: server.endpoint,
+        startedAt: new Date().toISOString(),
+        consecutiveCrashCount: 0,
       }
 
       servers.set(plugin.manifest.id, server)
@@ -223,7 +225,9 @@ export function createTrustedRuntimeSupervisor(
       const status: PluginRuntimeStatus = {
         pluginId,
         kind: "trusted",
+        phase: "stopped",
         running: false,
+        consecutiveCrashCount: 0,
       }
 
       statuses.set(pluginId, status)
@@ -234,12 +238,14 @@ export function createTrustedRuntimeSupervisor(
         statuses.get(pluginId) ?? {
           pluginId,
           kind: "trusted",
+          phase: "stopped",
           running: false,
+          consecutiveCrashCount: 0,
         }
       )
     },
     getEndpoint(pluginId: string) {
-      return statuses.get(pluginId)?.endpoint ?? null
+      return servers.get(pluginId)?.endpoint ?? null
     },
   }
 }

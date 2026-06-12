@@ -31,6 +31,10 @@ export type TrustedRuntimeEnvironment = NodeJS.ProcessEnv & {
  * Return the bounded retry delay for a one-based consecutive crash count.
  */
 export function calculateCrashBackoff(consecutiveCrashCount: number): number {
+  if (!Number.isFinite(consecutiveCrashCount) || consecutiveCrashCount <= 0) {
+    return CRASH_BACKOFF_MS[0]
+  }
+
   const index = Math.max(1, Math.trunc(consecutiveCrashCount)) - 1
   return CRASH_BACKOFF_MS[Math.min(index, CRASH_BACKOFF_MS.length - 1)]
 }
@@ -54,9 +58,8 @@ export function shouldOpenRuntimeCircuit(
   return crashesInWindow >= CIRCUIT_CRASH_THRESHOLD
 }
 
-const PLATFORM_ENVIRONMENT_KEYS = [
+const WINDOWS_ENVIRONMENT_KEYS = [
   "PATH",
-  "Path",
   "PATHEXT",
   "SystemRoot",
   "WINDIR",
@@ -66,6 +69,24 @@ const PLATFORM_ENVIRONMENT_KEYS = [
   "TMPDIR",
 ] as const
 
+const POSIX_ENVIRONMENT_KEYS = ["PATH", "TMPDIR", "TMP", "TEMP"] as const
+
+function findWindowsEnvironmentValue(
+  hostEnvironment: NodeJS.ProcessEnv,
+  canonicalKey: string,
+): string | undefined {
+  const exactValue = hostEnvironment[canonicalKey]
+  if (exactValue !== undefined) {
+    return exactValue
+  }
+
+  const normalizedKey = canonicalKey.toLowerCase()
+  const matchingEntry = Object.entries(hostEnvironment).find(
+    ([key, value]) => key.toLowerCase() === normalizedKey && value !== undefined,
+  )
+  return matchingEntry?.[1]
+}
+
 /**
  * Build a minimal child environment without inheriting host secrets or Node
  * injection flags. Both Windows and POSIX platform variables are supported.
@@ -73,15 +94,25 @@ const PLATFORM_ENVIRONMENT_KEYS = [
 export function createTrustedRuntimeEnvironment(
   hostEnvironment: NodeJS.ProcessEnv,
   options: TrustedRuntimeEnvironmentOptions,
+  platform: NodeJS.Platform = process.platform,
 ): TrustedRuntimeEnvironment {
   const environment: TrustedRuntimeEnvironment = {
     THUNDER_PLUGIN_ID: options.pluginId,
   }
 
-  for (const key of PLATFORM_ENVIRONMENT_KEYS) {
-    const value = hostEnvironment[key]
-    if (value !== undefined) {
-      environment[key] = value
+  if (platform === "win32") {
+    for (const key of WINDOWS_ENVIRONMENT_KEYS) {
+      const value = findWindowsEnvironmentValue(hostEnvironment, key)
+      if (value !== undefined) {
+        environment[key] = value
+      }
+    }
+  } else {
+    for (const key of POSIX_ENVIRONMENT_KEYS) {
+      const value = hostEnvironment[key]
+      if (value !== undefined) {
+        environment[key] = value
+      }
     }
   }
 
