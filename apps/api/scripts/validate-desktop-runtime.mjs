@@ -10,6 +10,7 @@ const workspaceRoot = resolve(apiRoot, "..", "..")
 const runtimeRoot = resolve(workspaceRoot, "apps", "desktop", "runtime")
 const runtimeApiDir = resolve(runtimeRoot, "api")
 const runtimeSqliteClientDir = resolve(runtimeRoot, "generated", "sqlite-client")
+const trustedRuntimeBootstrapPath = resolve(runtimeApiDir, "trusted-process-bootstrap.mjs")
 
 async function pathExists(path) {
   try {
@@ -58,3 +59,7 @@ const serverBundle = await readFile(resolve(runtimeApiDir, "server.cjs"), "utf8"
 if (serverBundle.includes("@prisma/adapter-neon")) {
   throw new Error("Desktop API bundle contains @prisma/adapter-neon")
 }
+
+await access(trustedRuntimeBootstrapPath).catch(() => {
+  throw new Error("Desktop API runtime is missing trusted-process-bootstrap.mjs")
+})
