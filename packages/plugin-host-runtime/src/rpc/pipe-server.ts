@@ -15,6 +15,7 @@ import {
 } from "./host-protocol"
 
 const ENVELOPE_OVERHEAD_BYTES = 64 * 1024
+const MAX_ERROR_MESSAGE_BYTES = 4 * 1024
 
 export interface PipeServer {
   readonly endpoint: string
@@ -69,6 +70,7 @@ function toErrorEnvelope(
           error instanceof Error ? error.message : String(error),
           { cause: error },
         )
+  const message = truncateUtf8(runtimeError.message, MAX_ERROR_MESSAGE_BYTES)
 
   return {
     version: RPC_PROTOCOL_VERSION,
@@ -77,7 +79,7 @@ function toErrorEnvelope(
     pluginId: options.pluginId,
     error: {
       code: runtimeError.code,
-      message: runtimeError.message,
+      message: message || "RPC request failed",
       ...(runtimeError.retryable
         ? { retryable: runtimeError.retryable }
         : {}),
@@ -85,15 +87,39 @@ function toErrorEnvelope(
   }
 }
 
+function truncateUtf8(value: string, maxBytes: number): string {
+  if (Buffer.byteLength(value, "utf8") <= maxBytes) {
+    return value
+  }
+
+  let result = ""
+  let usedBytes = 0
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character, "utf8")
+    if (usedBytes + characterBytes > maxBytes) {
+      break
+    }
+    result += character
+    usedBytes += characterBytes
+  }
+  return result
+}
+
 async function writeEnvelope(
   socket: Socket,
   envelope: RpcErrorEnvelope | ReturnType<typeof createResponseEnvelope>,
-): Promise<void> {
+  maxResponseBytes: number,
+): Promise<boolean> {
   if (socket.destroyed || !socket.writable) {
-    return
+    return false
   }
 
   const encoded = encodeEnvelope(envelope)
+  if (Buffer.byteLength(encoded, "utf8") > maxResponseBytes) {
+    socket.destroy()
+    return false
+  }
+
   await new Promise<void>((resolvePromise, rejectPromise) => {
     try {
       socket.write(encoded, (error) => {
@@ -107,6 +133,7 @@ async function writeEnvelope(
       rejectPromise(error)
     }
   })
+  return true
 }
 
 function createResponseEnvelope(
@@ -144,6 +171,7 @@ async function handleRequest(
     await writeEnvelope(
       socket,
       toErrorEnvelope(options, randomUUID(), error),
+      options.maxResponseBytes,
     ).catch(() => socket.destroy())
     return
   }
@@ -159,6 +187,7 @@ async function handleRequest(
           `RPC request exceeded ${options.maxRequestBytes} bytes`,
         ),
       ),
+      options.maxResponseBytes,
     ).catch(() => socket.destroy())
     return
   }
@@ -177,6 +206,7 @@ async function handleRequest(
           "RPC plugin identity or capability is invalid",
         ),
       ),
+      options.maxResponseBytes,
     ).catch(() => socket.destroy())
     return
   }
@@ -196,11 +226,12 @@ async function handleRequest(
       )
     }
 
-    await writeEnvelope(socket, response)
+    await writeEnvelope(socket, response, options.maxResponseBytes)
   } catch (error) {
     await writeEnvelope(
       socket,
       toErrorEnvelope(options, request.id, error),
+      options.maxResponseBytes,
     ).catch(() => socket.destroy())
   }
 }
@@ -262,8 +293,22 @@ async function listen(server: Server, endpoint: string): Promise<void> {
   })
 }
 
-async function closeServer(server: Server, endpoint: string): Promise<void> {
-  await new Promise<void>((resolvePromise, rejectPromise) => {
+function waitForSocketClose(socket: Socket): Promise<void> {
+  if (socket.destroyed) {
+    return Promise.resolve()
+  }
+
+  return new Promise<void>((resolvePromise) => {
+    socket.once("close", () => resolvePromise())
+  })
+}
+
+async function closeServer(
+  server: Server,
+  sockets: ReadonlySet<Socket>,
+  endpoint: string,
+): Promise<void> {
+  const serverClosed = new Promise<void>((resolvePromise, rejectPromise) => {
     server.close((error) => {
       if (error) {
         rejectPromise(error)
@@ -273,6 +318,14 @@ async function closeServer(server: Server, endpoint: string): Promise<void> {
       resolvePromise()
     })
   })
+
+  const socketClosures = [...sockets].map((socket) => {
+    const closed = waitForSocketClose(socket)
+    socket.destroy()
+    return closed
+  })
+
+  await Promise.all([serverClosed, ...socketClosures])
 
   if (process.platform !== "win32") {
     await rm(endpoint, { force: true })
@@ -296,16 +349,26 @@ export async function createPipeServer(
 
   await ensureSocketDirectory(endpoint)
 
+  const sockets = new Set<Socket>()
   const server = createServer((socket) => {
+    sockets.add(socket)
+    socket.on("error", () => {
+      socket.destroy()
+    })
+    socket.once("close", () => {
+      sockets.delete(socket)
+    })
     attachConnectionHandler(socket, resolvedOptions)
   })
 
   await listen(server, endpoint)
+  let closePromise: Promise<void> | undefined
 
   return {
     endpoint,
-    async close() {
-      await closeServer(server, endpoint)
+    close() {
+      closePromise ??= closeServer(server, sockets, endpoint)
+      return closePromise
     },
   }
 }

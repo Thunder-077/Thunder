@@ -1,5 +1,6 @@
 import {
   PLUGIN_RUNTIME_ERROR_CODES,
+  PluginRuntimeError,
   type PluginRuntimeErrorCode,
 } from "../runtime-errors"
 
@@ -39,7 +40,7 @@ export type RpcEnvelope =
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
-    throw new Error(message)
+    throw new PluginRuntimeError("RPC_INVALID_REQUEST", message)
   }
 }
 
@@ -66,6 +67,19 @@ function isPluginRuntimeErrorCode(
   )
 }
 
+function assertExactKeys(
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  fieldName: string,
+): void {
+  const allowed = new Set(allowedKeys)
+  const unknownKey = Object.keys(value).find((key) => !allowed.has(key))
+  assert(
+    unknownKey === undefined,
+    `${fieldName} contains unknown field: ${unknownKey ?? ""}`,
+  )
+}
+
 export function encodeEnvelope(envelope: RpcEnvelope): string {
   return `${JSON.stringify(envelope)}\n`
 }
@@ -75,7 +89,17 @@ export function encodeEnvelope(envelope: RpcEnvelope): string {
  * validation. Payload values remain intentionally opaque.
  */
 export function decodeEnvelope(line: string): RpcEnvelope {
-  const parsed: unknown = JSON.parse(line)
+  let parsed: unknown
+
+  try {
+    parsed = JSON.parse(line)
+  } catch (error) {
+    throw new PluginRuntimeError(
+      "RPC_INVALID_REQUEST",
+      "RPC envelope must contain valid JSON",
+      { cause: error },
+    )
+  }
 
   assert(isRecord(parsed), "RPC envelope must be an object")
   assert(
@@ -92,6 +116,19 @@ export function decodeEnvelope(line: string): RpcEnvelope {
   )
 
   if (parsed.type === "request") {
+    assertExactKeys(
+      parsed,
+      [
+        "version",
+        "type",
+        "id",
+        "pluginId",
+        "capability",
+        "method",
+        "payload",
+      ],
+      "RPC request envelope",
+    )
     assertNonEmptyString(parsed.capability, "RPC request capability")
     assertNonEmptyString(parsed.method, "RPC request method")
     return {
@@ -106,6 +143,11 @@ export function decodeEnvelope(line: string): RpcEnvelope {
   }
 
   if (parsed.type === "response") {
+    assertExactKeys(
+      parsed,
+      ["version", "type", "id", "pluginId", "payload"],
+      "RPC response envelope",
+    )
     return {
       version: RPC_PROTOCOL_VERSION,
       type: "response",
@@ -115,7 +157,17 @@ export function decodeEnvelope(line: string): RpcEnvelope {
     }
   }
 
+  assertExactKeys(
+    parsed,
+    ["version", "type", "id", "pluginId", "error"],
+    "RPC error envelope",
+  )
   assert(isRecord(parsed.error), "RPC error is required")
+  assertExactKeys(
+    parsed.error,
+    ["code", "message", "retryable"],
+    "RPC error",
+  )
   assert(
     isPluginRuntimeErrorCode(parsed.error.code),
     "RPC error code is invalid",

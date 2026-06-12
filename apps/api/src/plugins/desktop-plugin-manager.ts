@@ -463,11 +463,10 @@ async function startTrustedDesktopPluginRuntime(plugin: InstalledDesktopPlugin):
   }
 
   const currentStatus = trustedRuntimeSupervisor.getStatus(plugin.manifest.id)
-  if (currentStatus.running && currentStatus.endpoint) {
+  if (currentStatus.running) {
     return {
       pluginId: currentStatus.pluginId,
       running: currentStatus.running,
-      endpoint: currentStatus.endpoint,
     }
   }
 
@@ -479,7 +478,6 @@ async function startTrustedDesktopPluginRuntime(plugin: InstalledDesktopPlugin):
   return {
     pluginId: status.pluginId,
     running: status.running,
-    endpoint: status.endpoint,
   }
 }
 
@@ -494,7 +492,6 @@ export async function stopDesktopPluginRuntime(id: string): Promise<DesktopPlugi
   return {
     pluginId: status.pluginId,
     running: status.running,
-    endpoint: status.endpoint,
   }
 }
 
@@ -504,7 +501,6 @@ export function getDesktopPluginRuntimeStatus(id: string): DesktopPluginRuntimeS
   return {
     pluginId: status.pluginId,
     running: status.running,
-    endpoint: status.endpoint,
   }
 }
 
@@ -521,13 +517,18 @@ export async function invokeDesktopPluginWorker(
     throw new DesktopPluginError("插件未声明 native-runtime 权限", 403)
   }
 
-  const status = await startTrustedDesktopPluginRuntime(plugin)
-  const endpoint = status.endpoint ?? trustedRuntimeSupervisor.getEndpoint(plugin.manifest.id)
-  if (!endpoint) {
+  await startTrustedDesktopPluginRuntime(plugin)
+  const connectionInfo = trustedRuntimeSupervisor.getConnectionInfo(
+    plugin.manifest.id,
+  )
+  if (!connectionInfo) {
     throw new DesktopPluginError("trusted runtime endpoint 不可用", 502)
   }
 
-  const client = await createPipeClient(endpoint)
+  const client = await createPipeClient(connectionInfo.endpoint, {
+    pluginId: plugin.manifest.id,
+    capability: connectionInfo.capability,
+  })
   try {
     return await client.invoke(method, payload)
   } finally {
