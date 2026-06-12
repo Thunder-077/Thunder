@@ -22,6 +22,11 @@ export interface TrustedRuntimeEnvironmentOptions {
   pluginDataDir?: string
 }
 
+export type TrustedRuntimeEnvironment = NodeJS.ProcessEnv & {
+  THUNDER_PLUGIN_ID: string
+  THUNDER_PLUGIN_DATA_DIR?: string
+}
+
 /**
  * Return the bounded retry delay for a one-based consecutive crash count.
  */
@@ -67,9 +72,11 @@ const PLATFORM_ENVIRONMENT_KEYS = [
  */
 export function createTrustedRuntimeEnvironment(
   hostEnvironment: NodeJS.ProcessEnv,
-  options?: TrustedRuntimeEnvironmentOptions,
-): NodeJS.ProcessEnv {
-  const environment: NodeJS.ProcessEnv = {}
+  options: TrustedRuntimeEnvironmentOptions,
+): TrustedRuntimeEnvironment {
+  const environment: TrustedRuntimeEnvironment = {
+    THUNDER_PLUGIN_ID: options.pluginId,
+  }
 
   for (const key of PLATFORM_ENVIRONMENT_KEYS) {
     const value = hostEnvironment[key]
@@ -78,10 +85,7 @@ export function createTrustedRuntimeEnvironment(
     }
   }
 
-  if (options !== undefined) {
-    environment.THUNDER_PLUGIN_ID = options.pluginId
-  }
-  if (options?.pluginDataDir !== undefined) {
+  if (options.pluginDataDir !== undefined) {
     environment.THUNDER_PLUGIN_DATA_DIR = options.pluginDataDir
   }
 

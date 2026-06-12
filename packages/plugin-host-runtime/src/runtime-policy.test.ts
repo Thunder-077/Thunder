@@ -61,6 +61,14 @@ assert.equal(environment.NODE_OPTIONS, undefined)
 assert.equal(environment.THUNDER_API_SECRET, undefined)
 assert.equal(environment.Path ?? environment.PATH, "C:\\Windows\\System32")
 
+const environmentWithoutDataDir = createTrustedRuntimeEnvironment(
+  { PATH: "/usr/bin" },
+  { pluginId: "minimal-plugin" },
+)
+const requiredPluginId: string = environmentWithoutDataDir.THUNDER_PLUGIN_ID
+assert.equal(requiredPluginId, "minimal-plugin")
+assert.equal(environmentWithoutDataDir.THUNDER_PLUGIN_DATA_DIR, undefined)
+
 const lineBuffer = createRuntimeLogBuffer({
   maxLines: 2,
   maxLineBytes: 6,
