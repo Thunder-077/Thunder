@@ -10,6 +10,13 @@ const PLUGIN_ID = "test-plugin"
 const CAPABILITY = "secret"
 const MEBIBYTE = 1024 * 1024
 
+if (false) {
+  // @ts-expect-error Pipe clients must always bind an explicit identity.
+  void createPipeClient("unused-endpoint")
+  // @ts-expect-error Pipe servers must always require plugin identity and capability.
+  void createPipeServer({ handle: () => null })
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }

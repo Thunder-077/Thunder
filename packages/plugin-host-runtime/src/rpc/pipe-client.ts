@@ -11,7 +11,6 @@ import {
   type RpcResponseEnvelope,
 } from "./host-protocol"
 
-const LEGACY_RPC_IDENTITY = "__legacy__"
 const ENVELOPE_OVERHEAD_BYTES = 64 * 1024
 
 export interface PipeInvokeOptions {
@@ -191,17 +190,17 @@ async function connectToEndpoint(endpoint: string): Promise<Socket> {
 
 export async function createPipeClient(
   endpoint: string,
-  options?: PipeClientOptions,
+  options: PipeClientOptions,
 ): Promise<PipeClient> {
   const resolvedOptions: Required<PipeClientOptions> = {
-    pluginId: options?.pluginId ?? LEGACY_RPC_IDENTITY,
-    capability: options?.capability ?? LEGACY_RPC_IDENTITY,
+    pluginId: options.pluginId,
+    capability: options.capability,
     invocationTimeoutMs:
-      options?.invocationTimeoutMs ?? TRUSTED_RUNTIME_LIMITS.invocationTimeoutMs,
+      options.invocationTimeoutMs ?? TRUSTED_RUNTIME_LIMITS.invocationTimeoutMs,
     maxRequestBytes:
-      options?.maxRequestBytes ?? TRUSTED_RUNTIME_LIMITS.maxRequestBytes,
+      options.maxRequestBytes ?? TRUSTED_RUNTIME_LIMITS.maxRequestBytes,
     maxResponseBytes:
-      options?.maxResponseBytes ?? TRUSTED_RUNTIME_LIMITS.maxResponseBytes,
+      options.maxResponseBytes ?? TRUSTED_RUNTIME_LIMITS.maxResponseBytes,
   }
   const socket = await connectToEndpoint(endpoint)
   const pending = new Map<string, PendingRequest>()

@@ -14,7 +14,6 @@ import {
   type RpcRequestEnvelope,
 } from "./host-protocol"
 
-const LEGACY_RPC_IDENTITY = "__legacy__"
 const ENVELOPE_OVERHEAD_BYTES = 64 * 1024
 
 export interface PipeServer {
@@ -22,22 +21,13 @@ export interface PipeServer {
   close(): Promise<void>
 }
 
-export interface PipeServerLimits {
-  maxRequestBytes?: number
-  maxResponseBytes?: number
-}
-
 export interface PipeServerOptions {
   pluginId: string
   capability: string
   handle(method: string, payload: unknown): Promise<unknown> | unknown
   socketDirectory?: string
-  limits?: PipeServerLimits
-}
-
-interface LegacyPipeServerOptions {
-  handle(method: string, payload: unknown): Promise<unknown> | unknown
-  socketDirectory?: string
+  maxRequestBytes?: number
+  maxResponseBytes?: number
 }
 
 interface ResolvedPipeServerOptions {
@@ -289,28 +279,18 @@ async function closeServer(server: Server, endpoint: string): Promise<void> {
   }
 }
 
-export function createPipeServer(
-  options: PipeServerOptions,
-): Promise<PipeServer>
-export function createPipeServer(
-  options: LegacyPipeServerOptions,
-): Promise<PipeServer>
 export async function createPipeServer(
-  options: PipeServerOptions | LegacyPipeServerOptions,
+  options: PipeServerOptions,
 ): Promise<PipeServer> {
-  const secureOptions =
-    "pluginId" in options && "capability" in options ? options : undefined
   const resolvedOptions: ResolvedPipeServerOptions = {
-    pluginId: secureOptions?.pluginId ?? LEGACY_RPC_IDENTITY,
-    capability: secureOptions?.capability ?? LEGACY_RPC_IDENTITY,
+    pluginId: options.pluginId,
+    capability: options.capability,
     handle: options.handle,
     socketDirectory: options.socketDirectory,
     maxRequestBytes:
-      secureOptions?.limits?.maxRequestBytes ??
-      TRUSTED_RUNTIME_LIMITS.maxRequestBytes,
+      options.maxRequestBytes ?? TRUSTED_RUNTIME_LIMITS.maxRequestBytes,
     maxResponseBytes:
-      secureOptions?.limits?.maxResponseBytes ??
-      TRUSTED_RUNTIME_LIMITS.maxResponseBytes,
+      options.maxResponseBytes ?? TRUSTED_RUNTIME_LIMITS.maxResponseBytes,
   }
   const endpoint = createPipeEndpoint(resolvedOptions.socketDirectory)
 

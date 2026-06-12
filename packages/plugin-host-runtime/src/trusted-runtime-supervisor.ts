@@ -19,6 +19,20 @@ export interface TrustedRuntimeSupervisorOptions {
   socketDirectory?: string
 }
 
+export interface TrustedRuntimeConnectionInfo {
+  endpoint: string
+  capability: string
+}
+
+export interface TrustedRuntimeSupervisorWithConnectionInfo
+  extends TrustedPluginRuntimeSupervisor {
+  /**
+   * @internal
+   * @deprecated Temporary bridge until Task 4 owns trusted runtime clients.
+   */
+  getConnectionInfo(pluginId: string): TrustedRuntimeConnectionInfo | null
+}
+
 /**
  * Resolve the absolute path to the worker thread bootstrap script.
  *
@@ -142,9 +156,10 @@ async function spawnIsolatedWorker(
 
 export function createTrustedRuntimeSupervisor(
   options: TrustedRuntimeSupervisorOptions = {},
-): TrustedPluginRuntimeSupervisor {
+): TrustedRuntimeSupervisorWithConnectionInfo {
   const statuses = new Map<string, PluginRuntimeStatus>()
   const servers = new Map<string, PipeServer>()
+  const capabilities = new Map<string, string>()
   const workers = new Map<string, IsolatedWorker>()
 
   return {
@@ -154,6 +169,7 @@ export function createTrustedRuntimeSupervisor(
       if (existingServer) {
         await existingServer.close()
         servers.delete(plugin.manifest.id)
+        capabilities.delete(plugin.manifest.id)
       }
       const existingWorker = workers.get(plugin.manifest.id)
       if (existingWorker) {
@@ -167,7 +183,10 @@ export function createTrustedRuntimeSupervisor(
 
       // Create the pipe server in the main thread; it forwards RPC
       // calls to the isolated worker thread via MessagePort.
+      const capability = randomUUID()
       const server = await createPipeServer({
+        pluginId: plugin.manifest.id,
+        capability,
         socketDirectory: options.socketDirectory,
         async handle(method, payload) {
           if (options.handleRpc) {
@@ -191,6 +210,7 @@ export function createTrustedRuntimeSupervisor(
       })
 
       servers.set(plugin.manifest.id, server)
+      capabilities.set(plugin.manifest.id, capability)
       statuses.set(plugin.manifest.id, status)
       return status
     },
@@ -201,6 +221,7 @@ export function createTrustedRuntimeSupervisor(
         await server.close()
         servers.delete(pluginId)
       }
+      capabilities.delete(pluginId)
 
       const isolated = workers.get(pluginId)
       if (isolated) {
@@ -245,6 +266,19 @@ export function createTrustedRuntimeSupervisor(
     },
     getEndpoint(pluginId: string) {
       return servers.get(pluginId)?.endpoint ?? null
+    },
+    getConnectionInfo(pluginId: string) {
+      const server = servers.get(pluginId)
+      const capability = capabilities.get(pluginId)
+
+      if (!server || !capability) {
+        return null
+      }
+
+      return {
+        endpoint: server.endpoint,
+        capability,
+      }
     },
   }
 }

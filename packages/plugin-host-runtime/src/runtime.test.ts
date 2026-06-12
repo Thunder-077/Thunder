@@ -101,9 +101,12 @@ assert.equal(trustedStatus.phase, "running")
 assert.equal(trustedStatus.running, true)
 assert.equal(trustedStatus.consecutiveCrashCount, 0)
 
-const trustedEndpoint = trustedRuntime.getEndpoint("teleprompter")
-assert.equal(typeof trustedEndpoint, "string")
-const trustedClient = await createPipeClient(trustedEndpoint ?? "")
+const trustedConnection = trustedRuntime.getConnectionInfo("teleprompter")
+assert.ok(trustedConnection)
+const trustedClient = await createPipeClient(trustedConnection.endpoint, {
+  pluginId: "teleprompter",
+  capability: trustedConnection.capability,
+})
 const trustedRpcResult = await trustedClient.invoke<{
   normalized: string
 }>("speech.transcribe", {
@@ -117,6 +120,7 @@ const stoppedTrustedStatus = await trustedRuntime.stop("teleprompter")
 assert.equal(stoppedTrustedStatus.phase, "stopped")
 assert.equal(stoppedTrustedStatus.running, false)
 assert.equal(trustedRuntime.getEndpoint("teleprompter"), null)
+assert.equal(trustedRuntime.getConnectionInfo("teleprompter"), null)
 
 const symlinkRoot = mkdtempSync(join(tmpdir(), "thunder-plugin-host-symlink-"))
 const symlinkPluginDir = join(symlinkRoot, "teleprompter")
