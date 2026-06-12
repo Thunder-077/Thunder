@@ -34,7 +34,8 @@ plugin.json
   -> Host Page 以 iframe 加载 dist/index.html
   -> Browser SDK 通过 postMessage 调用 Host Bridge
   -> Host Bridge 校验权限并转发到平台能力
-  -> 可选：Trusted Runtime Supervisor 托管 dist/worker.js
+  -> 可选：Trusted Runtime Supervisor 启动独立子进程
+  -> 私有 capability RPC 调用 dist/worker.js
 ```
 
 职责分工：
@@ -115,11 +116,15 @@ Host Bridge 的唯一协议源是 `packages/plugin-protocol`。它统一维护�
 
 ## Trusted Worker / Runtime
 
-trusted runtime 不是插件自行暴露的 HTTP 服务，而是由平台统一托管的 worker 进程能力层：
+trusted runtime 不是插件自行暴露的 HTTP 服务，而是由平台统一托管的独立
+子进程能力层：
 
 - 由 `packages/plugin-host-runtime` 启动和监管。
-- 通过受控 RPC 调用 handler。
-- 支持按插件维度启动、复用、停止和异常状态管理。
+- 每个插件一个 Node 子进程，与 API 主进程隔离崩溃和全局状态。
+- 通过带 `pluginId` 和随机 capability 的私有 pipe/socket RPC 调用 handler。
+- endpoint 只存在于 API 内部，不属于公开插件协议。
+- 子进程使用最小环境变量白名单和 256 MiB old space 限制。
+- 支持按插件维度启动、复用、停止、崩溃退避和熔断。
 - 当前正式能力重点是 `worker.invoke`。
 
 这也是提词器插件接入本地语音能力、Sherpa 模型能力和文稿存储能力的基础。

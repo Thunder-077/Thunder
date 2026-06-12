@@ -6,8 +6,42 @@ A Thunder desktop plugin (trusted runtime).
 
 - `plugin.json` — Manifest declaring id, kind, permissions and contributions.
 - `src/index.tsx` — UI entry; rendered inside the host's iframe.
-- `src/worker.ts` — Trusted worker entry; runs alongside the host process.
+- `src/worker.ts` — Trusted worker entry; runs in its own Node child process.
 - `dist/` — Build output (generated).
+
+## Runtime
+
+Each trusted plugin runs in a **dedicated Node.js child process**, isolated
+from the API host and from other plugins. The platform manages process
+lifecycle automatically — your worker code just exports handlers.
+
+Key constraints:
+
+| Limit | Default |
+|-------|---------|
+| Old-space memory | 256 MiB |
+| Invocation timeout | 30 seconds |
+| Max concurrent calls | 8 |
+| Max request payload | 1 MiB |
+| Max response payload | 5 MiB |
+
+Environment variables available to your worker:
+
+- `THUNDER_PLUGIN_ID` — current plugin id.
+- `THUNDER_PLUGIN_DATA_DIR` — only present when `filesystem:plugin-data` is
+  declared; points to a private directory for local files.
+
+The platform **does not** pass `DATABASE_URL`, signing keys, `NODE_OPTIONS`,
+or any other host secrets to the child process.
+
+If your worker crashes, the platform will restart it with exponential backoff
+(1 s → 5 s → 30 s). Three crashes within five minutes triggers a five-minute
+circuit breaker. A manual start clears the circuit.
+
+> **⚠️ Security notice:** Process isolation provides crash boundaries and
+> environment separation, but it is **not an OS-level sandbox**. Trusted code
+> runs with the same OS user privileges as the host process and can access the
+> local filesystem. Only install trusted plugins from sources you trust.
 
 ## Setup
 

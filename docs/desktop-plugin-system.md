@@ -20,6 +20,8 @@ AppData/com.thunder.desktop/
       plugin.json
       dist/
       .thunder-install.json
+  plugin-data/
+    {plugin-id}/
   plugin-staging/
   plugin-audit.jsonl
 ```
@@ -157,10 +159,26 @@ trusted runtime 由平台统一托管，不暴露为插件自行控制的公开 
 
 核心行为：
 
-- 平台按插件 id 维度启动与复用 runtime。
+- 每个 trusted 插件运行在独立 Node 子进程中，不与 API 主进程共享
+  JavaScript isolate、全局变量或崩溃边界。
+- 平台按插件 id 维度启动与复用 runtime；并发启动请求只创建一个进程。
 - 插件页面按需触发启动。
 - 升级、重装、卸载前会先停止旧 runtime。
-- `worker.invoke` 通过受控 RPC 调用 `dist/worker.js` 导出的 handler。
+- `worker.invoke` 通过带插件身份和随机 capability 的私有 pipe/socket RPC
+  调用 `dist/worker.js` 导出的 handler。
+- pipe/socket endpoint 仅保存在 API 进程内，不通过 REST、Web SDK 或开发者
+  工具公开。
+- 子进程只继承平台允许的最小环境变量；不会继承数据库连接、签名密钥或
+  Node 注入参数。
+- 只有声明 `filesystem:plugin-data` 时，子进程才收到
+  `THUNDER_PLUGIN_DATA_DIR`，目录固定为 `plugin-data/{plugin-id}`。
+- 单进程默认限制为 256 MiB old space、8 个并发调用、1 MiB 请求和
+  5 MiB 响应。
+- 异常退出按 1 秒、5 秒、30 秒退避；5 分钟内连续崩溃 3 次会打开
+  5 分钟熔断。手动启动会清除熔断状态。
+
+公开 runtime 状态只包含 `phase`、`running`、`pid`、启动/退出时间、
+退出码、连续崩溃次数、熔断时间和脱敏错误，不包含内部 endpoint。
 
 当前正式桌面插件的本地业务能力优先走 worker，而不是额外自建旁路协议。
 
@@ -235,5 +253,8 @@ pnpm test:plugins
 - 安装时拒绝 symlink。
 - 插件 iframe 运行在 sandbox 中。
 - 宿主会校验 bridge 来源、插件身份和权限。
+- trusted 插件独占子进程，进程崩溃不会直接终止 API 主进程。
 - 生产环境安装要求签名可信。
 - 审计日志写入 `plugin-audit.jsonl`。
+- **进程隔离不是 OS 级沙箱**：trusted 插件子进程与宿主使用相同的操作系统用户权限，可以访问本地文件系统。进程隔离提供的是崩溃边界和环境变量隔离，而非完整的安全沙箱。用户应只安装来自可信来源的 trusted 插件。
+

@@ -153,6 +153,25 @@ export default defineWorker({
 ```
 
 不要把 worker 当成公开 HTTP 服务。它由平台统一托管，通过受控 RPC 调用。
+每个 trusted 插件会运行在独立 Node 子进程中，插件代码不应依赖宿主进程
+环境变量、工作目录或内部 pipe/socket 地址。
+
+worker 可依赖的平台环境变量只有：
+
+- `THUNDER_PLUGIN_ID`：当前插件 id。
+- `THUNDER_PLUGIN_DATA_DIR`：仅在 Manifest 声明
+  `filesystem:plugin-data` 时存在，用于插件私有本地文件。
+
+平台不会把 `DATABASE_URL`、签名密钥、`NODE_OPTIONS` 或其他宿主秘密传入
+子进程。插件需要外部网络时仍应声明 `network:<origin>` 并通过 Browser SDK
+的网络能力调用，不应从 runtime 绕过权限模型。
+
+runtime handler 应满足以下约束：
+
+- 输入和输出必须可 JSON 序列化。
+- 单次请求不超过 1 MiB，响应不超过 5 MiB。
+- 不依赖进程长期不退出；平台会在升级、卸载和异常恢复时重启 runtime。
+- 对并发调用保持可重入，或在插件内部显式串行化共享资源。
 
 ## UI 约束
 
@@ -224,6 +243,7 @@ pnpm --filter @thunder/api package:desktop-plugin -- \
 
 - `plugin.json` 与实际构建产物一致
 - 权限声明最小化
+- trusted 插件仅在确实需要本地进程能力时使用
 - 插件目录不包含 symlink
 - 不依赖 Thunder 私有源码
 - `dist/index.html` 和 `dist/worker.js` 均存在
