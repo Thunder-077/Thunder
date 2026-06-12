@@ -38,6 +38,73 @@ export type RpcEnvelope =
   | RpcResponseEnvelope
   | RpcErrorEnvelope
 
+export interface FrameDecoderResult {
+  frames: Buffer[]
+  overflow: boolean
+}
+
+/**
+ * Incrementally splits newline-delimited frames without copying the entire
+ * buffered prefix for every incoming socket chunk.
+ */
+export class NewlineFrameDecoder {
+  private readonly chunks: Buffer[] = []
+  private totalBytes = 0
+  private overflowed = false
+
+  constructor(private readonly maxBufferedBytes: number) {}
+
+  push(chunk: Buffer): FrameDecoderResult {
+    if (this.overflowed) {
+      return { frames: [], overflow: true }
+    }
+
+    const frames: Buffer[] = []
+    let offset = 0
+
+    while (offset < chunk.length) {
+      const newlineIndex = chunk.indexOf(0x0a, offset)
+      const segmentEnd =
+        newlineIndex === -1 ? chunk.length : newlineIndex
+
+      if (segmentEnd > offset) {
+        const segment = chunk.subarray(offset, segmentEnd)
+        this.chunks.push(segment)
+        this.totalBytes += segment.length
+      }
+
+      if (this.totalBytes > this.maxBufferedBytes) {
+        this.chunks.length = 0
+        this.totalBytes = 0
+        this.overflowed = true
+        return { frames, overflow: true }
+      }
+
+      if (newlineIndex === -1) {
+        break
+      }
+
+      frames.push(this.takeFrame())
+      offset = newlineIndex + 1
+    }
+
+    return { frames, overflow: false }
+  }
+
+  private takeFrame(): Buffer {
+    const frame =
+      this.chunks.length === 0
+        ? Buffer.alloc(0)
+        : this.chunks.length === 1
+          ? this.chunks[0]
+          : Buffer.concat(this.chunks, this.totalBytes)
+
+    this.chunks.length = 0
+    this.totalBytes = 0
+    return frame
+  }
+}
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new PluginRuntimeError("RPC_INVALID_REQUEST", message)

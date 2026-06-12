@@ -9,6 +9,7 @@ import { TRUSTED_RUNTIME_LIMITS } from "../runtime-policy"
 import {
   decodeEnvelope,
   encodeEnvelope,
+  NewlineFrameDecoder,
   RPC_PROTOCOL_VERSION,
   type RpcErrorEnvelope,
   type RpcRequestEnvelope,
@@ -67,7 +68,7 @@ function toErrorEnvelope(
       ? error
       : new PluginRuntimeError(
           "RPC_HANDLER_FAILED",
-          error instanceof Error ? error.message : String(error),
+          "Trusted runtime handler failed",
           { cause: error },
         )
   const message = truncateUtf8(runtimeError.message, MAX_ERROR_MESSAGE_BYTES)
@@ -240,22 +241,12 @@ function attachConnectionHandler(
   socket: Socket,
   options: ResolvedPipeServerOptions,
 ): void {
-  let buffer = Buffer.alloc(0)
   const bufferLimit = options.maxRequestBytes + ENVELOPE_OVERHEAD_BYTES
+  const decoder = new NewlineFrameDecoder(bufferLimit)
 
   socket.on("data", (chunk: Buffer) => {
-    buffer = Buffer.concat([buffer, chunk])
-
-    let newlineIndex = buffer.indexOf(0x0a)
-    while (newlineIndex >= 0) {
-      const lineBuffer = buffer.subarray(0, newlineIndex)
-      buffer = buffer.subarray(newlineIndex + 1)
-
-      if (lineBuffer.length > bufferLimit) {
-        socket.destroy()
-        return
-      }
-
+    const result = decoder.push(chunk)
+    for (const lineBuffer of result.frames) {
       const line = lineBuffer.toString("utf8").trim()
 
       if (line) {
@@ -266,11 +257,9 @@ function attachConnectionHandler(
           options,
         )
       }
-
-      newlineIndex = buffer.indexOf(0x0a)
     }
 
-    if (buffer.length > bufferLimit) {
+    if (result.overflow) {
       socket.destroy()
     }
   })

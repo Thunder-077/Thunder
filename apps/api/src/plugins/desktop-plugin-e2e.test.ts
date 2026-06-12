@@ -97,7 +97,7 @@ async function main() {
 
     const startedRuntimeStatus = await startDesktopPluginRuntime("teleprompter")
     assert.equal(startedRuntimeStatus.running, true)
-    assert.equal(typeof startedRuntimeStatus.endpoint, "string")
+    assert.equal("endpoint" in startedRuntimeStatus, false)
 
     const workerResult = await invokeDesktopPluginWorker("teleprompter", "speech.transcribe", {
       text: "  hello thunder v2  ",

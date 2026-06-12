@@ -5,6 +5,7 @@ import {
   createPipeServer,
   decodeEnvelope,
   encodeEnvelope,
+  NewlineFrameDecoder,
   PluginRuntimeError,
   RPC_PROTOCOL_VERSION,
   type RpcEnvelope,
@@ -213,6 +214,23 @@ function testStrictProtocolDecoding(): void {
   })
 }
 
+function testIncrementalFrameDecoderLimit(): void {
+  const decoder = new NewlineFrameDecoder(64 * 1024)
+  const byte = Buffer.from("x")
+
+  for (let index = 0; index < 64 * 1024; index += 1) {
+    assert.deepEqual(decoder.push(byte), {
+      frames: [],
+      overflow: false,
+    })
+  }
+
+  assert.deepEqual(decoder.push(byte), {
+    frames: [],
+    overflow: true,
+  })
+}
+
 async function testFragmentedAndBatchedFrames(): Promise<void> {
   const server = await createPipeServer({
     pluginId: PLUGIN_ID,
@@ -312,7 +330,9 @@ async function testUnterminatedOversizedFrame(): Promise<void> {
 
   try {
     const closedPromise = waitForSocketClose(socket)
-    socket.write("x".repeat(128 + 64 * 1024 + 1))
+    for (let index = 0; index < 128 + 64 * 1024 + 1; index += 1) {
+      socket.write("x")
+    }
     await closedPromise
   } finally {
     socket.destroy()
@@ -523,7 +543,37 @@ async function testOversizedHandlerError(): Promise<void> {
   }
 }
 
+async function testPlainHandlerErrorIsSanitized(): Promise<void> {
+  const secret = "database-password=super-secret"
+  const sensitivePath = "C:\\Users\\private\\plugin-data"
+  const server = await createPipeServer({
+    pluginId: PLUGIN_ID,
+    capability: CAPABILITY,
+    handle() {
+      throw new Error(`${secret} at ${sensitivePath}`)
+    },
+  })
+  const client = await createPipeClient(server.endpoint, {
+    pluginId: PLUGIN_ID,
+    capability: CAPABILITY,
+  })
+
+  try {
+    const error = await assertRuntimeError(
+      () => client.invoke("plain.error"),
+      "RPC_HANDLER_FAILED",
+    )
+    assert.equal(error.message, "Trusted runtime handler failed")
+    assert.equal(error.message.includes(secret), false)
+    assert.equal(error.message.includes(sensitivePath), false)
+  } finally {
+    await client.close()
+    await server.close()
+  }
+}
+
 testStrictProtocolDecoding()
+testIncrementalFrameDecoderLimit()
 await testRoundtripAndConcurrentRequests()
 await testFragmentedAndBatchedFrames()
 await testMalformedRawRequests()
@@ -535,5 +585,6 @@ await testServerCloseWithActiveClient()
 await testOversizedResponse()
 await testStructuredMethodNotFound()
 await testOversizedHandlerError()
+await testPlainHandlerErrorIsSanitized()
 
 console.log("[plugin-host-runtime] pipe tests passed")

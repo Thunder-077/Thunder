@@ -6,12 +6,11 @@ import { TRUSTED_RUNTIME_LIMITS } from "../runtime-policy"
 import {
   decodeEnvelope,
   encodeEnvelope,
+  NewlineFrameDecoder,
   RPC_PROTOCOL_VERSION,
   type RpcErrorEnvelope,
   type RpcResponseEnvelope,
 } from "./host-protocol"
-
-const ENVELOPE_OVERHEAD_BYTES = 64 * 1024
 
 export interface PipeInvokeOptions {
   timeoutMs?: number
@@ -102,32 +101,11 @@ function attachSocketReader(
   pluginId: string,
   maxResponseBytes: number,
 ): void {
-  let buffer = Buffer.alloc(0)
-  const bufferLimit = maxResponseBytes + ENVELOPE_OVERHEAD_BYTES
+  const decoder = new NewlineFrameDecoder(maxResponseBytes)
 
   socket.on("data", (chunk: Buffer) => {
-    buffer = Buffer.concat([buffer, chunk])
-
-    let newlineIndex = buffer.indexOf(0x0a)
-    while (newlineIndex >= 0) {
-      const lineBuffer = buffer.subarray(0, newlineIndex)
-      buffer = buffer.subarray(newlineIndex + 1)
-
-      if (
-        lineBuffer.length > maxResponseBytes ||
-        lineBuffer.length > bufferLimit
-      ) {
-        rejectPending(
-          pending,
-          new PluginRuntimeError(
-            "RPC_RESPONSE_TOO_LARGE",
-            `RPC response exceeded ${maxResponseBytes} bytes`,
-          ),
-        )
-        socket.destroy()
-        return
-      }
-
+    const result = decoder.push(chunk)
+    for (const lineBuffer of result.frames) {
       const line = lineBuffer.toString("utf8").trim()
       if (line) {
         try {
@@ -148,11 +126,9 @@ function attachSocketReader(
           return
         }
       }
-
-      newlineIndex = buffer.indexOf(0x0a)
     }
 
-    if (buffer.length > bufferLimit) {
+    if (result.overflow) {
       rejectPending(
         pending,
         new PluginRuntimeError(
