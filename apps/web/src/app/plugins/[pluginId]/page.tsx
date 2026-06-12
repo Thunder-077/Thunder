@@ -43,7 +43,11 @@ export default function DesktopPluginPage() {
   const [error, setError] = useState<string | null>(null)
   const [hostOrigin] = useState<string | null>(() => (typeof window === "undefined" ? null : window.location.origin))
   const [frameHeight, setFrameHeight] = useState(960)
-  const [workerStatus, setWorkerStatus] = useState<PluginWorkerStatus>({ running: false })
+  const [workerStatus, setWorkerStatus] = useState<PluginWorkerStatus>({
+    phase: "stopped",
+    running: false,
+    consecutiveCrashCount: 0,
+  })
   const [rpcCalls, setRpcCalls] = useState<PluginRpcLogEntry[]>([])
   const [devLogs, setDevLogs] = useState<PluginLogEntry[]>([])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
@@ -93,20 +97,26 @@ export default function DesktopPluginPage() {
 
   const refreshWorkerStatus = useCallback(async () => {
     if (!plugin || plugin.manifest.kind === "sandboxed") {
-      setWorkerStatus({ running: false })
+      setWorkerStatus({ phase: "stopped", running: false, consecutiveCrashCount: 0 })
       return
     }
 
     try {
       const runtimeStatus = await getDesktopPluginRuntimeStatus(plugin.manifest.id)
       setWorkerStatus({
+        phase: runtimeStatus.phase,
         running: runtimeStatus.running,
-        endpoint: runtimeStatus.endpoint,
+        pid: runtimeStatus.pid,
+        startedAt: runtimeStatus.startedAt,
+        consecutiveCrashCount: runtimeStatus.consecutiveCrashCount,
+        circuitOpenUntil: runtimeStatus.circuitOpenUntil,
         lastError: runtimeStatus.lastError,
       })
     } catch (runtimeError) {
       setWorkerStatus({
+        phase: "crashed",
         running: false,
+        consecutiveCrashCount: 0,
         lastError: runtimeError instanceof Error ? runtimeError.message : "运行时状态读取失败",
       })
     }
@@ -190,7 +200,7 @@ export default function DesktopPluginPage() {
       appendLog(
         workerStatus.running ? "info" : "warn",
         workerStatus.running
-          ? `worker 已连接${workerStatus.endpoint ? `: ${workerStatus.endpoint}` : ""}`
+          ? `worker 已启动${workerStatus.pid ? `: PID ${workerStatus.pid}` : ""}`
           : `worker 未运行${workerStatus.lastError ? `: ${workerStatus.lastError}` : ""}`,
       )
     }

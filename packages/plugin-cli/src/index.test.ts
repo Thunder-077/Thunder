@@ -79,7 +79,15 @@ const server = createServer((request, response) => {
 
   if (request.url === "/api/v1/desktop/plugins/teleprompter/runtime" && request.method === "GET") {
     response.writeHead(200, { "content-type": "application/json" })
-    response.end(JSON.stringify({ ok: true, data: { running: true, endpoint: "pipe://teleprompter" } }))
+    response.end(JSON.stringify({
+      ok: true,
+      data: {
+        phase: "running",
+        running: true,
+        pid: 1234,
+        consecutiveCrashCount: 0,
+      },
+    }))
     return
   }
 

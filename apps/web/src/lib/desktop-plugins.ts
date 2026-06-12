@@ -86,14 +86,15 @@ export interface DesktopPluginMigrationResult {
 
 export interface DesktopPluginRuntimeStatus {
   pluginId: string
+  phase: "stopped" | "starting" | "running" | "degraded" | "crashed" | "stopping"
   running: boolean
   pid?: number
-  port?: number
-  baseUrl?: string
-  endpoint?: string
   startedAt?: string
   lastExitAt?: string
   lastExitCode?: number | null
+  lastExitSignal?: string | null
+  consecutiveCrashCount: number
+  circuitOpenUntil?: string
   lastError?: string
 }
 

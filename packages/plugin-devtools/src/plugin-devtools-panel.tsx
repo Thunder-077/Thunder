@@ -3,8 +3,12 @@ import { Badge, Card, CardContent, Separator } from "@thunder/plugin-ui"
 import { PluginRpcLog, type PluginRpcLogEntry } from "./plugin-rpc-log"
 
 export type PluginWorkerStatus = {
+  phase: "stopped" | "starting" | "running" | "degraded" | "crashed" | "stopping"
   running: boolean
-  endpoint?: string | null
+  pid?: number
+  startedAt?: string
+  consecutiveCrashCount: number
+  circuitOpenUntil?: string
   lastError?: string | null
 }
 
@@ -82,7 +86,10 @@ export function PluginDevtoolsPanel({
             <Separator className="my-3" />
             <InfoGrid
               rows={[
-                { label: "Endpoint", value: workerStatus.endpoint ?? "N/A" },
+                { label: "PID", value: workerStatus.pid?.toString() ?? "N/A" },
+                { label: "Started At", value: workerStatus.startedAt ?? "N/A" },
+                { label: "Crash Count", value: workerStatus.consecutiveCrashCount.toString() },
+                { label: "Circuit Until", value: workerStatus.circuitOpenUntil ?? "N/A" },
                 { label: "Last Error", value: workerStatus.lastError ?? "none" },
               ]}
             />

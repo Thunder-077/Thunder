@@ -15,7 +15,12 @@ const REINSTALL_DEBOUNCE_MS = 500
 const WORKER_STATUS_POLL_INTERVAL_MS = 3000
 
 export interface DesktopDevHostClient {
-  getRuntimeStatus(pluginId: string): Promise<{ running: boolean; endpoint?: string; lastError?: string }>
+  getRuntimeStatus(pluginId: string): Promise<{
+    phase?: "stopped" | "starting" | "running" | "degraded" | "crashed" | "stopping"
+    running: boolean
+    pid?: number
+    lastError?: string
+  }>
   installLocalPlugin(pluginPath: string): Promise<void>
   startRuntime(pluginId: string): Promise<void>
 }
@@ -44,7 +49,12 @@ function createDesktopDevHostClient(apiBaseUrl: string): DesktopDevHostClient {
         },
       )
       const payload = await readJsonOrThrow(response, "桌面插件 runtime 状态读取失败")
-      return payload.data as { running: boolean; endpoint?: string; lastError?: string }
+      return payload.data as {
+        phase?: "stopped" | "starting" | "running" | "degraded" | "crashed" | "stopping"
+        running: boolean
+        pid?: number
+        lastError?: string
+      }
     },
     async installLocalPlugin(pluginPath) {
       const response = await fetch(`${apiBaseUrl}/api/v1/desktop/plugins/install/local`, {
