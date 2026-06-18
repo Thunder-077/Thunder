@@ -19,7 +19,7 @@ function createModule(id: string, order: number): ModuleManifest {
 function createPlugin(id: string, order: number): DesktopInstalledPlugin {
   return {
     manifest: {
-      manifestVersion: 1,
+      manifestVersion: 2,
       id,
       name: `Plugin ${id}`,
       version: "1.0.0",
@@ -27,9 +27,19 @@ function createPlugin(id: string, order: number): DesktopInstalledPlugin {
       icon: "Package",
       category: "tools",
       order,
+      kind: "sandboxed",
+      engines: {
+        thunder: "^2.0.0",
+      },
       author: { name: "Thunder" },
-      permissions: ["webview"],
-      web: { entry: "web/index.html" },
+      permissions: ["storage"],
+      contributes: {
+        sidebar: {
+          title: `Plugin ${id}`,
+          icon: "Package",
+          entry: "dist/index.html",
+        },
+      },
     },
     record: {
       id,

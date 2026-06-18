@@ -7,8 +7,8 @@ export function desktopPluginToModuleManifest(plugin: DesktopInstalledPlugin): M
   return {
     id: `plugin:${plugin.manifest.id}`,
     name: plugin.manifest.name,
-    description: plugin.manifest.description,
-    icon: plugin.manifest.icon,
+    description: plugin.manifest.description ?? "",
+    icon: plugin.manifest.icon ?? "Package",
     route: plugin.route,
     category: "tools",
     order: 1000,
