@@ -1,14 +1,30 @@
 {
   "name": "@thunder/plugin-sdk",
   "version": "0.1.0",
-  "private": true,
+  "description": "Browser and worker SDK for Thunder desktop plugins.",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./browser": "./src/browser.ts",
-    "./worker": "./src/worker.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "default": "./dist/worker.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@thunder/plugin-protocol": "workspace:*",
@@ -16,6 +32,7 @@
     "@thunder/plugin-sdk-worker": "workspace:*"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "tsx src/browser.test.ts",
     "test:browser": "tsx src/browser.test.ts",
     "typecheck": "tsc --noEmit"
