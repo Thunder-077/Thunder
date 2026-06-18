@@ -23,7 +23,69 @@ function rejects(fn: () => unknown, label: string): void {
   assert.equal(rejected, true, label)
 }
 
+function installPluginStorageFetchMock(): void {
+  const stores = new Map<string, Map<string, unknown>>()
+
+  // 当前插件存储通过宿主 HTTP API 访问；测试环境没有浏览器 origin，
+  // 因此在这里用 fetch mock 验证 URL、方法和配额语义。
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input), "http://localhost:3000")
+    const match = url.pathname.match(/^\/api\/v1\/desktop\/plugins\/([^/]+)\/storage(\/keys)?$/)
+    if (!match) {
+      return Response.json({ ok: false, message: "unexpected url" }, { status: 404 })
+    }
+
+    const pluginId = decodeURIComponent(match[1])
+    const store = stores.get(pluginId) ?? new Map<string, unknown>()
+    stores.set(pluginId, store)
+
+    if (match[2] === "/keys") {
+      return Response.json({ ok: true, data: [...store.keys()].sort() })
+    }
+
+    const method = init?.method ?? "GET"
+    if (method === "GET") {
+      return Response.json({ ok: true, data: store.get(url.searchParams.get("key") ?? "") ?? null })
+    }
+
+    if (method === "PUT") {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { key: string; value: unknown }
+      const serialized = JSON.stringify(body.value ?? null)
+      if (new TextEncoder().encode(serialized).byteLength > 256 * 1024) {
+        return Response.json({ ok: false, message: "插件单个存储值超过 256 KiB" }, { status: 413 })
+      }
+
+      const nextStore = new Map(store)
+      nextStore.set(body.key, body.value)
+      const totalBytes = [...nextStore.values()].reduce<number>(
+        (total, value) => total + new TextEncoder().encode(JSON.stringify(value ?? null)).byteLength,
+        0,
+      )
+      if (totalBytes > 1024 * 1024) {
+        return Response.json({ ok: false, message: "插件存储空间超过 1 MiB" }, { status: 413 })
+      }
+
+      store.set(body.key, body.value)
+      return Response.json({ ok: true, data: { pluginId, key: body.key } })
+    }
+
+    if (method === "DELETE") {
+      const key = url.searchParams.get("key")
+      if (key) {
+        store.delete(key)
+      } else {
+        store.clear()
+      }
+      return Response.json({ ok: true, data: { pluginId } })
+    }
+
+    return Response.json({ ok: false, message: "unexpected method" }, { status: 405 })
+  }
+}
+
 async function main() {
+  installPluginStorageFetchMock()
+
   assert.equal(getRequiredPluginPermissionForBridgeMethod("plugin.getManifest"), null)
   assert.equal(getRequiredPluginPermissionForBridgeMethod("storage.get"), "storage")
   assert.equal(getRequiredPluginPermissionForBridgeMethod("notification.add"), "notifications")

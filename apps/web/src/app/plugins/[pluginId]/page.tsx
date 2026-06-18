@@ -48,8 +48,8 @@ export default function DesktopPluginPage() {
     running: false,
     consecutiveCrashCount: 0,
   })
-  const [rpcCalls, setRpcCalls] = useState<PluginRpcLogEntry[]>([])
-  const [devLogs, setDevLogs] = useState<PluginLogEntry[]>([])
+  const [, setRpcCalls] = useState<PluginRpcLogEntry[]>([])
+  const [, setDevLogs] = useState<PluginLogEntry[]>([])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previousWorkerStatusRef = useRef<string | null>(null)
   const rateLimiterRef = useRef(new DesktopPluginRateLimiter())

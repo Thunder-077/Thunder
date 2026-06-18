@@ -22,10 +22,11 @@ import {
   Tags,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useDialog } from "@/components/dialog-provider"
 import {
+  describeDesktopPluginPermission,
   type DesktopInstalledPlugin,
   installBundledDesktopPlugin,
-  installPackagedDesktopPlugin,
   listDesktopPluginMarketplace,
   listDesktopPlugins,
   shouldLoadDesktopPlugins,
@@ -93,8 +94,13 @@ function marketplaceEntryToVisual(entry: DesktopPluginMarketplaceEntry): PluginV
   }
 }
 
+function canInstallMarketplaceEntry(entry?: DesktopPluginMarketplaceEntry): boolean {
+  return entry?.source === "bundled"
+}
+
 export default function DesktopPluginMarketplacePage() {
   const router = useRouter()
+  const dialog = useDialog()
   const [installed, setInstalled] = useState<DesktopInstalledPlugin[]>([])
   const [marketplace, setMarketplace] = useState<DesktopPluginMarketplaceEntry[]>([])
   const [message, setMessage] = useState<string | null>(null)
@@ -172,13 +178,17 @@ export default function DesktopPluginMarketplacePage() {
 
   async function installFromMarketplace(plugin: PluginVisual) {
     if (!plugin.entry || installedIds.has(plugin.id)) return
+    if (!canInstallMarketplaceEntry(plugin.entry)) {
+      setMessage("远程插件包安装暂未开放。当前只能安装官方内置插件。")
+      return
+    }
+    const trusted = await confirmPluginInstall(plugin.entry)
+    if (!trusted) return
     setLoadingId(plugin.id)
     setMessage(null)
     try {
       if (plugin.entry.source === "bundled") {
         await installBundledDesktopPlugin(plugin.entry.id)
-      } else {
-        await installPackagedDesktopPlugin(plugin.entry)
       }
       await refresh()
       setMessage("插件已安装")
@@ -187,6 +197,48 @@ export default function DesktopPluginMarketplacePage() {
     } finally {
       setLoadingId(null)
     }
+  }
+
+  async function confirmPluginInstall(entry: DesktopPluginMarketplaceEntry): Promise<boolean> {
+    if (!entry.requiresTrustConfirmation && entry.source === "bundled") {
+      return true
+    }
+    const highRiskPermissions = entry.highRiskPermissions ?? []
+    const permissionLines = entry.permissions.length > 0
+      ? entry.permissions.map((permission) => `• ${describeDesktopPluginPermission(permission)}`)
+      : ["• 无额外权限"]
+    const riskLines = highRiskPermissions.length > 0
+      ? highRiskPermissions.map((permission) => `• ${describeDesktopPluginPermission(permission)}`)
+      : ["• 未声明高风险权限"]
+
+    return dialog.confirm({
+      type: highRiskPermissions.length > 0 ? "danger" : "warning",
+      title: `安装插件：${entry.name}`,
+      description: (
+        <div className="space-y-3">
+          <p>
+            安装前请确认插件来源和权限。Trusted 插件会运行本地高权限代码，
+            不是浏览器沙箱。
+          </p>
+          <div>
+            <p className="font-medium text-foreground">权限</p>
+            <pre className="mt-1 whitespace-pre-wrap rounded-lg bg-muted/70 p-2 text-xs leading-5 text-muted-foreground">
+              {permissionLines.join("\n")}
+            </pre>
+          </div>
+          <div>
+            <p className="font-medium text-foreground">高风险能力</p>
+            <pre className="mt-1 whitespace-pre-wrap rounded-lg bg-muted/70 p-2 text-xs leading-5 text-muted-foreground">
+              {riskLines.join("\n")}
+            </pre>
+          </div>
+        </div>
+      ),
+      confirmText: "确认安装",
+      cancelText: "取消",
+      allowEscClose: false,
+      allowOverlayClose: false,
+    })
   }
 
   return (
@@ -399,11 +451,11 @@ function PluginCard({
       <Button
         size="sm"
         variant="outline"
-        disabled={loading || installed || !plugin.entry}
+        disabled={loading || installed || !plugin.entry || !canInstallMarketplaceEntry(plugin.entry)}
         onClick={onInstall}
         className="mt-4 h-8 w-full rounded-md text-blue-600 hover:text-blue-600"
       >
-        {installed ? "已安装" : loading ? "安装中" : "安装"}
+        {installed ? "已安装" : loading ? "安装中" : canInstallMarketplaceEntry(plugin.entry) ? "安装" : "暂未开放"}
       </Button>
     </article>
   )
@@ -443,11 +495,11 @@ function TrendingRow({
         <Button
           size="xs"
           variant="secondary"
-          disabled={loading || installed || !plugin.entry}
+          disabled={loading || installed || !plugin.entry || !canInstallMarketplaceEntry(plugin.entry)}
           onClick={onInstall}
           className="rounded-md bg-blue-50 text-blue-600 hover:bg-blue-50 hover:text-blue-600"
         >
-          {installed ? "已安装" : loading ? "安装中" : "安装"}
+          {installed ? "已安装" : loading ? "安装中" : canInstallMarketplaceEntry(plugin.entry) ? "安装" : "暂未开放"}
         </Button>
       </div>
     </article>
