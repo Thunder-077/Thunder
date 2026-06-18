@@ -29,6 +29,9 @@ importers:
       '@thunder/plugin-host-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-host-runtime
+      '@thunder/plugin-protocol':
+        specifier: workspace:*
+        version: link:../../packages/plugin-protocol
       '@thunder/plugin-schema':
         specifier: workspace:*
         version: link:../../packages/plugin-schema
