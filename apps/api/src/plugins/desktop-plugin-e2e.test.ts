@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
+import { createHash } from "node:crypto"
 import { join, resolve } from "node:path"
-import { cp, mkdir, rm, writeFile } from "node:fs/promises"
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 // @ts-ignore node:sqlite types are provided by the Node runtime used by desktop.
 import { DatabaseSync } from "node:sqlite"
 import {
@@ -32,6 +33,12 @@ function ensureActivityLogTable(databasePath: string): void {
   } finally {
     database.close()
   }
+}
+
+async function pluginManifestSha256(pluginRoot: string): Promise<string> {
+  return createHash("sha256")
+    .update(await readFile(join(pluginRoot, "plugin.json")))
+    .digest("hex")
 }
 
 async function main() {
@@ -76,10 +83,25 @@ async function main() {
 
     const plugin = await installPackagedPlugin({
       pluginPath: stagedPluginRoot,
+      trustDecision: {
+        acceptedRisk: true,
+        kind: "trusted",
+        permissions: [
+          "storage",
+          "notifications",
+          "activity",
+          "microphone",
+          "native-runtime",
+          "filesystem:plugin-data",
+        ],
+        manifestSha256: await pluginManifestSha256(stagedPluginRoot),
+        reason: "e2e trusted install",
+      },
     })
 
     assert.equal(plugin.manifest.id, "teleprompter")
     assert.equal(plugin.manifest.kind, "trusted")
+    assert.equal(plugin.trust?.source, "user-confirmed")
     assert.equal(plugin.manifest.permissions.includes("native-runtime"), true)
 
     const installedPlugin = await getInstalledPlugin("teleprompter")

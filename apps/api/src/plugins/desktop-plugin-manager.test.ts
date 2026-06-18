@@ -1,6 +1,6 @@
 import { createServer } from "node:http"
-import { generateKeyPairSync, sign } from "node:crypto"
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { createHash, generateKeyPairSync, sign } from "node:crypto"
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import assert from "node:assert/strict"
 // @ts-ignore node:sqlite types are provided by the Node runtime used by desktop.
@@ -26,6 +26,29 @@ function stableJson(value: unknown): string {
       .join(",")}}`
   }
   return JSON.stringify(value)
+}
+
+async function pluginManifestSha256(pluginRoot: string): Promise<string> {
+  return createHash("sha256")
+    .update(await readFile(join(pluginRoot, "plugin.json")))
+    .digest("hex")
+}
+
+async function createTrustedInstallDecision(pluginRoot: string) {
+  return {
+    acceptedRisk: true,
+    kind: "trusted" as const,
+    permissions: [
+      "storage",
+      "notifications",
+      "activity",
+      "microphone",
+      "native-runtime",
+      "filesystem:plugin-data",
+    ],
+    manifestSha256: await pluginManifestSha256(pluginRoot),
+    reason: "test trusted install",
+  }
 }
 
 function ensureActivityLogTable(databasePath: string): void {
@@ -81,6 +104,7 @@ async function main() {
     const bundled = await installBundledDesktopPlugin("teleprompter")
     assert.equal(bundled.manifest.id, "teleprompter")
     assert.equal(bundled.manifest.kind, "trusted")
+    assert.equal(bundled.trust?.source, "official-bundled")
     await uninstallDesktopPlugin("teleprompter")
 
     const stagedPluginRoot = resolve(testRoot, "teleprompter-package")
@@ -105,8 +129,17 @@ async function main() {
       "utf8",
     )
 
-    const installed = await installPackagedPlugin({ pluginPath: stagedPluginRoot })
+    await assert.rejects(
+      installPackagedPlugin({ pluginPath: stagedPluginRoot }),
+      /需要确认权限和信任风险/,
+    )
+
+    const installed = await installPackagedPlugin({
+      pluginPath: stagedPluginRoot,
+      trustDecision: await createTrustedInstallDecision(stagedPluginRoot),
+    })
     assert.equal(installed.manifest.id, "teleprompter")
+    assert.equal(installed.trust?.source, "user-confirmed")
 
     const plugins = await listInstalledDesktopPlugins()
     assert.equal(plugins.length, 1)
@@ -118,6 +151,39 @@ async function main() {
     const uiAsset = await readDesktopPluginUiAsset("teleprompter", ["dist", "index.html"])
     assert.equal(uiAsset.contentType, "text/html; charset=utf-8")
     assert.equal(uiAsset.bytes.toString("utf8").includes("<div id=\"root\"></div>"), true)
+
+    const upgradePluginRoot = resolve(testRoot, "teleprompter-upgrade-package")
+    await cp(stagedPluginRoot, upgradePluginRoot, { recursive: true })
+    const upgradeManifestPath = join(upgradePluginRoot, "plugin.json")
+    const upgradeManifest = JSON.parse(await readFile(upgradeManifestPath, "utf8")) as Record<string, unknown>
+    upgradeManifest.version = "0.2.0"
+    upgradeManifest.name = "提词器升级版"
+    await writeFile(upgradeManifestPath, `${JSON.stringify(upgradeManifest, null, 2)}\n`, "utf8")
+    await writeFile(join(upgradePluginRoot, "dist", "index.html"), "<!doctype html><div id=\"upgraded\"></div>\n", "utf8")
+
+    await assert.rejects(
+      installPackagedPlugin({
+        pluginPath: upgradePluginRoot,
+        trustDecision: await createTrustedInstallDecision(upgradePluginRoot),
+        installTransactionFailurePoint: "after-backup",
+      }),
+      /测试注入：插件安装备份后失败/,
+    )
+
+    const rolledBackPlugin = await getInstalledPlugin("teleprompter")
+    assert.equal(rolledBackPlugin.manifest.version, "0.1.0")
+    const rolledBackUiAsset = await readDesktopPluginUiAsset("teleprompter", ["dist", "index.html"])
+    assert.equal(rolledBackUiAsset.bytes.toString("utf8").includes("<div id=\"root\"></div>"), true)
+    assert.equal(rolledBackUiAsset.bytes.toString("utf8").includes("upgraded"), false)
+    assert.deepEqual(await readdir(join(testRoot, "plugin-staging")), [])
+
+    const upgradedPlugin = await installPackagedPlugin({
+      pluginPath: upgradePluginRoot,
+      trustDecision: await createTrustedInstallDecision(upgradePluginRoot),
+    })
+    assert.equal(upgradedPlugin.manifest.version, "0.2.0")
+    const upgradedUiAsset = await readDesktopPluginUiAsset("teleprompter", ["dist", "index.html"])
+    assert.equal(upgradedUiAsset.bytes.toString("utf8").includes("<div id=\"upgraded\"></div>"), true)
 
     const { publicKey, privateKey } = generateKeyPairSync("ed25519")
     const indexBase = {

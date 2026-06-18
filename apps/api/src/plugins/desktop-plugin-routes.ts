@@ -12,6 +12,11 @@ import {
   startDesktopPluginRuntime,
   uninstallDesktopPlugin,
   invokeDesktopPluginWorker,
+  getPluginStorage,
+  setPluginStorage,
+  removePluginStorage,
+  listPluginStorageKeys,
+  clearPluginStorage,
 } from "./desktop-plugin-manager"
 import {
   proxyDesktopPluginNetworkRequest,
@@ -43,6 +48,13 @@ export function sanitizePluginApiProxyHeaders(headers: Headers): Headers {
 
 function toErrorResponse(error: unknown) {
   if (error instanceof DesktopPluginError) {
+    return { status: error.status, body: { ok: false, message: error.message } }
+  }
+  if (
+    error instanceof Error &&
+    "status" in error &&
+    typeof error.status === "number"
+  ) {
     return { status: error.status, body: { ok: false, message: error.message } }
   }
   console.error("[desktop-plugins] unexpected error", error)
@@ -87,6 +99,7 @@ desktopPlugins.post("/install/local", async (c) => {
     const body = (await c.req.json().catch(() => null)) as
       | {
           pluginPath?: string
+          trustDecision?: Parameters<typeof installPackagedPlugin>[0]["trustDecision"]
         }
       | null
 
@@ -99,6 +112,7 @@ desktopPlugins.post("/install/local", async (c) => {
 
     const plugin = await installPackagedPlugin({
       pluginPath: body.pluginPath,
+      trustDecision: body.trustDecision,
     })
     return c.json({ ok: true, data: plugin }, 201)
   } catch (error) {
@@ -261,6 +275,99 @@ desktopPlugins.get("/:id/ui/*", async (c) => {
     }
 
     return new Response(new Uint8Array(asset.bytes), { headers })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+// ===== Plugin Storage endpoints =====
+desktopPlugins.get("/:id/storage", async (c) => {
+  if (!isDesktopPluginRuntimeEnabled()) {
+    return new Response(JSON.stringify({ ok: false, message: "插件系统仅在桌面端启用" }), {
+      status: 403,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    })
+  }
+  try {
+    const pluginId = c.req.param("id")
+    const key = c.req.query("key")
+    if (!key) {
+      return new Response(JSON.stringify({ ok: false, message: "key query 参数不能为空" }), {
+        status: 400,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      })
+    }
+    const value = await getPluginStorage(pluginId, key)
+    return c.json({ ok: true, data: value })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.get("/:id/storage/keys", async (c) => {
+  if (!isDesktopPluginRuntimeEnabled()) {
+    return new Response(JSON.stringify({ ok: false, message: "插件系统仅在桌面端启用" }), {
+      status: 403,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    })
+  }
+  try {
+    const pluginId = c.req.param("id")
+    const keys = await listPluginStorageKeys(pluginId)
+    return c.json({ ok: true, data: keys })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.put("/:id/storage", async (c) => {
+  if (!isDesktopPluginRuntimeEnabled()) {
+    return new Response(JSON.stringify({ ok: false, message: "插件系统仅在桌面端启用" }), {
+      status: 403,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    })
+  }
+  try {
+    const pluginId = c.req.param("id")
+    const body = (await c.req.json().catch(() => null)) as
+      | {
+          key?: string
+          value?: unknown
+        }
+      | null
+
+    if (!body?.key || typeof body.key !== "string") {
+      return new Response(JSON.stringify({ ok: false, message: "key 必须是非空字符串" }), {
+        status: 400,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      })
+    }
+
+    await setPluginStorage(pluginId, body.key, body.value)
+    return c.json({ ok: true, data: { pluginId, key: body.key } })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.delete("/:id/storage", async (c) => {
+  if (!isDesktopPluginRuntimeEnabled()) {
+    return new Response(JSON.stringify({ ok: false, message: "插件系统仅在桌面端启用" }), {
+      status: 403,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    })
+  }
+  try {
+    const pluginId = c.req.param("id")
+    const key = c.req.query("key")
+    if (!key) {
+      // No key means clear all storage
+      await clearPluginStorage(pluginId)
+      return c.json({ ok: true, data: { pluginId, cleared: true } })
+    }
+    // With key means delete single key
+    await removePluginStorage(pluginId, key)
+    return c.json({ ok: true, data: { pluginId, key } })
   } catch (error) {
     return jsonError(error)
   }

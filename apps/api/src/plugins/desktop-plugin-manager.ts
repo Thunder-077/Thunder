@@ -1,6 +1,6 @@
 import { constants as fsConstants } from "node:fs"
-import { access, appendFile, cp, lstat, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
-import { createHash, createPublicKey, verify } from "node:crypto"
+import { access, appendFile, cp, lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
+import { createHash, createPublicKey, randomUUID, verify } from "node:crypto"
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep, extname } from "node:path"
 import {
   createTrustedRuntimeSupervisor,
@@ -14,7 +14,17 @@ import type {
   DesktopPluginRuntimeStatus,
   InstalledDesktopPlugin,
 } from "./desktop-plugin-types"
+// @ts-ignore node:sqlite types are provided by the Node runtime
+import { DatabaseSync } from "node:sqlite"
+import { normalizePluginStorageKey } from "@thunder/plugin-protocol"
 import { recordActivity } from "../modules/activity/activity-service"
+import {
+  assertPluginTrustedForRuntime,
+  createDesktopPluginTrustRecord,
+  getHighRiskPluginPermissions,
+  pluginRequiresTrustConfirmation,
+  type DesktopPluginTrustDecision,
+} from "./desktop-plugin-trust"
 
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
 const STATIC_CONTENT_TYPES: Record<string, string> = {
@@ -32,6 +42,7 @@ const STATIC_CONTENT_TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
 }
 const trustedRuntimeSupervisor = createTrustedRuntimeSupervisor()
+const pluginOperationLocks = new Map<string, Promise<void>>()
 
 export class DesktopPluginError extends Error {
   constructor(
@@ -44,6 +55,12 @@ export class DesktopPluginError extends Error {
 
 export interface InstallLocalPluginOptions {
   pluginPath: string
+  trustDecision?: DesktopPluginTrustDecision
+  trustSource?: "user-confirmed" | "official-bundled"
+  /**
+   * 测试专用故障注入点。HTTP 安装入口不会传入该字段。
+   */
+  installTransactionFailurePoint?: "after-backup" | "after-target-install"
 }
 
 export interface StaticPluginAsset {
@@ -118,6 +135,16 @@ async function getTrustedPluginDataDirectory(
   return dataDirectory
 }
 
+async function assertInstalledPluginPermission(
+  pluginId: string,
+  permission: string,
+): Promise<void> {
+  const plugin = await getInstalledPlugin(pluginId)
+  if (!plugin.manifest.permissions.some((item) => item === permission)) {
+    throw new DesktopPluginError(`插件未声明 ${permission} 权限`, 403)
+  }
+}
+
 function getBundledPluginRoots(): string[] {
   const configuredRoots = (process.env.THUNDER_BUNDLED_PLUGIN_DIRS ?? "")
     .split(delimiter)
@@ -158,6 +185,27 @@ async function appendAudit(event: string, details: Record<string, unknown>): Pro
     ...details,
   }
   await appendFile(auditLogPath, `${JSON.stringify(record)}\n`, "utf8")
+}
+
+async function withPluginOperationLock<T>(pluginId: string, operation: () => Promise<T>): Promise<T> {
+  const previousOperation = pluginOperationLocks.get(pluginId) ?? Promise.resolve()
+  let releaseCurrentOperation!: () => void
+  const currentOperation = new Promise<void>((resolveCurrentOperation) => {
+    releaseCurrentOperation = resolveCurrentOperation
+  })
+  const activeOperation = previousOperation.catch(() => undefined).then(() => currentOperation)
+
+  pluginOperationLocks.set(pluginId, activeOperation)
+  await previousOperation.catch(() => undefined)
+
+  try {
+    return await operation()
+  } finally {
+    releaseCurrentOperation()
+    if (pluginOperationLocks.get(pluginId) === activeOperation) {
+      pluginOperationLocks.delete(pluginId)
+    }
+  }
 }
 
 function assertPluginId(id: string): void {
@@ -204,6 +252,70 @@ async function assertPathInside(root: string, target: string): Promise<void> {
   }
 }
 
+async function replaceInstalledPluginDirectory(options: {
+  pluginId: string
+  targetDir: string
+  preparedDir: string
+  backupDir: string
+  failurePoint?: InstallLocalPluginOptions["installTransactionFailurePoint"]
+}): Promise<void> {
+  const { pluginsDir, stagingDir } = getPluginDirs()
+  await assertPathInside(pluginsDir, options.targetDir)
+  await assertPathInside(stagingDir, options.preparedDir)
+  await assertPathInside(stagingDir, options.backupDir)
+
+  let backupCreated = false
+  let preparedInstalled = false
+
+  try {
+    if (await pathExists(options.targetDir)) {
+      await rm(options.backupDir, { recursive: true, force: true })
+      await rename(options.targetDir, options.backupDir)
+      backupCreated = true
+
+      if (options.failurePoint === "after-backup") {
+        throw new DesktopPluginError("测试注入：插件安装备份后失败", 500)
+      }
+    }
+
+    await rename(options.preparedDir, options.targetDir)
+    preparedInstalled = true
+
+    if (options.failurePoint === "after-target-install") {
+      throw new DesktopPluginError("测试注入：插件安装切换后失败", 500)
+    }
+
+    if (backupCreated) {
+      await rm(options.backupDir, { recursive: true, force: true })
+    }
+  } catch (error) {
+    // 替换失败时优先恢复旧版本目录，避免升级失败后插件消失。
+    if (preparedInstalled) {
+      await rm(options.targetDir, { recursive: true, force: true }).catch(() => undefined)
+    }
+    if (backupCreated && (await pathExists(options.backupDir))) {
+      await rm(options.targetDir, { recursive: true, force: true }).catch(() => undefined)
+      await rename(options.backupDir, options.targetDir)
+    }
+    throw error
+  }
+}
+
+async function appendInstallFailureAudit(
+  pluginId: string,
+  version: string,
+  error: unknown,
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error)
+  await appendAudit("plugin.install-failed", {
+    pluginId,
+    version,
+    message,
+  }).catch((auditError) => {
+    console.error("[desktop-plugins] Failed to append install failure audit", auditError)
+  })
+}
+
 async function readManifestVersion(pluginRoot: string): Promise<number> {
   const manifest = await readJsonFile<{ manifestVersion?: unknown }>(join(pluginRoot, "plugin.json"))
   return typeof manifest.manifestVersion === "number" ? manifest.manifestVersion : 0
@@ -241,6 +353,7 @@ function sha256(buffer: Buffer | string): string {
 export function toInstalledPlugin(
   manifest: DesktopPluginSchemaManifest,
   pluginRoot: string,
+  trust: DesktopPluginInstallRecord["trust"],
   installedAt?: string,
   updatedAt?: string,
 ): InstalledDesktopPlugin {
@@ -249,6 +362,7 @@ export function toInstalledPlugin(
   return {
     manifest,
     pluginRoot,
+    trust,
     route: `/plugins/${manifest.id}`,
     uiEntryUrl: sidebarEntry ? `/api/v1/desktop/plugins/${manifest.id}/ui/${sidebarEntry}` : null,
     installedAt,
@@ -274,7 +388,7 @@ export async function listInstalledDesktopPlugins(): Promise<InstalledDesktopPlu
       }
       const manifest = await readManifest(pluginRoot)
       const installRecord = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json")).catch(() => null)
-      plugins.push(toInstalledPlugin(manifest, pluginRoot, installRecord?.installedAt, installRecord?.updatedAt))
+      plugins.push(toInstalledPlugin(manifest, pluginRoot, installRecord?.trust, installRecord?.installedAt, installRecord?.updatedAt))
     } catch (error) {
       console.warn("[desktop-plugins] ignored invalid plugin", entry.name, error)
     }
@@ -299,7 +413,7 @@ export async function getInstalledPlugin(id: string): Promise<InstalledDesktopPl
   try {
     const manifest = await readManifest(pluginRoot)
     const installRecord = await readJsonFile<DesktopPluginInstallRecord>(join(pluginRoot, ".thunder-install.json")).catch(() => null)
-    return toInstalledPlugin(manifest, pluginRoot, installRecord?.installedAt, installRecord?.updatedAt)
+    return toInstalledPlugin(manifest, pluginRoot, installRecord?.trust, installRecord?.installedAt, installRecord?.updatedAt)
   } catch {
     throw new DesktopPluginError("插件未安装", 404)
   }
@@ -324,53 +438,93 @@ export async function installPackagedPlugin(
   }
 
   const manifest = await readManifest(sourcePath)
+  const manifestSha256 = sha256(await readFile(join(sourcePath, "plugin.json")))
   await assertNoSymlinks(sourcePath)
 
   const { pluginsDir, stagingDir } = getPluginDirs()
   const targetDir = join(pluginsDir, manifest.id)
-  const stageDir = join(stagingDir, `${manifest.id}-${Date.now()}`)
-  const previousPlugin = await getInstalledPlugin(manifest.id).catch(() => null)
+  const transactionDir = join(stagingDir, `${manifest.id}-${Date.now()}-${randomUUID()}`)
+  const preparedDir = join(transactionDir, "prepared")
+  const backupDir = join(transactionDir, "backup")
+  await assertPathInside(pluginsDir, targetDir)
+  await assertPathInside(stagingDir, transactionDir)
+  await assertPathInside(stagingDir, preparedDir)
+  await assertPathInside(stagingDir, backupDir)
 
-  await rm(stageDir, { recursive: true, force: true })
-  await cp(sourcePath, stageDir, { recursive: true, dereference: true })
-
-  const now = new Date().toISOString()
-  const installRecord: DesktopPluginInstallRecord = {
-    id: manifest.id,
-    version: manifest.version,
-    installedAt: previousPlugin?.installedAt ?? now,
-    updatedAt: now,
-    source: "local-directory",
-    sourceRef: sourcePath,
-    manifestSha256: sha256(await readFile(join(sourcePath, "plugin.json"))),
-  }
-
-  await writeFile(join(stageDir, ".thunder-install.json"), `${JSON.stringify(installRecord, null, 2)}\n`, "utf8")
-  if (previousPlugin) {
-    await stopDesktopPluginRuntime(manifest.id)
-  }
-  await rm(targetDir, { recursive: true, force: true })
-  await cp(stageDir, targetDir, { recursive: true, dereference: true })
-  await rm(stageDir, { recursive: true, force: true })
-
-  await appendAudit(previousPlugin ? "plugin.upgraded" : "plugin.installed", {
-    pluginId: manifest.id,
-    version: manifest.version,
-    source: installRecord.source,
-    sourceRef: installRecord.sourceRef,
-  })
+  await rm(transactionDir, { recursive: true, force: true })
+  await mkdir(transactionDir, { recursive: true })
+  await cp(sourcePath, preparedDir, { recursive: true, dereference: true })
 
   try {
-    await recordActivity({
-      module: `plugin:${manifest.id}`,
-      action: previousPlugin ? "plugin.upgraded" : "plugin.installed",
-      title: previousPlugin ? `升级了插件 ${manifest.name}` : `安装了插件 ${manifest.name}`,
-    })
-  } catch (error) {
-    console.error("[plugin-activity] Failed to record activity", error)
-  }
+    return await withPluginOperationLock(manifest.id, async () => {
+      const previousPlugin = await getInstalledPlugin(manifest.id).catch(() => null)
+      const previousRecord = previousPlugin
+        ? await readJsonFile<DesktopPluginInstallRecord>(join(previousPlugin.pluginRoot, ".thunder-install.json")).catch(() => null)
+        : null
+      const trust = createDesktopPluginTrustRecord({
+        manifest,
+        manifestSha256,
+        previousRecord,
+        source: options.trustSource ?? "user-confirmed",
+        decision: options.trustDecision,
+      })
 
-  return toInstalledPlugin(manifest, targetDir, installRecord.installedAt, installRecord.updatedAt)
+      const now = new Date().toISOString()
+      const installRecord: DesktopPluginInstallRecord = {
+        id: manifest.id,
+        version: manifest.version,
+        installedAt: previousPlugin?.installedAt ?? now,
+        updatedAt: now,
+        source: "local-directory",
+        sourceRef: sourcePath,
+        manifestSha256,
+        trust,
+      }
+
+      await writeFile(join(preparedDir, ".thunder-install.json"), `${JSON.stringify(installRecord, null, 2)}\n`, "utf8")
+      await readManifest(preparedDir)
+
+      try {
+        if (previousPlugin) {
+          await stopDesktopPluginRuntime(manifest.id)
+        }
+
+        await replaceInstalledPluginDirectory({
+          pluginId: manifest.id,
+          targetDir,
+          preparedDir,
+          backupDir,
+          failurePoint: options.installTransactionFailurePoint,
+        })
+      } catch (error) {
+        await appendInstallFailureAudit(manifest.id, manifest.version, error)
+        throw error
+      }
+
+      await appendAudit(previousPlugin ? "plugin.upgraded" : "plugin.installed", {
+        pluginId: manifest.id,
+        version: manifest.version,
+        source: installRecord.source,
+        sourceRef: installRecord.sourceRef,
+        trustSource: trust.source,
+        highRiskPermissions: trust.highRiskPermissions,
+      })
+
+      try {
+        await recordActivity({
+          module: `plugin:${manifest.id}`,
+          action: previousPlugin ? "plugin.upgraded" : "plugin.installed",
+          title: previousPlugin ? `升级了插件 ${manifest.name}` : `安装了插件 ${manifest.name}`,
+        })
+      } catch (error) {
+        console.error("[plugin-activity] Failed to record activity", error)
+      }
+
+      return toInstalledPlugin(manifest, targetDir, installRecord.trust, installRecord.installedAt, installRecord.updatedAt)
+    })
+  } finally {
+    await rm(transactionDir, { recursive: true, force: true }).catch(() => undefined)
+  }
 }
 
 async function findBundledPluginSource(pluginId: string): Promise<string> {
@@ -389,7 +543,10 @@ async function findBundledPluginSource(pluginId: string): Promise<string> {
 
 export async function installBundledDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
   const sourcePath = await findBundledPluginSource(pluginId)
-  const plugin = await installPackagedPlugin({ pluginPath: sourcePath })
+  const plugin = await installPackagedPlugin({
+    pluginPath: sourcePath,
+    trustSource: "official-bundled",
+  })
 
   await appendAudit("plugin.bundled-installed", {
     pluginId: plugin.manifest.id,
@@ -412,28 +569,39 @@ export async function installBundledDesktopPlugin(pluginId: string): Promise<Ins
 
 export async function uninstallDesktopPlugin(id: string): Promise<void> {
   assertPluginId(id)
-  await stopDesktopPluginRuntime(id)
+  await withPluginOperationLock(id, async () => {
+    await stopDesktopPluginRuntime(id)
 
-  const { pluginsDir } = getPluginDirs()
-  const targetDir = join(pluginsDir, id)
-  await assertPathInside(pluginsDir, targetDir)
-  const plugin = await getInstalledPlugin(id).catch(() => null)
-  await rm(targetDir, { recursive: true, force: true })
+    const { pluginsDir } = getPluginDirs()
+    const targetDir = join(pluginsDir, id)
+    await assertPathInside(pluginsDir, targetDir)
+    const plugin = await getInstalledPlugin(id).catch(() => null)
+    await rm(targetDir, { recursive: true, force: true })
 
-  await appendAudit("plugin.uninstalled", {
-    pluginId: id,
-    version: plugin?.manifest.version,
-  })
+    // 清理插件私有存储，避免卸载后留下旧版本本地数据。
+    try {
+      const { pluginDataDir } = getPluginDirs()
+      const storageDir = join(pluginDataDir, id)
+      await rm(storageDir, { recursive: true, force: true })
+    } catch (storageCleanupError) {
+      console.warn("[desktop-plugins] Failed to clean up plugin storage data", storageCleanupError)
+    }
 
-  try {
-    await recordActivity({
-      module: `plugin:${id}`,
-      action: "plugin.uninstalled",
-      title: `卸载了插件 ${plugin?.manifest.name ?? id}`,
+    await appendAudit("plugin.uninstalled", {
+      pluginId: id,
+      version: plugin?.manifest.version,
     })
-  } catch (error) {
-    console.error("[plugin-activity] Failed to record activity", error)
-  }
+
+    try {
+      await recordActivity({
+        module: `plugin:${id}`,
+        action: "plugin.uninstalled",
+        title: `卸载了插件 ${plugin?.manifest.name ?? id}`,
+      })
+    } catch (error) {
+      console.error("[plugin-activity] Failed to record activity", error)
+    }
+  })
 }
 
 export async function readDesktopPluginUiAsset(id: string, assetPathParts: string[]): Promise<StaticPluginAsset> {
@@ -481,6 +649,8 @@ async function startTrustedDesktopPluginRuntime(
   if (plugin.manifest.kind !== "trusted") {
     throw new DesktopPluginError("当前仅支持 trusted runtime", 501)
   }
+  const installRecord = await readJsonFile<DesktopPluginInstallRecord>(join(plugin.pluginRoot, ".thunder-install.json")).catch(() => null)
+  assertPluginTrustedForRuntime(installRecord, plugin.manifest)
 
   const currentStatus = trustedRuntimeSupervisor.getStatus(plugin.manifest.id)
   if (currentStatus.running) {
@@ -532,6 +702,152 @@ export function getDesktopPluginRuntimeStatus(id: string): DesktopPluginRuntimeS
   assertPluginId(id)
   const status = trustedRuntimeSupervisor.getStatus(id)
   return toDesktopPluginRuntimeStatus(status)
+}
+
+// ---- Plugin Storage (SQLite) ----
+
+const MAX_PLUGIN_STORAGE_BYTES = 1024 * 1024
+const MAX_PLUGIN_STORAGE_VALUE_BYTES = 256 * 1024
+
+function getStorageDbPath(pluginId: string): string {
+  const { pluginDataDir } = getPluginDirs()
+  return join(pluginDataDir, pluginId, "storage.db")
+}
+
+function openStorageDb(pluginId: string): DatabaseSync {
+  const dbPath = getStorageDbPath(pluginId)
+  const db = new DatabaseSync(dbPath)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS kv (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      size INTEGER NOT NULL
+    )
+  `)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS meta (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      total_bytes INTEGER NOT NULL DEFAULT 0
+    )
+  `)
+  // Ensure meta row exists
+  db.exec(`INSERT OR IGNORE INTO meta (id, total_bytes) VALUES (1, 0)`)
+  return db
+}
+
+export async function getPluginStorage(pluginId: string, key: string): Promise<unknown | null> {
+  assertPluginId(pluginId)
+  await assertInstalledPluginPermission(pluginId, "storage")
+  const dbPath = getStorageDbPath(pluginId)
+  await mkdir(dirname(dbPath), { recursive: true })
+  const db = openStorageDb(pluginId)
+  try {
+    const row = db.prepare("SELECT value FROM kv WHERE key = ?").get(key) as { value: string } | undefined
+    if (!row) return null
+    return JSON.parse(row.value)
+  } finally {
+    db.close()
+  }
+}
+
+export async function setPluginStorage(pluginId: string, key: string, value: unknown): Promise<void> {
+  assertPluginId(pluginId)
+  await assertInstalledPluginPermission(pluginId, "storage")
+  const normalizedKey = normalizePluginStorageKey(key)
+  const serialized = JSON.stringify(value ?? null)
+  const newSize = new TextEncoder().encode(serialized).byteLength
+  if (newSize > MAX_PLUGIN_STORAGE_VALUE_BYTES) {
+    throw new DesktopPluginError("插件单个存储值超过 256 KiB", 413)
+  }
+
+  const dbPath = getStorageDbPath(pluginId)
+  await mkdir(dirname(dbPath), { recursive: true })
+  const db = openStorageDb(pluginId)
+  try {
+    const existing = db.prepare("SELECT size FROM kv WHERE key = ?").get(normalizedKey) as { size: number } | undefined
+    const oldSize = existing?.size ?? 0
+    const meta = db.prepare("SELECT total_bytes FROM meta WHERE id = 1").get() as { total_bytes: number }
+    const currentBytes = meta.total_bytes
+    const nextBytes = currentBytes - oldSize + newSize
+    if (nextBytes > MAX_PLUGIN_STORAGE_BYTES) {
+      throw new DesktopPluginError("插件存储空间超过 1 MiB", 413)
+    }
+
+    db.exec("BEGIN IMMEDIATE")
+    try {
+      db.prepare("INSERT OR REPLACE INTO kv (key, value, size) VALUES (?, ?, ?)").run(normalizedKey, serialized, newSize)
+      db.prepare("UPDATE meta SET total_bytes = ? WHERE id = 1").run(nextBytes)
+      db.exec("COMMIT")
+    } catch (err) {
+      db.exec("ROLLBACK")
+      throw err
+    }
+  } finally {
+    db.close()
+  }
+}
+
+export async function removePluginStorage(pluginId: string, key: string): Promise<void> {
+  assertPluginId(pluginId)
+  await assertInstalledPluginPermission(pluginId, "storage")
+  const normalizedKey = normalizePluginStorageKey(key)
+  const dbPath = getStorageDbPath(pluginId)
+  await mkdir(dirname(dbPath), { recursive: true })
+  const db = openStorageDb(pluginId)
+  try {
+    const existing = db.prepare("SELECT size FROM kv WHERE key = ?").get(normalizedKey) as { size: number } | undefined
+    if (!existing) return
+
+    const meta = db.prepare("SELECT total_bytes FROM meta WHERE id = 1").get() as { total_bytes: number }
+    const nextBytes = Math.max(0, meta.total_bytes - existing.size)
+
+    db.exec("BEGIN IMMEDIATE")
+    try {
+      db.prepare("DELETE FROM kv WHERE key = ?").run(normalizedKey)
+      db.prepare("UPDATE meta SET total_bytes = ? WHERE id = 1").run(nextBytes)
+      db.exec("COMMIT")
+    } catch (err) {
+      db.exec("ROLLBACK")
+      throw err
+    }
+  } finally {
+    db.close()
+  }
+}
+
+export async function listPluginStorageKeys(pluginId: string): Promise<string[]> {
+  assertPluginId(pluginId)
+  await assertInstalledPluginPermission(pluginId, "storage")
+  const dbPath = getStorageDbPath(pluginId)
+  await mkdir(dirname(dbPath), { recursive: true })
+  const db = openStorageDb(pluginId)
+  try {
+    const rows = db.prepare("SELECT key FROM kv ORDER BY key").all() as { key: string }[]
+    return rows.map((r) => r.key)
+  } finally {
+    db.close()
+  }
+}
+
+export async function clearPluginStorage(pluginId: string): Promise<void> {
+  assertPluginId(pluginId)
+  await assertInstalledPluginPermission(pluginId, "storage")
+  const dbPath = getStorageDbPath(pluginId)
+  await mkdir(dirname(dbPath), { recursive: true })
+  const db = openStorageDb(pluginId)
+  try {
+    db.exec("BEGIN IMMEDIATE")
+    try {
+      db.exec("DELETE FROM kv")
+      db.prepare("UPDATE meta SET total_bytes = 0 WHERE id = 1").run()
+      db.exec("COMMIT")
+    } catch (err) {
+      db.exec("ROLLBACK")
+      throw err
+    }
+  } finally {
+    db.close()
+  }
 }
 
 export async function invokeDesktopPluginWorker(
@@ -601,6 +917,10 @@ async function listBundledMarketplaceEntries(): Promise<DesktopPluginMarketplace
         category: "tools",
         author: manifest.author ?? { name: "Thunder" },
         permissions: [...manifest.permissions],
+        kind: manifest.kind,
+        highRiskPermissions: getHighRiskPluginPermissions(manifest),
+        requiresTrustConfirmation: pluginRequiresTrustConfirmation(manifest),
+        manifestSha256: sha256(await readFile(join(sourcePath, "plugin.json"))),
         source: "bundled",
       })
     }
