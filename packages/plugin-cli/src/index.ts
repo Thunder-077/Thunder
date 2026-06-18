@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -6,6 +7,7 @@ import { createPluginProject } from "./commands/create"
 import { runDevCommand } from "./commands/dev"
 import { runPackCommand } from "./commands/pack"
 import { runPublishCommand } from "./commands/publish"
+import { runValidateCommand } from "./commands/validate"
 import { findMonorepoRoot } from "./workspace"
 
 interface ParsedCliArgs {
@@ -14,15 +16,23 @@ interface ParsedCliArgs {
   targetDir?: string
   rootDir: string
   template: "sandboxed-ui" | "trusted-app"
+  outDir?: string
+  writeEntry?: boolean
+  baseUrl?: string
+  privateKeyPath?: string
+  keyId?: string
+  entriesDir?: string
+  outPath?: string
 }
 
 function printUsage(): void {
   console.log("Usage:")
   console.log("  thunder-plugin create <plugin-name> [target-dir] [--template sandboxed-ui|trusted-app]")
+  console.log("  thunder-plugin validate [root-dir]")
   console.log("  thunder-plugin build [root-dir]")
   console.log("  thunder-plugin dev [root-dir]")
-  console.log("  thunder-plugin pack [root-dir]")
-  console.log("  thunder-plugin publish")
+  console.log("  thunder-plugin pack [root-dir] [--entry] [--out <dir>] [--base-url <url>] [--private-key <pem>] [--key-id <id>]")
+  console.log("  thunder-plugin publish [--entries <dir>] [--out <path>] [--private-key <pem>] [--key-id <id>]")
 }
 
 async function writeProjectFiles(
@@ -59,10 +69,41 @@ async function printCreateNextSteps(targetDir: string): Promise<void> {
   console.log("")
 }
 
+function readOption(argv: string[], name: string): string | undefined {
+  const inline = argv.find((arg) => arg.startsWith(`${name}=`))
+  if (inline) return inline.slice(name.length + 1)
+  const index = argv.indexOf(name)
+  return index >= 0 ? argv[index + 1] : undefined
+}
+
+function hasFlag(argv: string[], name: string): boolean {
+  return argv.includes(name)
+}
+
+function positionalArgs(argv: string[]): string[] {
+  const positional: string[] = []
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]
+    if (arg.startsWith("--")) {
+      if (arg === "--entry") {
+        continue
+      }
+      if (!arg.includes("=") && argv[index + 1] && !argv[index + 1].startsWith("--")) {
+        index += 1
+      }
+      continue
+    }
+    positional.push(arg)
+  }
+  return positional
+}
+
 function parseCliArgs(argv: string[]): ParsedCliArgs {
-  const [command, firstArg] = argv
-  const templateIndex = argv.indexOf("--template")
-  const rawTemplateValue = templateIndex >= 0 ? argv[templateIndex + 1] : undefined
+  const [command] = argv
+  const commandArgs = argv.slice(1)
+  const positional = positionalArgs(commandArgs)
+  const firstArg = positional[0]
+  const rawTemplateValue = readOption(commandArgs, "--template")
   const templateValue: "sandboxed-ui" | "trusted-app" | undefined =
     rawTemplateValue === "sandboxed-ui" || rawTemplateValue === "trusted-app"
       ? rawTemplateValue
@@ -70,17 +111,13 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
   if (rawTemplateValue && !templateValue) {
     throw new Error(`Unsupported template: ${rawTemplateValue}`)
   }
-  const positional = argv
-    .slice(2)
-    .filter((_, index) => templateIndex < 0 || (index + 2 !== templateIndex && index + 2 !== templateIndex + 1))
-  const targetDir = positional[0]
 
   if (command === "create") {
     return {
       command,
       pluginName: firstArg,
-      targetDir,
-      rootDir: resolve(targetDir ?? firstArg ?? "."),
+      targetDir: positional[1],
+      rootDir: resolve(positional[1] ?? firstArg ?? "."),
       template: templateValue ?? "sandboxed-ui",
     }
   }
@@ -89,6 +126,13 @@ function parseCliArgs(argv: string[]): ParsedCliArgs {
     command,
     rootDir: resolve(firstArg ?? "."),
     template: "sandboxed-ui",
+    outDir: readOption(commandArgs, "--out"),
+    writeEntry: hasFlag(commandArgs, "--entry"),
+    baseUrl: readOption(commandArgs, "--base-url"),
+    privateKeyPath: readOption(commandArgs, "--private-key"),
+    keyId: readOption(commandArgs, "--key-id"),
+    entriesDir: readOption(commandArgs, "--entries"),
+    outPath: readOption(commandArgs, "--out"),
   }
 }
 
@@ -123,19 +167,44 @@ export async function runPluginCli(argv: string[]): Promise<void> {
       return
     }
 
+    case "validate": {
+      await runValidateCommand(args.rootDir)
+      return
+    }
+
     case "dev": {
       await runDevCommand(args.rootDir)
       return
     }
 
     case "pack": {
-      const result = await runPackCommand(args.rootDir)
+      const result = await runPackCommand({
+        rootDir: args.rootDir,
+        outDir: args.outDir,
+        writeEntry: args.writeEntry,
+        baseUrl: args.baseUrl,
+        signing: {
+          privateKeyPath: args.privateKeyPath,
+          keyId: args.keyId,
+        },
+      })
       console.log(`[plugin-cli] packed ${result.packagePath} (${result.packageSha256})`)
+      if (result.marketplaceEntryPath) {
+        console.log(`[plugin-cli] marketplace entry ${result.marketplaceEntryPath}`)
+      }
       return
     }
 
     case "publish": {
-      await runPublishCommand()
+      const result = await runPublishCommand({
+        entriesDir: args.entriesDir ?? "artifacts",
+        outPath: args.outPath ?? "artifacts/index.json",
+        signing: {
+          privateKeyPath: args.privateKeyPath,
+          keyId: args.keyId,
+        },
+      })
+      console.log(`[plugin-cli] published ${result.index.plugins.length} plugins -> ${result.outPath}`)
       return
     }
 
@@ -151,3 +220,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
 export * from "./commands/create"
 export * from "./commands/build"
 export * from "./commands/pack"
+export * from "./commands/publish"
+export * from "./commands/validate"
+export * from "./commands/trust"
+export * from "./commands/marketplace"

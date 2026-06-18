@@ -8,10 +8,13 @@ import { createPluginProject } from "./commands/create"
 import {
   createDesktopDevHostClient,
   getOpenCommand,
+  prepareDevInstallDirectory,
   shouldIgnoreReinstallPath,
   waitForCondition,
 } from "./commands/dev"
 import { packPlugin } from "./commands/pack"
+import { runPublishCommand } from "./commands/publish"
+import { validatePluginProject } from "./commands/validate"
 
 const pluginRoot = await mkdtemp(join(tmpdir(), "thunder-plugin-cli-"))
 const sandboxedFiles = await createPluginProject({ name: "hello-sandboxed", template: "sandboxed-ui" }, pluginRoot)
@@ -24,6 +27,7 @@ assert.equal(files["plugin.json"].includes('"kind": "trusted"'), true)
 assert.equal(files["src/worker.ts"].includes("defineWorker"), true)
 assert.equal(files["src/index.tsx"].includes("@thunder/plugin-sdk/browser"), true)
 assert.equal(files["src/index.tsx"].includes("definePlugin"), false)
+assert.equal(files["package.json"].includes('"@thunder/plugin-cli"'), true)
 assert.equal(typeof files["tsconfig.json"], "string")
 assert.equal(typeof files[".gitignore"], "string")
 assert.equal(typeof files["README.md"], "string")
@@ -43,12 +47,46 @@ assert.equal(
   true,
 )
 
-const packResult = await packPlugin(pluginRoot)
+const validationResult = await validatePluginProject(pluginRoot)
+assert.equal(validationResult.requiresTrustConfirmation, true)
+assert.deepEqual(
+  validationResult.highRiskPermissions.sort(),
+  ["native-runtime"].sort(),
+)
+
+const packResult = await packPlugin({
+  rootDir: pluginRoot,
+  writeEntry: true,
+  baseUrl: "https://plugins.example.test/",
+})
 assert.equal(packResult.packagePath.endsWith(".tar.gz"), true)
 assert.equal(packResult.packageSha256.length, 64)
+assert.equal(packResult.manifestSha256.length, 64)
+assert.equal(packResult.marketplaceEntry?.id, "teleprompter")
+assert.equal(packResult.marketplaceEntry?.kind, "trusted")
+assert.equal(packResult.marketplaceEntry?.packageSha256, packResult.packageSha256)
+assert.equal(packResult.marketplaceEntry?.manifestSha256, packResult.manifestSha256)
+assert.equal(packResult.marketplaceEntry?.packageUrl, "https://plugins.example.test/teleprompter-0.1.0.tar.gz")
 assert.equal((await readdir(join(pluginRoot, "artifacts"))).length > 0, true)
+
+const publishResult = await runPublishCommand({
+  entriesDir: join(pluginRoot, "artifacts"),
+  outPath: join(pluginRoot, "artifacts", "index.json"),
+})
+assert.equal(publishResult.index.version, 1)
+assert.equal(publishResult.index.plugins.length, 1)
+assert.equal(publishResult.index.plugins[0]?.id, "teleprompter")
+assert.equal(
+  JSON.parse(await readFile(join(pluginRoot, "artifacts", "index.json"), "utf8")).plugins.length,
+  1,
+)
+
 assert.equal(shouldIgnoreReinstallPath("dist/index.js"), true)
+assert.equal(shouldIgnoreReinstallPath(".thunder-plugin-dev/teleprompter/plugin.json"), true)
 assert.equal(shouldIgnoreReinstallPath("src/index.tsx"), false)
+const devInstallDir = await prepareDevInstallDirectory(buildResult.project)
+assert.equal((await readFile(join(devInstallDir, "plugin.json"), "utf8")).includes('"id": "teleprompter"'), true)
+assert.equal((await readFile(join(devInstallDir, "dist", "index.html"), "utf8")).includes("index.js"), true)
 
 const openCommand = getOpenCommand("http://127.0.0.1:3000/plugins/teleprompter?devtools=1")
 assert.equal(Array.isArray(openCommand.args), true)
@@ -56,6 +94,7 @@ assert.equal(openCommand.args.length > 0, true)
 
 let installRequests = 0
 let startRequests = 0
+let installPayload: unknown = null
 const server = createServer((request, response) => {
   if (request.url === "/api/v1/desktop/plugins" && request.method === "GET") {
     response.writeHead(200, { "content-type": "application/json" })
@@ -65,8 +104,15 @@ const server = createServer((request, response) => {
 
   if (request.url === "/api/v1/desktop/plugins/install/local" && request.method === "POST") {
     installRequests += 1
-    response.writeHead(201, { "content-type": "application/json" })
-    response.end(JSON.stringify({ ok: true, data: { installed: true } }))
+    let body = ""
+    request.on("data", (chunk) => {
+      body += String(chunk)
+    })
+    request.on("end", () => {
+      installPayload = JSON.parse(body)
+      response.writeHead(201, { "content-type": "application/json" })
+      response.end(JSON.stringify({ ok: true, data: { installed: true } }))
+    })
     return
   }
 
@@ -115,10 +161,21 @@ const hostReady = await waitForCondition(
   50,
 )
 assert.equal(hostReady, true)
-await client.installLocalPlugin(pluginRoot)
+await client.installLocalPlugin(buildResult.project, devInstallDir)
 await client.startRuntime("teleprompter")
 assert.equal(installRequests, 1)
 assert.equal(startRequests, 1)
+assert.equal((installPayload as { pluginPath?: string }).pluginPath, devInstallDir)
+assert.equal((installPayload as { trustDecision?: { acceptedRisk?: boolean } }).trustDecision?.acceptedRisk, true)
+assert.equal((installPayload as { trustDecision?: { kind?: string } }).trustDecision?.kind, "trusted")
+assert.equal(
+  (installPayload as { trustDecision?: { permissions?: string[] } }).trustDecision?.permissions?.includes("native-runtime"),
+  true,
+)
+assert.equal(
+  (installPayload as { trustDecision?: { manifestSha256?: string } }).trustDecision?.manifestSha256?.length,
+  64,
+)
 await new Promise<void>((resolvePromise, reject) => {
   server.close((error) => {
     if (error) {

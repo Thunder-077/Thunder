@@ -2,8 +2,10 @@ import { watch } from "node:fs"
 import { spawn, type ChildProcess } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { fileURLToPath } from "node:url"
-import { resolve } from "node:path"
+import { cp, mkdir, rm } from "node:fs/promises"
+import { join, resolve } from "node:path"
 import { buildPlugin, type BuildPluginResult, type PluginProject } from "./build"
+import { createLocalInstallPayload } from "./trust"
 import { findMonorepoRoot } from "../workspace"
 
 const CLI_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..")
@@ -21,7 +23,7 @@ export interface DesktopDevHostClient {
     pid?: number
     lastError?: string
   }>
-  installLocalPlugin(pluginPath: string): Promise<void>
+  installLocalPlugin(project: PluginProject, pluginPath?: string): Promise<void>
   startRuntime(pluginId: string): Promise<void>
 }
 
@@ -56,13 +58,14 @@ function createDesktopDevHostClient(apiBaseUrl: string): DesktopDevHostClient {
         lastError?: string
       }
     },
-    async installLocalPlugin(pluginPath) {
+    async installLocalPlugin(project, pluginPath) {
+      const payload = await createLocalInstallPayload(project, pluginPath)
       const response = await fetch(`${apiBaseUrl}/api/v1/desktop/plugins/install/local`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({ pluginPath }),
+        body: JSON.stringify(payload),
       })
       await readJsonOrThrow(response, "桌面插件安装失败")
     },
@@ -181,13 +184,26 @@ async function installAndStartPlugin(
   project: PluginProject,
   log: (message: string) => void,
 ): Promise<void> {
-  await client.installLocalPlugin(project.rootDir)
+  const installDir = await prepareDevInstallDirectory(project)
+  await client.installLocalPlugin(project, installDir)
   log("Install: synced")
 
   if (project.manifest.runtime) {
     await client.startRuntime(project.manifest.id)
     log("Worker: connected")
   }
+}
+
+async function prepareDevInstallDirectory(project: PluginProject): Promise<string> {
+  const installDir = join(project.rootDir, ".thunder-plugin-dev", project.manifest.id)
+  await rm(installDir, { recursive: true, force: true })
+  await mkdir(installDir, { recursive: true })
+
+  // The desktop installer rejects symlinks. Copy only runtime payload files so
+  // external projects with pnpm/npm node_modules remain installable in dev mode.
+  await cp(join(project.rootDir, "plugin.json"), join(installDir, "plugin.json"))
+  await cp(join(project.rootDir, "dist"), join(installDir, "dist"), { recursive: true })
+  return installDir
 }
 
 function printDevStatus(
@@ -215,6 +231,7 @@ function shouldIgnoreReinstallPath(relativePath: string): boolean {
     relativePath.includes("/node_modules/") ||
     relativePath.startsWith("node_modules/") ||
     relativePath.startsWith("artifacts/") ||
+    relativePath.startsWith(".thunder-plugin-dev/") ||
     relativePath.startsWith("dist/")
   )
 }
@@ -369,6 +386,7 @@ export {
   isDesktopHostReady,
   locateAutoStartMonorepo,
   openDevtoolsPage,
+  prepareDevInstallDirectory,
   shouldIgnoreReinstallPath,
   startDesktopDevHost,
   waitForCondition,
