@@ -24,11 +24,23 @@
 默认创建方式：
 
 ```bash
-thunder-plugin create my-plugin
-thunder-plugin create my-native-plugin --template trusted-app
+npx thunder-plugin create my-plugin
+npx thunder-plugin create my-native-plugin --template trusted-app
 ```
 
 第一个命令生成没有 runtime 的 `sandboxed-ui` 插件。trusted 模板必须显式选择。
+
+`thunder-plugin` 是外部插件开发套件的统一入口。插件项目可以放在 Thunder
+仓库外部；只要安装公开 SDK 依赖，就可以独立完成创建、校验、本地调试、
+打包和市场索引生成。对外发布面限定为：
+
+- `@thunder/plugin-cli`：脚手架、校验、开发同步、打包、市场索引生成。
+- `@thunder/plugin-sdk`：插件 UI 与 trusted worker 的公开 SDK。
+- `@thunder/plugin-ui`：插件 UI 可复用基础组件。
+- `@thunder/plugin-schema` / `@thunder/plugin-protocol`：自定义工具和契约测试使用。
+
+宿主实现包如 `@thunder/plugin-host-runtime` 仍是 Thunder 内部依赖，外部插件不应
+直接依赖。
 
 最小 sandboxed 插件结构：
 
@@ -101,6 +113,11 @@ plugins/desktop/teleprompter
 - `version` 使用 semver。
 - `entry` 必须指向插件目录内存在的相对路径。
 - 权限只声明实际需要的能力。
+
+安装/升级时，平台会把 Manifest 的权限集合和 kind 写入信任记录。trusted
+插件或声明 `native-runtime`、`filesystem:plugin-data`、`microphone` 的插件
+会被视为高风险安装，需要用户明确确认。进程隔离不是 OS 级沙箱，trusted
+插件仍以当前用户权限运行本地代码。
 
 ## SDK
 
@@ -193,7 +210,21 @@ $env:THUNDER_ALLOW_UNSIGNED_PLUGINS = "1"
 pnpm dev:desktop
 ```
 
-然后通过插件市场安装本地目录，或直接调用：
+外部作者推荐直接使用 CLI：
+
+```bash
+npx thunder-plugin validate .
+npx thunder-plugin dev .
+```
+
+`validate` 会检查 Manifest、入口文件、symlink 和高风险权限摘要。`dev`
+会自动构建插件、连接 Thunder Desktop、安装本地目录，并在 trusted 或高风险
+插件需要确认时生成开发态 `trustDecision`。因此正常开发不需要手动计算
+`plugin.json` 摘要。为了兼容外部项目的 `node_modules`，CLI 实际安装的是
+`.thunder-plugin-dev/{plugin-id}` 下的干净目录，只包含 Manifest 和 `dist`
+运行产物。
+
+也可以通过插件市场安装本地目录，或直接调用：
 
 ```text
 POST /api/v1/desktop/plugins/install/local
@@ -203,15 +234,65 @@ POST /api/v1/desktop/plugins/install/local
 
 ```json
 {
-  "pluginPath": "D:/self/Thunder/plugins/desktop/teleprompter"
+  "pluginPath": "D:/self/Thunder/plugins/desktop/teleprompter",
+  "trustDecision": {
+    "acceptedRisk": true,
+    "kind": "trusted",
+    "manifestSha256": "<plugin.json sha256>",
+    "permissions": [
+      "storage",
+      "notifications",
+      "activity",
+      "microphone",
+      "native-runtime",
+      "filesystem:plugin-data"
+    ],
+    "reason": "local development install"
+  }
 }
 ```
 
-开发期间重新安装同一路径即可覆盖旧版本。平台会先停止旧 runtime，再原子替换已安装目录。
+sandboxed 插件如果没有高风险权限，可以省略 `trustDecision`。trusted 插件缺少
+匹配的确认会返回 409。
+
+开发期间重新安装同一路径即可覆盖旧版本。平台会先把新版本复制到 staging，
+写入安装记录并校验信任信息，再停止旧 runtime 并切换目录。升级切换失败时，
+平台会尝试恢复旧版本目录并记录失败审计。
 
 ## 打包与签名
 
-打包脚本仍用于正式分发准备：
+外部插件使用 CLI 打包：
+
+```bash
+npx thunder-plugin pack . --entry --out dist/desktop-plugins --base-url https://plugins.example.com/
+```
+
+输出：
+
+- `{plugin-id}-{version}.tar.gz`
+- `{plugin-id}-{version}.marketplace-entry.json`
+
+如果需要签名 marketplace entry：
+
+```bash
+npx thunder-plugin pack . --entry \
+  --private-key ./keys/plugin-signing.key \
+  --key-id thunder-official-1 \
+  --out dist/desktop-plugins \
+  --base-url https://plugins.example.com/
+```
+
+生成市场索引：
+
+```bash
+npx thunder-plugin publish \
+  --entries dist/desktop-plugins \
+  --out dist/desktop-plugins/index.json \
+  --private-key ./keys/marketplace-signing.key \
+  --key-id thunder-marketplace-1
+```
+
+仓库内 API 脚本仍可用于官方构建兼容路径：
 
 ```bash
 pnpm --filter @thunder/api package:desktop-plugin -- \
@@ -222,12 +303,21 @@ pnpm --filter @thunder/api package:desktop-plugin -- \
   --base-url https://plugins.example.com/
 ```
 
-输出：
+当前桌面端尚未把远程包安装作为正式用户入口开放。`pack` 和 `publish`
+生成的签名包、marketplace entry、市场索引用于提前验证分发元数据；正式用户
+安装仍只支持本地目录安装和官方内置插件安装。
 
-- `{plugin-id}-{version}.tar.gz`
-- `{plugin-id}-{version}.marketplace-entry.json`
+## 开发套件发布前检查
 
-当前桌面端尚未把远程包安装作为正式用户入口开放，但签名与 marketplace entry 结构已经保留。
+Thunder 仓库内维护公开插件开发套件时，先运行：
+
+```bash
+pnpm build:plugin-devkit
+```
+
+该命令会构建 `@thunder/plugin-cli`、`@thunder/plugin-sdk`、`@thunder/plugin-ui`、
+`@thunder/plugin-schema`、`@thunder/plugin-protocol` 和 SDK worker 底层包，
+确保发布产物使用 `dist` 入口而不是 workspace 内部 `src` 文件。
 
 ## 官方示例：提词器
 
