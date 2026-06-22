@@ -84,6 +84,7 @@ const environment = createTrustedRuntimeEnvironment(
     DATABASE_URL: "postgres://secret",
     NODE_OPTIONS: "--require ./secret-hook.cjs",
     THUNDER_API_SECRET: "secret",
+    THUNDER_DESKTOP_NATIVE_API_URL: "http://127.0.0.1:43102",
   },
   {
     pluginId: "teleprompter",
@@ -99,6 +100,7 @@ assert.equal(
 assert.equal(environment.DATABASE_URL, undefined)
 assert.equal(environment.NODE_OPTIONS, undefined)
 assert.equal(environment.THUNDER_API_SECRET, undefined)
+assert.equal(environment.THUNDER_DESKTOP_NATIVE_API_URL, "http://127.0.0.1:43102")
 assert.equal(environment.PATH, "C:\\Windows\\System32")
 assert.equal(environment.Path, undefined)
 

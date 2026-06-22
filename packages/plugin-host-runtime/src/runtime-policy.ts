@@ -27,6 +27,7 @@ export interface TrustedRuntimeEnvironmentOptions {
 export type TrustedRuntimeEnvironment = NodeJS.ProcessEnv & {
   THUNDER_PLUGIN_ID: string
   THUNDER_PLUGIN_DATA_DIR?: string
+  THUNDER_DESKTOP_NATIVE_API_URL?: string
 }
 
 /**
@@ -86,6 +87,11 @@ const WINDOWS_ENVIRONMENT_KEYS = [
 
 const POSIX_ENVIRONMENT_KEYS = ["PATH", "TMPDIR", "TMP", "TEMP"] as const
 
+// 受信插件运行时需要通过本地 HTTP 桥接访问桌面原生能力，显式白名单避免继承宿主敏感环境变量。
+const TRUSTED_PLUGIN_RUNTIME_CONFIG_KEYS = [
+  "THUNDER_DESKTOP_NATIVE_API_URL",
+] as const
+
 function findWindowsEnvironmentValue(
   hostEnvironment: NodeJS.ProcessEnv,
   canonicalKey: string,
@@ -133,6 +139,13 @@ export function createTrustedRuntimeEnvironment(
 
   if (options.pluginDataDir !== undefined) {
     environment.THUNDER_PLUGIN_DATA_DIR = options.pluginDataDir
+  }
+
+  for (const key of TRUSTED_PLUGIN_RUNTIME_CONFIG_KEYS) {
+    const value = hostEnvironment[key]
+    if (value !== undefined) {
+      environment[key] = value
+    }
   }
 
   return environment
