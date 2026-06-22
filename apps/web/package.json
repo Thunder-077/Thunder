@@ -9,7 +9,6 @@
     "preview:cf": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:cf": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
-    "build:plugin:teleprompter": "node ./scripts/build-teleprompter-plugin.mjs",
     "test:plugin-bridge": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec tsx src/lib/desktop-plugin-bridge.test.ts && pnpm exec tsx src/lib/desktop-plugin-host-dispatcher.test.ts && pnpm exec tsx src/lib/desktop-plugin-sdk-contract.test.ts && pnpm exec tsx src/lib/modules.test.ts",
     "test:teleprompter": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec tsx src/modules/teleprompter/utils/follow-engine.test.ts && pnpm exec tsx tests/teleprompter-storage.test.ts && pnpm exec tsx tests/teleprompter-web-speech-transcriber.test.ts",
     "lint": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/web exec eslint",

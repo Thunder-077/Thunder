@@ -70,7 +70,7 @@ if (excludeModules) {
 }
 
 await run("node", [resolve(scriptDir, "prepare-node-runtime.mjs")])
-await run("pnpm", ["--filter", "@thunder/web", "build:plugin:teleprompter"], {
+await run("pnpm", ["build:plugin:teleprompter"], {
   env: {
     ...process.env,
     NODE_ENV: "production",
