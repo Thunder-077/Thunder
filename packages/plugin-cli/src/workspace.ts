@@ -1,14 +1,6 @@
-import { access, readdir } from "node:fs/promises"
+import { readdir } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
-
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await access(path)
-    return true
-  } catch {
-    return false
-  }
-}
+import { fileExists } from "./project"
 
 /**
  * Walk up from `startDir` looking for a pnpm-workspace.yaml marker. Returns the

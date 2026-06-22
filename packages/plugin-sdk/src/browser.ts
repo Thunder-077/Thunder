@@ -148,6 +148,7 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
           if (
             !data ||
             data.source !== PLUGIN_BRIDGE_RESPONSE_SOURCE ||
+            data.version !== PLUGIN_BRIDGE_VERSION ||
             data.type !== "theme.change" ||
             (data.theme !== "light" && data.theme !== "dark")
           ) {
@@ -166,6 +167,9 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
           method: normalizePluginWorkerMethod(method),
           payload,
         })
+        if (!response.ok) {
+          throw new Error(`worker.invoke failed: ${String((response as Record<string, unknown>).error ?? "unknown error")}`)
+        }
         return response.result
       },
     },

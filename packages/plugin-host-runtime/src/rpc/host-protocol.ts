@@ -3,6 +3,7 @@ import {
   PluginRuntimeError,
   type PluginRuntimeErrorCode,
 } from "../runtime-errors"
+import { isRecord } from "@thunder/plugin-schema"
 
 export const RPC_PROTOCOL_VERSION = 1 as const
 
@@ -109,10 +110,6 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new PluginRuntimeError("RPC_INVALID_REQUEST", message)
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function assertNonEmptyString(

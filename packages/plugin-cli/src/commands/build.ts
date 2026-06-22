@@ -1,15 +1,12 @@
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, join, relative, resolve } from "node:path"
 import { build, context, type BuildContext, type BuildOptions } from "esbuild"
-import { parseThunderPluginManifest, type ThunderPluginManifest } from "@thunder/plugin-schema"
+import { type ThunderPluginManifest } from "@thunder/plugin-schema"
 import { findMonorepoRoot, readThunderWorkspacePackages } from "../workspace"
+import { fileExists, loadPluginProject, type PluginProject } from "../project"
 
-export interface PluginProject {
-  rootDir: string
-  manifestPath: string
-  manifest: ThunderPluginManifest
-}
+export type { PluginProject }
 
 export interface BuildPluginOptions {
   rootDir: string
@@ -31,15 +28,6 @@ const DEFAULT_DIST_DIR = "dist"
 const UI_SOURCE_ENTRY = "src/index.tsx"
 const WORKER_SOURCE_ENTRY = "src/worker.ts"
 const CLI_ROOT = dirname(fileURLToPath(import.meta.url))
-
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await access(path)
-    return true
-  } catch {
-    return false
-  }
-}
 
 function createUiHtml(pluginName: string, scriptName: string): string {
   return `<!doctype html>
@@ -126,20 +114,6 @@ function createThunderAliasPlugin(aliases: Map<string, string>) {
         return { path: replacement }
       })
     },
-  }
-}
-
-async function loadPluginProject(rootDir: string): Promise<PluginProject> {
-  const resolvedRoot = resolve(rootDir)
-  const manifestPath = join(resolvedRoot, "plugin.json")
-  const manifest = parseThunderPluginManifest(
-    JSON.parse(await readFile(manifestPath, "utf8")),
-  )
-
-  return {
-    rootDir: resolvedRoot,
-    manifestPath,
-    manifest,
   }
 }
 

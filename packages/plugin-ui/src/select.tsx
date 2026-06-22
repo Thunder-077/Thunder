@@ -49,7 +49,7 @@ export function Select({
   const triggerSizeClass = size === "compact" ? "h-8 rounded-lg px-3 text-xs" : "h-10 rounded-xl px-3.5 text-sm"
   const itemBaseClass = size === "compact" ? "min-h-8 px-2.5 py-1.5 text-xs" : "min-h-10 px-3 py-2 text-sm"
   const itemGapClass = size === "compact" ? "gap-2" : "gap-2.5"
-  const descriptionClass = size === "compact" ? "text-xs leading-4" : "text-xs leading-4"
+  const descriptionClass = "text-xs leading-4"
 
   const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget)) {

@@ -1,12 +1,12 @@
-import { constants as fsConstants } from "node:fs"
-import { access, lstat, readFile, readdir } from "node:fs/promises"
+import { lstat, readdir } from "node:fs/promises"
 import { join, relative, resolve, sep } from "node:path"
 import {
-  parseThunderPluginManifest,
   type ThunderPluginManifest,
   type ThunderPluginPermission,
 } from "@thunder/plugin-schema"
-import type { PluginProject } from "./build"
+import { fileExists, loadPluginProject, type PluginProject } from "../project"
+
+export { loadPluginProject }
 
 export const HIGH_RISK_PLUGIN_PERMISSIONS = [
   "native-runtime",
@@ -19,12 +19,6 @@ export interface PluginValidationResult {
   warnings: string[]
   highRiskPermissions: ThunderPluginPermission[]
   requiresTrustConfirmation: boolean
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  return access(path, fsConstants.F_OK)
-    .then(() => true)
-    .catch(() => false)
 }
 
 function assertRelativePluginPath(path: string, label: string): void {
@@ -68,7 +62,7 @@ async function assertEntryFile(rootDir: string, entry: string, label: string): P
   assertRelativePluginPath(entry, label)
   const entryPath = resolve(rootDir, entry)
   assertPathInside(rootDir, entryPath)
-  if (!(await pathExists(entryPath))) {
+  if (!(await fileExists(entryPath))) {
     throw new Error(`${label} does not exist: ${entry}`)
   }
 }
@@ -83,18 +77,6 @@ export function getHighRiskPluginPermissions(
 
 export function pluginRequiresTrustConfirmation(manifest: ThunderPluginManifest): boolean {
   return manifest.kind === "trusted" || getHighRiskPluginPermissions(manifest).length > 0
-}
-
-export async function loadPluginProject(rootDir: string): Promise<PluginProject> {
-  const resolvedRoot = resolve(rootDir)
-  const manifestPath = join(resolvedRoot, "plugin.json")
-  const manifest = parseThunderPluginManifest(JSON.parse(await readFile(manifestPath, "utf8")))
-
-  return {
-    rootDir: resolvedRoot,
-    manifestPath,
-    manifest,
-  }
 }
 
 export async function validatePluginProject(rootDir: string): Promise<PluginValidationResult> {

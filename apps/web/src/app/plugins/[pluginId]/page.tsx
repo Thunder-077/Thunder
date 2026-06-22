@@ -167,7 +167,7 @@ export default function DesktopPluginPage() {
     const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
     const frameOrigin = new URL(frameUrl).origin
     iframeRef.current?.contentWindow?.postMessage(
-      { source: PLUGIN_BRIDGE_RESPONSE_SOURCE, type: "theme.change", theme: resolvedTheme },
+      { source: PLUGIN_BRIDGE_RESPONSE_SOURCE, version: PLUGIN_BRIDGE_VERSION, type: "theme.change", theme: resolvedTheme },
       frameOrigin
     )
   }, [hostOrigin, plugin, resolvedTheme])

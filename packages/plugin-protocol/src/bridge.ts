@@ -1,6 +1,7 @@
-import type {
-  ThunderPluginManifest,
-  ThunderPluginPermission,
+import {
+  isRecord,
+  type ThunderPluginManifest,
+  type ThunderPluginPermission,
 } from "@thunder/plugin-schema"
 import { PluginProtocolError } from "./errors"
 
@@ -108,6 +109,7 @@ export type PluginBridgeResponse<TResult = unknown> = {
 
 export type PluginThemeChangeEvent = {
   source: typeof PLUGIN_BRIDGE_RESPONSE_SOURCE
+  version: typeof PLUGIN_BRIDGE_VERSION
   type: "theme.change"
   theme: "light" | "dark"
 }
@@ -137,10 +139,6 @@ const METHOD_PERMISSIONS: Partial<
   "notification.add": "notifications",
   "activity.track": "activity",
   "worker.invoke": "native-runtime",
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function invalidParams(method: PluginBridgeMethod, message: string): never {
@@ -245,6 +243,10 @@ export function parsePluginBridgeParams(
   }
 
   if (method === "storage.set") {
+    const serialized = JSON.stringify(input.value ?? null)
+    if (new TextEncoder().encode(serialized).byteLength > 256 * 1024) {
+      invalidParams(method, "value exceeds 256 KiB")
+    }
     return {
       key: normalizePluginStorageKey(input.key),
       value: input.value,

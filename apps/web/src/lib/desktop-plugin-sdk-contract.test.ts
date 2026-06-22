@@ -148,6 +148,7 @@ async function main() {
   })
   emit({
     source: PLUGIN_BRIDGE_RESPONSE_SOURCE,
+    version: PLUGIN_BRIDGE_VERSION,
     type: "theme.change",
     theme: "dark",
   })
