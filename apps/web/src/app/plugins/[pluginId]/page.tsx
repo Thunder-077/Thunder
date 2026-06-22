@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { useTheme } from "@/components/theme-provider"
 import {
-  PLUGIN_BRIDGE_VERSION,
   clearPluginStorage,
   createIsolatedPluginFrameUrl,
   getPluginStorageValue,
@@ -32,7 +31,10 @@ import {
 import { notificationStore } from "@/lib/notification-store"
 import { ActivityClient } from "@thunder/api-client"
 import type { PluginLogEntry, PluginRpcLogEntry, PluginWorkerStatus } from "@thunder/plugin-devtools"
-import { PLUGIN_BRIDGE_RESPONSE_SOURCE } from "@thunder/plugin-protocol"
+import {
+  PLUGIN_BRIDGE_RESPONSE_SOURCE,
+  PLUGIN_BRIDGE_VERSION,
+} from "@thunder/plugin-protocol"
 import type { PluginHmrScope } from "@thunder/plugin-protocol"
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
