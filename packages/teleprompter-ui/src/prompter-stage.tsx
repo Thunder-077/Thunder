@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type RefObject } from "react"
+import { memo, useCallback, useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type RefObject } from "react"
 import { Check, Maximize2, Minimize2, PencilLine, Pause, Play, RotateCcw, Square } from "lucide-react"
 import { getSegmentTextStartOffset, type FollowStatus, type ScriptSegment } from "../../teleprompter-core/src/index"
 import { TeleprompterDocumentEditor } from "./document-editor"
 import { statusLabels } from "./follow-status-labels"
 import { VoiceWaveform } from "./voice-waveform"
+import { getAutoSegmentVisualState, getFollowSegmentVisualState } from "./prompter-segment-visual-state"
 import { Button, cn } from "@thunder/ui"
 
 type TeleprompterMode = "follow-read" | "auto-scroll"
@@ -55,6 +56,143 @@ const fullscreenStopButtonClass =
   "h-8 gap-1.5 border-destructive/35 bg-destructive/10 px-3 text-xs text-destructive shadow-none hover:border-destructive/50 hover:bg-destructive/20 hover:text-destructive"
 const fullscreenResetButtonClass =
   "h-8 gap-1.5 border-primary-foreground/25 bg-primary-foreground/10 px-3 text-xs text-primary-foreground shadow-none hover:border-primary-foreground/40 hover:bg-primary-foreground/20 hover:text-primary-foreground"
+
+type PrompterSegmentRowProps = {
+  segment: ScriptSegment
+  index: number
+  script: string
+  segmentRefs: RefObject<Array<HTMLParagraphElement | null>>
+  fontSize: number
+  lineHeight: number
+  mode: TeleprompterMode
+  visibleCurrentIndex: number
+  visibleReadOffset: number
+  autoScrollActiveIndex: number
+  autoScrollHighlightLine: boolean
+  onCalibrateToCharacter: (selectedIndex: number, selectedOffset: number) => void
+}
+
+function getSegmentTextEndOffset(script: string, segment: ScriptSegment) {
+  return getSegmentTextStartOffset(script, segment) + Array.from(segment.raw).length
+}
+
+function getPrompterSegmentVisualState(props: PrompterSegmentRowProps) {
+  const textStartOffset = getSegmentTextStartOffset(props.script, props.segment)
+  const textEndOffset = getSegmentTextEndOffset(props.script, props.segment)
+
+  if (props.mode === "auto-scroll") {
+    return getAutoSegmentVisualState({
+      index: props.index,
+      autoScrollActiveIndex: props.autoScrollActiveIndex,
+      highlightLine: props.autoScrollHighlightLine,
+    })
+  }
+
+  const followState = getFollowSegmentVisualState({
+    index: props.index,
+    segmentStartOffset: textStartOffset,
+    segmentEndOffset: textEndOffset,
+    visibleCurrentIndex: props.visibleCurrentIndex,
+    visibleReadOffset: props.visibleReadOffset,
+  })
+
+  return followState === "active" || followState === "partial"
+    ? `${followState}:${props.visibleReadOffset}`
+    : followState
+}
+
+function arePrompterSegmentRowsEqual(prev: PrompterSegmentRowProps, next: PrompterSegmentRowProps) {
+  if (
+    prev.segment !== next.segment
+    || prev.script !== next.script
+    || prev.fontSize !== next.fontSize
+    || prev.lineHeight !== next.lineHeight
+    || prev.mode !== next.mode
+    || prev.segmentRefs !== next.segmentRefs
+    || prev.onCalibrateToCharacter !== next.onCalibrateToCharacter
+  ) {
+    return false
+  }
+
+  // 长文本跟读时只让视觉状态真正变化的段落重渲染，避免每个字符偏移都刷新整篇稿件。
+  return getPrompterSegmentVisualState(prev) === getPrompterSegmentVisualState(next)
+}
+
+const PrompterSegmentRow = memo(function PrompterSegmentRow({
+  segment,
+  index,
+  script,
+  segmentRefs,
+  fontSize,
+  lineHeight,
+  mode,
+  visibleCurrentIndex,
+  visibleReadOffset,
+  autoScrollActiveIndex,
+  autoScrollHighlightLine,
+  onCalibrateToCharacter,
+}: PrompterSegmentRowProps) {
+  const textStartOffset = getSegmentTextStartOffset(script, segment)
+  const isFollowActive = mode === "follow-read" && index === visibleCurrentIndex
+  const isAutoScrollActive = mode === "auto-scroll" && autoScrollHighlightLine && index === autoScrollActiveIndex
+
+  return (
+    <div className="flex items-start gap-5 py-3 first:pt-0">
+      <span
+        className={cn(
+          "flex w-8 shrink-0 select-none items-center justify-end text-right font-mono text-sm",
+          isFollowActive || isAutoScrollActive ? "text-cyan-300 animate-pulse" : "text-slate-600",
+        )}
+        style={{
+          height: `${lineHeight * fontSize}px`,
+          marginTop: "0.5rem",
+        }}
+      >
+        {index + 1}
+      </span>
+
+      <p
+        ref={(node) => {
+          segmentRefs.current[index] = node
+        }}
+        className={cn(
+          "flex-1 scroll-m-40 rounded-xl border-l-[3px] border-transparent px-4 py-2 transition-all duration-300",
+          isFollowActive && "border-l-cyan-400/80 bg-cyan-500/10 shadow-[0_0_42px_rgba(34,211,238,0.08)]",
+          isAutoScrollActive && "border-l-cyan-400/50 bg-cyan-500/5",
+        )}
+      >
+        {Array.from(segment.raw).map((char, charIndex) => {
+          const absoluteOffset = textStartOffset + charIndex
+          const charEndOffset = absoluteOffset + 1
+          const isRead = mode === "follow-read"
+            ? charEndOffset < visibleReadOffset
+            : index < autoScrollActiveIndex
+          const isCurrentChar = charEndOffset === visibleReadOffset && index === visibleCurrentIndex
+
+          return (
+            <span
+              key={`${segment.id}-${charEndOffset}`}
+              data-offset={charEndOffset}
+              onClick={() => {
+                const selection = window.getSelection()?.toString()
+                if (selection && selection.length > 0) return
+                onCalibrateToCharacter(index, charEndOffset)
+              }}
+              className={cn(
+                "inline cursor-pointer rounded-sm px-0.5 py-0 text-left font-[inherit] leading-[inherit] transition-colors hover:bg-muted/20 select-text",
+                isRead && "text-slate-500/70",
+                !isRead && "text-slate-100",
+                isCurrentChar && "bg-cyan-400/25 text-cyan-50",
+              )}
+            >
+              {char}
+            </span>
+          )
+        })}
+      </p>
+    </div>
+  )
+}, arePrompterSegmentRowsEqual)
 
 export function PrompterStage({
   stageRef,
@@ -241,68 +379,23 @@ export function PrompterStage({
               paddingBottom: viewportHeight ? `${viewportHeight * 0.7}px` : "70vh",
             }}
           >
-            {segments.map((segment, index) => {
-              const textStartOffset = getSegmentTextStartOffset(script, segment)
-              const isFollowActive = mode === "follow-read" && index === visibleCurrentIndex
-              const isAutoScrollActive = mode === "auto-scroll" && autoScrollHighlightLine && index === autoScrollActiveIndex
-
-              return (
-                <div key={segment.id} className="flex items-start gap-5 py-3 first:pt-0">
-                  <span
-                    className={cn(
-                      "flex w-8 shrink-0 select-none items-center justify-end text-right font-mono text-sm",
-                      isFollowActive || isAutoScrollActive ? "text-cyan-300 animate-pulse" : "text-slate-600",
-                    )}
-                    style={{
-                      height: `${lineHeight * fontSize}px`,
-                      marginTop: "0.5rem",
-                    }}
-                  >
-                    {index + 1}
-                  </span>
-
-                  <p
-                    ref={(node) => {
-                      segmentRefs.current[index] = node
-                    }}
-                    className={cn(
-                      "flex-1 scroll-m-40 rounded-xl border-l-[3px] border-transparent px-4 py-2 transition-all duration-300",
-                      isFollowActive && "border-l-cyan-400/80 bg-cyan-500/10 shadow-[0_0_42px_rgba(34,211,238,0.08)]",
-                      isAutoScrollActive && "border-l-cyan-400/50 bg-cyan-500/5",
-                    )}
-                  >
-                    {Array.from(segment.raw).map((char, charIndex) => {
-                      const absoluteOffset = textStartOffset + charIndex
-                      const charEndOffset = absoluteOffset + 1
-                      const isRead = mode === "follow-read"
-                        ? charEndOffset < visibleReadOffset
-                        : index < autoScrollActiveIndex
-                      const isCurrentChar = charEndOffset === visibleReadOffset && index === visibleCurrentIndex
-
-                      return (
-                        <span
-                          key={`${segment.id}-${charEndOffset}`}
-                          data-offset={charEndOffset}
-                          onClick={() => {
-                            const selection = window.getSelection()?.toString()
-                            if (selection && selection.length > 0) return
-                            onCalibrateToCharacter(index, charEndOffset)
-                          }}
-                          className={cn(
-                            "inline cursor-pointer rounded-sm px-0.5 py-0 text-left font-[inherit] leading-[inherit] transition-colors hover:bg-muted/20 select-text",
-                            isRead && "text-slate-500/70",
-                            !isRead && "text-slate-100",
-                            isCurrentChar && "bg-cyan-400/25 text-cyan-50",
-                          )}
-                        >
-                          {char}
-                        </span>
-                      )
-                    })}
-                  </p>
-                </div>
-              )
-            })}
+            {segments.map((segment, index) => (
+              <PrompterSegmentRow
+                key={segment.id}
+                segment={segment}
+                index={index}
+                script={script}
+                segmentRefs={segmentRefs}
+                fontSize={fontSize}
+                lineHeight={lineHeight}
+                mode={mode}
+                visibleCurrentIndex={visibleCurrentIndex}
+                visibleReadOffset={visibleReadOffset}
+                autoScrollActiveIndex={autoScrollActiveIndex}
+                autoScrollHighlightLine={autoScrollHighlightLine}
+                onCalibrateToCharacter={onCalibrateToCharacter}
+              />
+            ))}
           </div>
         )}
       </div>

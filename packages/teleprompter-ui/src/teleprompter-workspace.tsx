@@ -501,14 +501,14 @@ export function TeleprompterWorkspace({
     setAutoScrollActiveIndex(0)
   }
 
-  const handleCalibrateToCharacter = (selectedIndex: number, selectedOffset: number) => {
+  const handleCalibrateToCharacter = useCallback((selectedIndex: number, selectedOffset: number) => {
     calibrateToCharacter(selectedIndex, selectedOffset, isMicActive)
     setAutoScrollActiveIndex(selectedIndex)
     setReadOffsetSnapKey((k) => k + 1)
     clearUserScrollLock()
     pausedScrollTopRef.current = null
     scrollToReadPosition(selectedOffset, selectedIndex)
-  }
+  }, [calibrateToCharacter, clearUserScrollLock, isMicActive, scrollToReadPosition])
 
   const toggleFullscreen = async () => {
     try {
