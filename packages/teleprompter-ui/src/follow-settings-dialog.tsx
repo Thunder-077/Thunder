@@ -46,12 +46,12 @@ export function FollowSettingsDialog(props: FollowSettingsDialogProps) {
   return (
     <Dialog>
       <DialogTrigger render={props.trigger} />
-      <DialogContent className="max-w-[720px] gap-0 overflow-hidden p-0 sm:max-w-[720px]">
-        <DialogHeader className="border-b border-border/70 bg-background/95 px-6 py-5">
+      <DialogContent className="max-w-[720px] gap-0 overflow-visible p-0 sm:max-w-[720px]">
+        <DialogHeader className="rounded-t-[20px] border-b border-border/70 bg-background/95 px-6 py-5">
           <DialogTitle>跟读设置</DialogTitle>
           <DialogDescription>调整提词显示和识别引擎。设置会立即生效。</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-0 md:grid-cols-[0.95fr_1.25fr]">
+        <div className="grid gap-0 rounded-b-[20px] bg-popover pb-4 md:grid-cols-[0.95fr_1.25fr]">
           <section className="space-y-4 self-start px-6 py-5">
             <div className="text-sm font-semibold text-foreground">显示</div>
 
