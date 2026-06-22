@@ -37,5 +37,12 @@ packages/database/prisma/schema.sqlite.prisma
 packages/database/src/generated/
 packages/database/prisma/*.db
 packages/database/prisma/*.db-journal
+
+# Test SQLite runtime artifacts
+.thunder-*-test/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 # Research and temporary study directories
 _research/
