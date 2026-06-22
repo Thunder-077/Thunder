@@ -1,6 +1,6 @@
 import { createServer } from "node:http"
 import { createHash, generateKeyPairSync, sign } from "node:crypto"
-import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import { cp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import assert from "node:assert/strict"
 // @ts-ignore node:sqlite types are provided by the Node runtime used by desktop.
@@ -95,6 +95,8 @@ async function main() {
       recursive: true,
       filter: (source) => !source.includes(`${resolve(workspaceRoot, "plugins", "desktop", "teleprompter", "node_modules")}`),
     })
+    // 官方插件是 workspace 包时会有 pnpm node_modules symlink；bundled 安装应过滤开发目录。
+    await symlink(workspaceRoot, join(bundledTeleprompterRoot, "node_modules"), "junction").catch(() => undefined)
     process.env.THUNDER_BUNDLED_PLUGIN_DIRS = bundledRoot
 
     const marketplace = await fetchDesktopPluginMarketplace()

@@ -372,12 +372,38 @@ async function findBundledPluginSource(pluginId: string): Promise<string> {
   throw new DesktopPluginError("内置插件不存在或未随应用打包", 404)
 }
 
+async function prepareBundledPluginSource(sourcePath: string, pluginId: string): Promise<string> {
+  await ensureDirs()
+  const { stagingDir } = getPluginDirs()
+  const preparedSource = join(stagingDir, `${pluginId}-bundled-source-${Date.now()}-${randomUUID()}`)
+  const excludedDevelopmentDirs = new Set(["node_modules", ".turbo"])
+
+  // 仓库内官方插件是 workspace 包，开发态会出现 node_modules symlink。
+  // bundled 安装只需要运行产物和 manifest，先过滤开发目录再交给通用安装事务。
+  await cp(sourcePath, preparedSource, {
+    recursive: true,
+    dereference: false,
+    filter: (source) => {
+      const name = source.split(/[\\/]/).at(-1)
+      return !name || !excludedDevelopmentDirs.has(name)
+    },
+  })
+  return preparedSource
+}
+
 export async function installBundledDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
   const sourcePath = await findBundledPluginSource(pluginId)
-  const plugin = await installPackagedPlugin({
-    pluginPath: sourcePath,
-    trustSource: "official-bundled",
-  })
+  const preparedSource = await prepareBundledPluginSource(sourcePath, pluginId)
+
+  let plugin: InstalledDesktopPlugin
+  try {
+    plugin = await installPackagedPlugin({
+      pluginPath: preparedSource,
+      trustSource: "official-bundled",
+    })
+  } finally {
+    await rm(preparedSource, { recursive: true, force: true }).catch(() => undefined)
+  }
 
   await appendAudit("plugin.bundled-installed", {
     pluginId: plugin.manifest.id,

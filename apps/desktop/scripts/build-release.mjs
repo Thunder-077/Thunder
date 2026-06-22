@@ -31,11 +31,17 @@ await run("tauri", ["build", "--config", "src-tauri/tauri.release.conf.json"])
 
 function run(command, args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const child = process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", command, ...args], {
+        env: process.env,
+        shell: false,
+        stdio: "inherit",
+      })
+      : spawn(command, args, {
       env: process.env,
-      shell: process.platform === "win32",
+        shell: false,
       stdio: "inherit",
-    })
+      })
 
     child.on("error", reject)
     child.on("exit", (code) => {
