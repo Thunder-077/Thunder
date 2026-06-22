@@ -3,18 +3,18 @@ import { createServer } from "node:http"
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { buildPlugin } from "./commands/build"
-import { createPluginProject } from "./commands/create"
+import { buildPlugin } from "./commands/build.js"
+import { createPluginProject } from "./commands/create.js"
 import {
   createDesktopDevHostClient,
   getOpenCommand,
   prepareDevInstallDirectory,
   shouldIgnoreReinstallPath,
   waitForCondition,
-} from "./commands/dev"
-import { packPlugin } from "./commands/pack"
-import { runPublishCommand } from "./commands/publish"
-import { validatePluginProject } from "./commands/validate"
+} from "./commands/dev.js"
+import { packPlugin } from "./commands/pack.js"
+import { runPublishCommand } from "./commands/publish.js"
+import { validatePluginProject } from "./commands/validate.js"
 
 const pluginRoot = await mkdtemp(join(tmpdir(), "thunder-plugin-cli-"))
 const sandboxedFiles = await createPluginProject({ name: "hello-sandboxed", template: "sandboxed-ui" }, pluginRoot)
@@ -22,6 +22,16 @@ assert.equal(sandboxedFiles["plugin.json"].includes('"kind": "sandboxed"'), true
 assert.equal("src/worker.ts" in sandboxedFiles, false)
 
 const files = await createPluginProject({ name: "teleprompter", template: "trusted-app" }, pluginRoot)
+const packageJson = JSON.parse(files["package.json"]) as Record<string, unknown>
+packageJson.thunderPlugin = {
+  css: {
+    input: "src/styles.css",
+    output: "dist/assets/main.css",
+    sources: ["src"],
+  },
+}
+files["package.json"] = `${JSON.stringify(packageJson, null, 2)}\n`
+files["src/styles.css"] = ".plugin-root { color: rgb(12 34 56); }\n"
 
 assert.equal(files["plugin.json"].includes('"kind": "trusted"'), true)
 assert.equal(files["src/worker.ts"].includes("defineWorker"), true)
@@ -41,9 +51,18 @@ for (const [relativePath, contents] of Object.entries(files)) {
 const buildResult = await buildPlugin({ rootDir: pluginRoot })
 assert.equal(buildResult.outputs.includes("dist/index.html"), true)
 assert.equal(buildResult.outputs.includes("dist/index.js"), true)
+assert.equal(buildResult.outputs.includes("dist/assets/main.css"), true)
 assert.equal(buildResult.outputs.includes("dist/worker.js"), true)
 assert.equal(
   (await readFile(join(pluginRoot, "dist/index.html"), "utf8")).includes("index.js"),
+  true,
+)
+assert.equal(
+  (await readFile(join(pluginRoot, "dist/index.html"), "utf8")).includes("assets/main.css"),
+  true,
+)
+assert.equal(
+  (await readFile(join(pluginRoot, "dist/assets/main.css"), "utf8")).includes(".plugin-root"),
   true,
 )
 

@@ -3,3 +3,4 @@ packages:
   - "packages/*"
   - "modules/*"
   - "plugins-v2/*"
+  - "plugins/desktop/*"

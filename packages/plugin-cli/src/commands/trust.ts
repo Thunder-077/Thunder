@@ -2,8 +2,8 @@ import { createHash } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 import type { ThunderPluginKind, ThunderPluginPermission } from "@thunder/plugin-schema"
-import type { PluginProject } from "./build"
-import { getHighRiskPluginPermissions, pluginRequiresTrustConfirmation } from "./validate"
+import type { PluginProject } from "./build.js"
+import { getHighRiskPluginPermissions, pluginRequiresTrustConfirmation } from "./validate.js"
 
 export interface PluginDevTrustDecision {
   acceptedRisk: true

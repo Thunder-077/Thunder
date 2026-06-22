@@ -1,14 +1,15 @@
 #!/usr/bin/env node
+import { realpathSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { runBuildCommand } from "./commands/build"
-import { createPluginProject } from "./commands/create"
-import { runDevCommand } from "./commands/dev"
-import { runPackCommand } from "./commands/pack"
-import { runPublishCommand } from "./commands/publish"
-import { runValidateCommand } from "./commands/validate"
-import { findMonorepoRoot } from "./workspace"
+import { runBuildCommand } from "./commands/build.js"
+import { createPluginProject } from "./commands/create.js"
+import { runDevCommand } from "./commands/dev.js"
+import { runPackCommand } from "./commands/pack.js"
+import { runPublishCommand } from "./commands/publish.js"
+import { runValidateCommand } from "./commands/validate.js"
+import { findMonorepoRoot } from "./workspace.js"
 
 interface ParsedCliArgs {
   command?: string
@@ -213,14 +214,24 @@ export async function runPluginCli(argv: string[]): Promise<void> {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+function isCliEntrypoint(): boolean {
+  if (!process.argv[1]) {
+    return false
+  }
+
+  // pnpm .bin shims can invoke this file through a symlinked path, so compare
+  // real paths instead of raw argv/import URLs.
+  return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(resolve(process.argv[1]))
+}
+
+if (isCliEntrypoint()) {
   await runPluginCli(process.argv.slice(2))
 }
 
-export * from "./commands/create"
-export * from "./commands/build"
-export * from "./commands/pack"
-export * from "./commands/publish"
-export * from "./commands/validate"
-export * from "./commands/trust"
-export * from "./commands/marketplace"
+export * from "./commands/create.js"
+export * from "./commands/build.js"
+export * from "./commands/pack.js"
+export * from "./commands/publish.js"
+export * from "./commands/validate.js"
+export * from "./commands/trust.js"
+export * from "./commands/marketplace.js"

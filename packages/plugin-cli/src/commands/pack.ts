@@ -2,14 +2,14 @@ import { createHash } from "node:crypto"
 import { mkdir, readFile } from "node:fs/promises"
 import { basename, join, resolve } from "node:path"
 import { c as createTar } from "tar"
-import { buildPlugin } from "./build"
+import { buildPlugin } from "./build.js"
 import {
   createMarketplaceEntry,
   writeMarketplaceEntry,
   type DesktopPluginMarketplaceEntry,
   type MarketplaceSigningOptions,
-} from "./marketplace"
-import { pluginManifestSha256 } from "./trust"
+} from "./marketplace.js"
+import { pluginManifestSha256 } from "./trust.js"
 
 export interface PackPluginResult {
   packagePath: string

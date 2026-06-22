@@ -60,12 +60,17 @@ my-plugin/
 - `dist/index.html`
 - `dist/index.js`
 - `dist/worker.js`
+- 可选 `dist/assets/*.css`
 
 仓库内真实示例：
 
 ```text
 plugins/desktop/teleprompter
 ```
+
+官方插件也必须按普通 workspace 包维护自己的 `build` / `dev` 脚本，底层同样调用
+`thunder-plugin build .` 和 `thunder-plugin dev .`。根命令只负责转调插件包脚本，
+不再为单个官方插件维护另一套专用 esbuild 流程。
 
 ## Manifest
 
@@ -217,12 +222,43 @@ npx thunder-plugin validate .
 npx thunder-plugin dev .
 ```
 
+仓库内官方插件使用相同入口：
+
+```bash
+pnpm --filter @thunder/plugin-teleprompter-v2 dev
+pnpm --filter @thunder/plugin-teleprompter-v2 build
+```
+
 `validate` 会检查 Manifest、入口文件、symlink 和高风险权限摘要。`dev`
 会自动构建插件、连接 Thunder Desktop、安装本地目录，并在 trusted 或高风险
 插件需要确认时生成开发态 `trustDecision`。因此正常开发不需要手动计算
 `plugin.json` 摘要。为了兼容外部项目的 `node_modules`，CLI 实际安装的是
 `.thunder-plugin-dev/{plugin-id}` 下的干净目录，只包含 Manifest 和 `dist`
 运行产物。
+
+如果插件需要复用 Tailwind / Thunder UI 样式，可以在 `package.json` 中声明
+`thunderPlugin.css`。CLI 会先构建 UI/worker，再按配置处理 CSS，并把样式表
+自动写入 `dist/index.html`：
+
+```json
+{
+  "thunderPlugin": {
+    "css": {
+      "input": "../../../apps/web/src/app/globals.css",
+      "output": "dist/assets/main.css",
+      "sources": [
+        "src",
+        "../../../packages/plugin-ui/src",
+        "../../../packages/teleprompter-ui/src"
+      ]
+    }
+  }
+}
+```
+
+`sources` 用于给 Tailwind v4 明确声明扫描范围。官方插件复用共享包时，应把
+插件源码和被复用的共享 UI 包都列进去，这样共享组件里的响应式类、状态类才会
+进入插件最终 CSS。
 
 也可以通过插件市场安装本地目录，或直接调用：
 
@@ -324,6 +360,7 @@ pnpm build:plugin-devkit
 `plugins/desktop/teleprompter` 不是最小 demo，而是第一批真实正式插件样板。它覆盖了：
 
 - 共享 teleprompter UI / core 复用
+- 与外部插件一致的 `thunder-plugin dev .` / `thunder-plugin build .` 流程
 - 插件私有文稿存储
 - trusted worker 能力调用
 - 本地语音与 Sherpa 模型链路

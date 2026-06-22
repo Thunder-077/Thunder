@@ -4,7 +4,7 @@ import {
   type ThunderPluginManifest,
   type ThunderPluginPermission,
 } from "@thunder/plugin-schema"
-import { fileExists, loadPluginProject, type PluginProject } from "../project"
+import { fileExists, loadPluginProject, type PluginProject } from "../project.js"
 
 export { loadPluginProject }
 

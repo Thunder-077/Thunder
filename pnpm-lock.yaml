@@ -351,6 +351,9 @@ importers:
 
   packages/plugin-cli:
     dependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.2.4
       '@thunder/plugin-schema':
         specifier: workspace:*
         version: link:../plugin-schema
@@ -360,6 +363,9 @@ importers:
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
+      postcss:
+        specifier: ^8.5.15
+        version: 8.5.15
       tar:
         specifier: ^7.5.15
         version: 7.5.15
@@ -564,6 +570,43 @@ importers:
       '@types/react':
         specifier: ^19
         version: 19.2.14
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  plugins/desktop/teleprompter:
+    dependencies:
+      '@thunder/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+      '@thunder/teleprompter-core':
+        specifier: workspace:*
+        version: link:../../../packages/teleprompter-core
+      '@thunder/teleprompter-ui':
+        specifier: workspace:*
+        version: link:../../../packages/teleprompter-ui
+      react:
+        specifier: ^19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.2.4
+        version: 19.2.4(react@19.2.4)
+    devDependencies:
+      '@thunder/plugin-cli':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-cli
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.2.4
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      tsx:
+        specifier: ^4.19.4
+        version: 4.21.0
       typescript:
         specifier: ^5
         version: 5.9.3

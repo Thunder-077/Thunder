@@ -1,10 +1,10 @@
-import { ThunderPluginManifestError } from "./errors";
-import { isRecord } from "./guards";
+import { ThunderPluginManifestError } from "./errors.js";
+import { isRecord } from "./guards.js";
 import {
   isThunderPluginPermission,
   normalizeThunderPluginNetworkPermission,
   type ThunderPluginPermission,
-} from "./permissions";
+} from "./permissions.js";
 
 // ---- Manifest field length limits ----
 const MAX_NAME_LENGTH = 128;

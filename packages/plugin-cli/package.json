@@ -24,7 +24,9 @@
   "dependencies": {
     "@thunder/plugin-sdk": "workspace:*",
     "@thunder/plugin-schema": "workspace:*",
+    "@tailwindcss/postcss": "^4",
     "esbuild": "^0.28.0",
+    "postcss": "^8.5.15",
     "tar": "^7.5.15"
   },
   "scripts": {

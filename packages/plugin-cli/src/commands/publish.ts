@@ -2,7 +2,7 @@ import {
   publishMarketplaceIndex,
   type DesktopPluginMarketplaceIndex,
   type MarketplaceSigningOptions,
-} from "./marketplace"
+} from "./marketplace.js"
 
 export interface PublishCommandOptions {
   entriesDir: string

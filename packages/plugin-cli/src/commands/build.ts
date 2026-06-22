@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url"
 import { dirname, join, relative, resolve } from "node:path"
 import { build, context, type BuildContext, type BuildOptions } from "esbuild"
 import { type ThunderPluginManifest } from "@thunder/plugin-schema"
-import { findMonorepoRoot, readThunderWorkspacePackages } from "../workspace"
-import { fileExists, loadPluginProject, type PluginProject } from "../project"
+import { findMonorepoRoot, readThunderWorkspacePackages } from "../workspace.js"
+import { fileExists, loadPluginProject, type PluginCssBuildConfig, type PluginProject } from "../project.js"
 
 export type { PluginProject }
 
@@ -37,14 +37,17 @@ const UI_SOURCE_ENTRY = "src/index.tsx"
 const WORKER_SOURCE_ENTRY = "src/worker.ts"
 const CLI_ROOT = dirname(fileURLToPath(import.meta.url))
 
-function createUiHtml(pluginName: string, scriptName: string): string {
+function createUiHtml(pluginName: string, scriptName: string, stylesheetName?: string): string {
+  const stylesheet = stylesheetName
+    ? `    <link rel="stylesheet" href="./${stylesheetName}" />\n`
+    : ""
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${pluginName}</title>
-  </head>
+${stylesheet}  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="./${scriptName}"></script>
@@ -60,6 +63,7 @@ function normalizeOutputPath(path: string): string {
 interface ResolvedBuildContext {
   nodePaths: string[]
   aliasPlugin: ReturnType<typeof createThunderAliasPlugin> | null
+  monorepoRoot: string | null
 }
 
 /**
@@ -102,7 +106,7 @@ async function resolveBuildContext(projectRootDir: string): Promise<ResolvedBuil
     }
   }
 
-  return { nodePaths, aliasPlugin }
+  return { nodePaths, aliasPlugin, monorepoRoot }
 }
 
 function createThunderAliasPlugin(aliases: Map<string, string>) {
@@ -114,7 +118,7 @@ function createThunderAliasPlugin(aliases: Map<string, string>) {
         callback: (args: { path: string }) => { path: string } | null | undefined,
       ): void
     }) {
-      pluginBuild.onResolve({ filter: /^@thunder\/plugin-/ }, (args) => {
+      pluginBuild.onResolve({ filter: /^@thunder\// }, (args) => {
         const replacement = aliases.get(args.path)
         if (!replacement) {
           return null
@@ -141,7 +145,7 @@ async function createWatchContext(
   options: BuildOptions,
   label: string,
   log: (message: string) => void,
-  onSuccess?: () => void,
+  onSuccess?: () => void | Promise<void>,
 ): Promise<BuildContext> {
   const watcher = await context({
     ...options,
@@ -155,7 +159,12 @@ async function createWatchContext(
               return
             }
             log(`${label}: rebuilt`)
-            onSuccess?.()
+            void Promise.resolve(onSuccess?.()).catch((error: unknown) => {
+              log(`${label}: post-build hook failed`)
+              if (error instanceof Error) {
+                log(error.message)
+              }
+            })
           })
         },
       },
@@ -165,6 +174,59 @@ async function createWatchContext(
   await watcher.watch()
   log(`${label}: watching`)
   return watcher
+}
+
+function resolvePluginPath(project: PluginProject, path: string): string {
+  return resolve(project.rootDir, path)
+}
+
+function toPosixPath(input: string): string {
+  return input.replace(/\\/g, "/")
+}
+
+function getProjectDefine(project: PluginProject): Record<string, string> {
+  return {
+    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "production"),
+    ...Object.fromEntries(
+      Object.entries(project.build.define ?? {}).map(([key, value]) => [key, JSON.stringify(value)]),
+    ),
+  }
+}
+
+async function buildPluginCss(
+  project: PluginProject,
+  cssConfig: PluginCssBuildConfig,
+  log: (message: string) => void,
+): Promise<string> {
+  const inputPath = resolvePluginPath(project, cssConfig.input)
+  const outputPath = resolvePluginPath(project, cssConfig.output ?? "dist/index.css")
+  const [postcssModule, tailwindModule] = await Promise.all([
+    import("postcss"),
+    import("@tailwindcss/postcss"),
+  ])
+  const rawCss = await readFile(inputPath, "utf8")
+  const inputDir = dirname(inputPath)
+  // Tailwind v4 only emits classes it can discover from explicit sources when
+  // the plugin builds outside the Next.js app, so official plugins can list
+  // their shared UI packages here.
+  const sourceDirectives = (cssConfig.sources ?? ["src"]).map((source) => {
+    const sourcePath = resolvePluginPath(project, source)
+    const relativePath = relative(inputDir, sourcePath)
+    return `@source "${toPosixPath(relativePath)}/**/*.{ts,tsx,js,jsx}";`
+  })
+  const cssContent = rawCss.includes('@import "tailwindcss";')
+    ? rawCss.replace('@import "tailwindcss";', `@import "tailwindcss";\n${sourceDirectives.join("\n")}`)
+    : `${sourceDirectives.join("\n")}\n${rawCss}`
+
+  await mkdir(dirname(outputPath), { recursive: true })
+  const processedCss = await postcssModule.default([tailwindModule.default()]).process(cssContent, {
+    from: inputPath,
+    to: outputPath,
+    map: false,
+  })
+  await writeFile(outputPath, processedCss.css, "utf8")
+  log("CSS: built")
+  return normalizeOutputPath(relative(project.rootDir, outputPath))
 }
 
 const SCOPE_MERGE_DELAY_MS = 200
@@ -208,6 +270,7 @@ export async function buildPlugin(
   const watchers: BuildContext[] = []
   const buildContext = await resolveBuildContext(project.rootDir)
   const rebuildEmitter = options.watch ? createRebuildEmitter() : null
+  const define = getProjectDefine(project)
 
   if (options.clean !== false) {
     await rm(outDir, { recursive: true, force: true })
@@ -223,20 +286,35 @@ export async function buildPlugin(
     )
     const htmlOutfile = join(project.rootDir, sidebarEntry)
     const jsOutfile = join(dirname(htmlOutfile), "index.js")
+    const cssConfig = project.build.css
+    const cssOutput = cssConfig?.output
+      ? normalizeOutputPath(relative(dirname(htmlOutfile), resolvePluginPath(project, cssConfig.output)))
+      : cssConfig
+        ? "index.css"
+        : undefined
     await mkdir(dirname(htmlOutfile), { recursive: true })
 
-    const buildOptions = createUiBuildOptions(uiSourceEntry, jsOutfile, buildContext)
+    const buildOptions = createUiBuildOptions(uiSourceEntry, jsOutfile, buildContext, define)
+    const buildCss = async () => {
+      if (!cssConfig) return
+      const output = await buildPluginCss(project, cssConfig, log)
+      outputs.add(output)
+    }
     if (options.watch) {
-      watchers.push(await createWatchContext(buildOptions, "UI", log, () => rebuildEmitter?.emit("ui")))
+      watchers.push(await createWatchContext(buildOptions, "UI", log, async () => {
+        await buildCss()
+        rebuildEmitter?.emit("ui")
+      }))
     } else {
       await build(buildOptions)
+      await buildCss()
       log("UI: built")
     }
 
     // Generate the plugin shell page the host will load into the iframe.
     await writeFile(
       htmlOutfile,
-      createUiHtml(project.manifest.name, "index.js"),
+      createUiHtml(project.manifest.name, "index.js", cssOutput),
       "utf8",
     )
     outputs.add(normalizeOutputPath(relative(project.rootDir, htmlOutfile)))
@@ -252,7 +330,7 @@ export async function buildPlugin(
     const workerOutfile = join(project.rootDir, project.manifest.runtime.entry)
     await mkdir(dirname(workerOutfile), { recursive: true })
 
-    const buildOptions = createWorkerBuildOptions(workerSourceEntry, workerOutfile, buildContext)
+    const buildOptions = createWorkerBuildOptions(workerSourceEntry, workerOutfile, buildContext, define)
     if (options.watch) {
       watchers.push(await createWatchContext(buildOptions, "Worker", log, () => rebuildEmitter?.emit("worker")))
     } else {
@@ -283,6 +361,7 @@ function createUiBuildOptions(
   entryPoint: string,
   outfile: string,
   buildContext: ResolvedBuildContext,
+  define: Record<string, string>,
 ): BuildOptions {
   const plugins = buildContext.aliasPlugin ? [buildContext.aliasPlugin] : []
   return {
@@ -298,6 +377,7 @@ function createUiBuildOptions(
     },
     nodePaths: buildContext.nodePaths,
     plugins,
+    define,
     sourcemap: true,
     target: "es2020",
   }
@@ -307,6 +387,7 @@ function createWorkerBuildOptions(
   entryPoint: string,
   outfile: string,
   buildContext: ResolvedBuildContext,
+  define: Record<string, string>,
 ): BuildOptions {
   const plugins = buildContext.aliasPlugin ? [buildContext.aliasPlugin] : []
   return {
@@ -321,6 +402,7 @@ function createWorkerBuildOptions(
     },
     nodePaths: buildContext.nodePaths,
     plugins,
+    define,
     sourcemap: true,
     target: "node20",
   }

@@ -5,7 +5,7 @@ import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 import {
   getHighRiskPluginPermissions,
   pluginRequiresTrustConfirmation,
-} from "./validate"
+} from "./validate.js"
 
 export interface MarketplaceSignature {
   keyId: string

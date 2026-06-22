@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseThunderPluginManifest,
   type ThunderPluginManifest,
-} from "./manifest";
+} from "./manifest.js";
 
 const trustedManifest: ThunderPluginManifest = {
   manifestVersion: 2,

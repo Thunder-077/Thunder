@@ -4,9 +4,9 @@ import { randomUUID } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { cp, mkdir, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
-import { buildPlugin, type BuildPluginResult, type BuildRebuildScope, type PluginProject } from "./build"
-import { createLocalInstallPayload } from "./trust"
-import { findMonorepoRoot } from "../workspace"
+import { buildPlugin, type BuildPluginResult, type BuildRebuildScope, type PluginProject } from "./build.js"
+import { createLocalInstallPayload } from "./trust.js"
+import { findMonorepoRoot } from "../workspace.js"
 
 const CLI_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..")
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:3001"

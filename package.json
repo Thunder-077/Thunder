@@ -17,7 +17,7 @@
     "typecheck": "turbo typecheck",
     "test:plugins": "pnpm --filter @thunder/api test:plugins",
     "test:desktop-runtime": "node scripts/generate-enabled-modules.test.mjs && node apps/api/scripts/runtime-dependency-utils.test.mjs && node apps/api/scripts/build-desktop-bundle.test.mjs && node packages/database/src/client-platform.test.mjs && node apps/api/src/db-init-paths.test.mjs && node apps/desktop/scripts/runtime-copy-utils.test.mjs && node apps/desktop/scripts/prepare-release-config.test.mjs && node apps/desktop/scripts/build-release.test.mjs",
-    "build:plugin:teleprompter": "pnpm --filter @thunder/web build:plugin:teleprompter",
+    "build:plugin:teleprompter": "pnpm --filter @thunder/plugin-teleprompter-v2 build",
     "build:plugin-devkit": "pnpm --filter @thunder/plugin-schema --filter @thunder/plugin-protocol --filter @thunder/plugin-sdk-worker --filter @thunder/plugin-sdk --filter @thunder/plugin-ui --filter @thunder/plugin-cli build",
     "build:plugin-marketplace": "pnpm --filter @thunder/api build:plugin-marketplace",
     "plugin:create": "pnpm --dir packages/plugin-cli exec tsx src/index.ts create",
