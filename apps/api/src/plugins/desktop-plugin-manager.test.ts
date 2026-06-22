@@ -6,7 +6,6 @@ import assert from "node:assert/strict"
 // @ts-ignore node:sqlite types are provided by the Node runtime used by desktop.
 import { DatabaseSync } from "node:sqlite"
 import {
-  fetchDesktopPluginMarketplace,
   getInstalledPlugin,
   installBundledDesktopPlugin,
   installPackagedPlugin,
@@ -14,6 +13,9 @@ import {
   readDesktopPluginUiAsset,
   uninstallDesktopPlugin,
 } from "./desktop-plugin-manager"
+import {
+  fetchDesktopPluginMarketplace,
+} from "./desktop-plugin-marketplace"
 
 function stableJson(value: unknown): string {
   if (Array.isArray(value)) {

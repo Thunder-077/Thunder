@@ -48,6 +48,33 @@ type BootstrapMessage =
   | { type: "init-error"; version: number; error: string }
   | { type: "stopped"; version: number }
 
+function parseBootstrapMessage(raw: unknown): BootstrapMessage | null {
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    Array.isArray(raw) ||
+    typeof (raw as Record<string, unknown>).type !== "string" ||
+    typeof (raw as Record<string, unknown>).version !== "number"
+  ) {
+    return null
+  }
+  const r = raw as Record<string, unknown>
+  switch (r.type) {
+    case "bootstrap-ready":
+      return { type: "bootstrap-ready", version: r.version as number }
+    case "ready":
+      if (typeof r.pluginId !== "string" || typeof r.endpoint !== "string") return null
+      return { type: "ready", version: r.version as number, pluginId: r.pluginId, endpoint: r.endpoint }
+    case "init-error":
+      if (typeof r.error !== "string") return null
+      return { type: "init-error", version: r.version as number, error: r.error }
+    case "stopped":
+      return { type: "stopped", version: r.version as number }
+    default:
+      return null
+  }
+}
+
 function defaultBootstrapPath(): string {
   const candidates = [
     process.env.THUNDER_TRUSTED_RUNTIME_BOOTSTRAP_PATH,
@@ -236,7 +263,8 @@ export function createTrustedRuntimeSupervisor(
         }
 
         const onMessage = (raw: unknown) => {
-          const message = raw as BootstrapMessage
+          const message = parseBootstrapMessage(raw)
+          if (!message) return
           if (message.type === "bootstrap-ready" && message.version === 1) {
             child.send({
               type: "initialize",

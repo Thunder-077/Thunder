@@ -199,12 +199,17 @@ function validateKindPermissions(
   }
 }
 
+export const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/;
+
 export function parseThunderPluginManifest(
   input: unknown,
 ): ThunderPluginManifest {
   assertManifest(isRecord(input), "manifest must be an object");
   assertManifest(input.manifestVersion === 2, "manifestVersion must be 2");
-  assertManifest(typeof input.id === "string" && input.id.length > 0, "id is required");
+  assertManifest(
+    typeof input.id === "string" && PLUGIN_ID_PATTERN.test(input.id),
+    "id must match /^[a-z][a-z0-9-]{1,62}$/",
+  );
   assertManifest(
     typeof input.name === "string" && input.name.length > 0,
     "name is required",

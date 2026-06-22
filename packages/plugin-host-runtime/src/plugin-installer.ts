@@ -1,9 +1,8 @@
 import { cp, lstat, mkdir, readdir, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
+import { PLUGIN_ID_PATTERN } from "@thunder/plugin-schema"
 import { loadInstalledPluginManifest } from "./manifest-loader"
 import type { PluginInstallResult, PluginInstaller } from "./types"
-
-const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
 
 function assertSafePluginId(pluginId: string): void {
   if (!PLUGIN_ID_PATTERN.test(pluginId)) {

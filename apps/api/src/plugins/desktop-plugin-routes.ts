@@ -1,7 +1,6 @@
 import { Hono } from "hono"
 import {
   DesktopPluginError,
-  fetchDesktopPluginMarketplace,
   getDesktopPluginRuntimeStatus,
   getInstalledPlugin,
   installBundledDesktopPlugin,
@@ -12,12 +11,15 @@ import {
   startDesktopPluginRuntime,
   uninstallDesktopPlugin,
   invokeDesktopPluginWorker,
+} from "./desktop-plugin-manager"
+import { fetchDesktopPluginMarketplace } from "./desktop-plugin-marketplace"
+import {
   getPluginStorage,
   setPluginStorage,
   removePluginStorage,
   listPluginStorageKeys,
   clearPluginStorage,
-} from "./desktop-plugin-manager"
+} from "./desktop-plugin-storage"
 import {
   proxyDesktopPluginNetworkRequest,
 } from "./desktop-plugin-network"

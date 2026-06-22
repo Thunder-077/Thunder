@@ -1,5 +1,5 @@
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
-import { DesktopPluginError } from "./desktop-plugin-manager"
+import { DesktopPluginError } from "./desktop-plugin-internal"
 
 const MAX_REQUEST_BODY_BYTES = 1024 * 1024
 const MAX_RESPONSE_BODY_BYTES = 5 * 1024 * 1024

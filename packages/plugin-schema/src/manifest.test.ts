@@ -44,6 +44,14 @@ const parsedTrustedManifest = parseThunderPluginManifest(trustedManifest);
 assert.equal(parsedTrustedManifest.kind, "trusted");
 assert.deepEqual(parsedTrustedManifest.author, trustedManifest.author);
 
+for (const invalidId of ["", "UPPERCASE", "0starts-with-digit", "has spaces", "../../etc/passwd", "a".repeat(64)]) {
+  assert.throws(
+    () => parseThunderPluginManifest({ ...trustedManifest, id: invalidId }),
+    /id must match/,
+    `expected rejection for id: ${JSON.stringify(invalidId)}`,
+  );
+}
+
 assert.throws(() =>
   parseThunderPluginManifest({
     ...trustedManifest,
