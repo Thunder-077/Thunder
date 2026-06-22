@@ -531,6 +531,13 @@ export async function stopDesktopPluginRuntime(id: string): Promise<DesktopPlugi
   return toDesktopPluginRuntimeStatus(status)
 }
 
+export async function restartDesktopPluginRuntime(id: string): Promise<DesktopPluginRuntimeStatus> {
+  assertPluginId(id)
+  await trustedRuntimeSupervisor.stop(id)
+  const plugin = await getInstalledPlugin(id)
+  return startTrustedDesktopPluginRuntime(plugin, true)
+}
+
 export function getDesktopPluginRuntimeStatus(id: string): DesktopPluginRuntimeStatus {
   assertPluginId(id)
   const status = trustedRuntimeSupervisor.getStatus(id)

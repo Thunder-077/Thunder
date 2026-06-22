@@ -82,6 +82,7 @@ function createBridgeWindow() {
 
   return {
     postedRequests,
+    listeners,
     windowMock,
     respond,
     reject,
@@ -227,6 +228,94 @@ async function main() {
   const failedRequest = thunder.storage.get("missing")
   bridge.reject("bridge failed")
   await assert.rejects(failedRequest, /bridge failed/)
+
+  // ---- HMR onUpdate tests ----
+  let hmrScope: string | null = null
+  const unsubscribeHmr = thunder.hmr.onUpdate((event) => {
+    hmrScope = event.scope
+  })
+
+  // Simulate a plugin.updated event from host
+  for (const listener of bridge.listeners) {
+    listener({
+      source: bridge.windowMock.parent,
+      data: {
+        source: "thunder-host",
+        version: 1,
+        type: "plugin.updated",
+        scope: "worker",
+        timestamp: Date.now(),
+      },
+    } as MessageEvent<unknown>)
+  }
+  assert.equal(hmrScope, "worker", "hmr.onUpdate should receive worker scope")
+
+  // Test with "ui" scope
+  for (const listener of bridge.listeners) {
+    listener({
+      source: bridge.windowMock.parent,
+      data: {
+        source: "thunder-host",
+        version: 1,
+        type: "plugin.updated",
+        scope: "ui",
+        timestamp: Date.now(),
+      },
+    } as MessageEvent<unknown>)
+  }
+  assert.equal(hmrScope, "ui", "hmr.onUpdate should receive ui scope")
+
+  // Test with "all" scope
+  for (const listener of bridge.listeners) {
+    listener({
+      source: bridge.windowMock.parent,
+      data: {
+        source: "thunder-host",
+        version: 1,
+        type: "plugin.updated",
+        scope: "all",
+        timestamp: Date.now(),
+      },
+    } as MessageEvent<unknown>)
+  }
+  assert.equal(hmrScope, "all", "hmr.onUpdate should receive all scope")
+
+  // Unsubscribe and verify no more callbacks
+  unsubscribeHmr()
+  hmrScope = null
+  for (const listener of bridge.listeners) {
+    listener({
+      source: bridge.windowMock.parent,
+      data: {
+        source: "thunder-host",
+        version: 1,
+        type: "plugin.updated",
+        scope: "worker",
+        timestamp: Date.now(),
+      },
+    } as MessageEvent<unknown>)
+  }
+  assert.equal(hmrScope, null, "hmr.onUpdate should not fire after unsubscribe")
+
+  // Test that invalid scope is ignored
+  hmrScope = null
+  const unsubscribeHmr2 = thunder.hmr.onUpdate((event) => {
+    hmrScope = event.scope
+  })
+  for (const listener of bridge.listeners) {
+    listener({
+      source: bridge.windowMock.parent,
+      data: {
+        source: "thunder-host",
+        version: 1,
+        type: "plugin.updated",
+        scope: "invalid",
+        timestamp: Date.now(),
+      },
+    } as MessageEvent<unknown>)
+  }
+  assert.equal(hmrScope, null, "hmr.onUpdate should ignore invalid scopes")
+  unsubscribeHmr2()
 
   delete (globalThis as { window?: unknown }).window
   const unavailableClient = createThunderPluginClient()

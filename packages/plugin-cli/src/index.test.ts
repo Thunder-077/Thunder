@@ -83,7 +83,8 @@ assert.equal(
 
 assert.equal(shouldIgnoreReinstallPath("dist/index.js"), true)
 assert.equal(shouldIgnoreReinstallPath(".thunder-plugin-dev/teleprompter/plugin.json"), true)
-assert.equal(shouldIgnoreReinstallPath("src/index.tsx"), false)
+assert.equal(shouldIgnoreReinstallPath("src/index.tsx"), true, "src/ is now handled by esbuild HMR watcher")
+assert.equal(shouldIgnoreReinstallPath("plugin.json"), false, "plugin.json should still trigger full reinstall")
 const devInstallDir = await prepareDevInstallDirectory(buildResult.project)
 assert.equal((await readFile(join(devInstallDir, "plugin.json"), "utf8")).includes('"id": "teleprompter"'), true)
 assert.equal((await readFile(join(devInstallDir, "dist", "index.html"), "utf8")).includes("index.js"), true)
@@ -94,7 +95,9 @@ assert.equal(openCommand.args.length > 0, true)
 
 let installRequests = 0
 let startRequests = 0
+let reloadRequests = 0
 let installPayload: unknown = null
+let lastReloadScope: string | null = null
 const server = createServer((request, response) => {
   if (request.url === "/api/v1/desktop/plugins" && request.method === "GET") {
     response.writeHead(200, { "content-type": "application/json" })
@@ -137,6 +140,28 @@ const server = createServer((request, response) => {
     return
   }
 
+  if (request.url === "/api/v1/desktop/plugins/teleprompter/runtime/reload" && request.method === "POST") {
+    reloadRequests += 1
+    let body = ""
+    request.on("data", (chunk) => {
+      body += String(chunk)
+    })
+    request.on("end", () => {
+      const parsed = JSON.parse(body) as { scope?: string }
+      lastReloadScope = parsed.scope ?? null
+      response.writeHead(200, { "content-type": "application/json" })
+      response.end(JSON.stringify({
+        ok: true,
+        data: {
+          scope: parsed.scope,
+          runtimeStatus: { phase: "running", running: true },
+          reloadId: "test-reload-id",
+        },
+      }))
+    })
+    return
+  }
+
   response.writeHead(404, { "content-type": "application/json" })
   response.end(JSON.stringify({ ok: false, message: "not found" }))
 })
@@ -176,6 +201,20 @@ assert.equal(
   (installPayload as { trustDecision?: { manifestSha256?: string } }).trustDecision?.manifestSha256?.length,
   64,
 )
+
+// Test reloadPlugin client method (HMR)
+await client.reloadPlugin("teleprompter", "worker")
+assert.equal(reloadRequests, 1)
+assert.equal(lastReloadScope, "worker")
+
+await client.reloadPlugin("teleprompter", "ui")
+assert.equal(reloadRequests, 2)
+assert.equal(lastReloadScope, "ui")
+
+await client.reloadPlugin("teleprompter", "all")
+assert.equal(reloadRequests, 3)
+assert.equal(lastReloadScope, "all")
+
 await new Promise<void>((resolvePromise, reject) => {
   server.close((error) => {
     if (error) {

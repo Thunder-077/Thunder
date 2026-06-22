@@ -8,7 +8,9 @@ import {
   isDesktopPluginRuntimeEnabled,
   listInstalledDesktopPlugins,
   readDesktopPluginUiAsset,
+  restartDesktopPluginRuntime,
   startDesktopPluginRuntime,
+  stopDesktopPluginRuntime,
   uninstallDesktopPlugin,
   invokeDesktopPluginWorker,
 } from "./desktop-plugin-manager"
@@ -209,6 +211,45 @@ desktopPlugins.post("/:id/runtime/start", async (c) => {
   try {
     const status = await startDesktopPluginRuntime(c.req.param("id"))
     return c.json({ ok: true, data: status })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.post("/:id/runtime/stop", async (c) => {
+  try {
+    const status = await stopDesktopPluginRuntime(c.req.param("id"))
+    return c.json({ ok: true, data: status })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.post("/:id/runtime/reload", async (c) => {
+  try {
+    const body = (await c.req.json().catch(() => null)) as
+      | {
+          scope?: string
+        }
+      | null
+
+    const scope = body?.scope ?? "all"
+    if (scope !== "ui" && scope !== "worker" && scope !== "all") {
+      return new Response(JSON.stringify({ ok: false, message: "scope 必须是 ui、worker 或 all" }), {
+        status: 400,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      })
+    }
+
+    let runtimeStatus = undefined
+    if (scope === "worker" || scope === "all") {
+      runtimeStatus = await restartDesktopPluginRuntime(c.req.param("id"))
+    } else {
+      runtimeStatus = getDesktopPluginRuntimeStatus(c.req.param("id"))
+    }
+
+    const reloadId = crypto.randomUUID()
+    return c.json({ ok: true, data: { scope, runtimeStatus, reloadId } })
   } catch (error) {
     return jsonError(error)
   }

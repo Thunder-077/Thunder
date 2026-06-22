@@ -114,6 +114,16 @@ export type PluginThemeChangeEvent = {
   theme: "light" | "dark"
 }
 
+export type PluginHmrScope = "ui" | "worker" | "all"
+
+export type PluginUpdatedEvent = {
+  source: typeof PLUGIN_BRIDGE_RESPONSE_SOURCE
+  version: typeof PLUGIN_BRIDGE_VERSION
+  type: "plugin.updated"
+  scope: PluginHmrScope
+  timestamp: number
+}
+
 export const pluginBridgeMethods = [
   "plugin.getManifest",
   "layout.setFrameHeight",

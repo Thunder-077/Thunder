@@ -15,6 +15,8 @@ export interface BuildPluginOptions {
   log?: (message: string) => void
 }
 
+export type BuildRebuildScope = "ui" | "worker" | "both"
+
 export interface BuildPluginResult {
   project: PluginProject
   outDir: string
@@ -22,6 +24,12 @@ export interface BuildPluginResult {
   watcher?: {
     stop(): Promise<void>
   }
+  /**
+   * Register a callback for watch-mode rebuild events. The callback receives
+   * the scope of what changed: "ui", "worker", or "both" when both contexts
+   * rebuild within a short debounce window.
+   */
+  onRebuild?: (callback: (scope: BuildRebuildScope) => void) => void
 }
 
 const DEFAULT_DIST_DIR = "dist"
@@ -133,6 +141,7 @@ async function createWatchContext(
   options: BuildOptions,
   label: string,
   log: (message: string) => void,
+  onSuccess?: () => void,
 ): Promise<BuildContext> {
   const watcher = await context({
     ...options,
@@ -146,6 +155,7 @@ async function createWatchContext(
               return
             }
             log(`${label}: rebuilt`)
+            onSuccess?.()
           })
         },
       },
@@ -157,6 +167,37 @@ async function createWatchContext(
   return watcher
 }
 
+const SCOPE_MERGE_DELAY_MS = 200
+
+interface RebuildEmitter {
+  emit(scope: "ui" | "worker"): void
+  onRebuild(callback: (scope: BuildRebuildScope) => void): void
+}
+
+function createRebuildEmitter(): RebuildEmitter {
+  const callbacks: Array<(scope: BuildRebuildScope) => void> = []
+  const pendingScopes = new Set<"ui" | "worker">()
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+  return {
+    emit(scope: "ui" | "worker") {
+      pendingScopes.add(scope)
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        const merged: BuildRebuildScope = pendingScopes.size === 2 ? "both" : [...pendingScopes][0]
+        pendingScopes.clear()
+        debounceTimer = null
+        for (const cb of callbacks) {
+          try { cb(merged) } catch { /* ignore callback errors */ }
+        }
+      }, SCOPE_MERGE_DELAY_MS)
+    },
+    onRebuild(callback) {
+      callbacks.push(callback)
+    },
+  }
+}
+
 export async function buildPlugin(
   options: BuildPluginOptions,
 ): Promise<BuildPluginResult> {
@@ -166,6 +207,7 @@ export async function buildPlugin(
   const outputs = new Set<string>()
   const watchers: BuildContext[] = []
   const buildContext = await resolveBuildContext(project.rootDir)
+  const rebuildEmitter = options.watch ? createRebuildEmitter() : null
 
   if (options.clean !== false) {
     await rm(outDir, { recursive: true, force: true })
@@ -185,7 +227,7 @@ export async function buildPlugin(
 
     const buildOptions = createUiBuildOptions(uiSourceEntry, jsOutfile, buildContext)
     if (options.watch) {
-      watchers.push(await createWatchContext(buildOptions, "UI", log))
+      watchers.push(await createWatchContext(buildOptions, "UI", log, () => rebuildEmitter?.emit("ui")))
     } else {
       await build(buildOptions)
       log("UI: built")
@@ -212,7 +254,7 @@ export async function buildPlugin(
 
     const buildOptions = createWorkerBuildOptions(workerSourceEntry, workerOutfile, buildContext)
     if (options.watch) {
-      watchers.push(await createWatchContext(buildOptions, "Worker", log))
+      watchers.push(await createWatchContext(buildOptions, "Worker", log, () => rebuildEmitter?.emit("worker")))
     } else {
       await build(buildOptions)
       log("Worker: built")
@@ -233,6 +275,7 @@ export async function buildPlugin(
             },
           }
         : undefined,
+    onRebuild: rebuildEmitter ? (cb) => rebuildEmitter.onRebuild(cb) : undefined,
   }
 }
 

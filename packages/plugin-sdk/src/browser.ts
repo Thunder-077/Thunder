@@ -9,16 +9,20 @@ import {
   type PluginBridgeMethod,
   type PluginBridgeRequest,
   type PluginBridgeResponse,
+  type PluginHmrScope,
   type PluginNotificationParams,
   type PluginNetworkRequestParams,
   type PluginNetworkResponse,
   type PluginThemeChangeEvent,
+  type PluginUpdatedEvent,
 } from "@thunder/plugin-protocol"
 
 type WorkerInvokeResponse<T> = {
   ok: true
   result: T
 }
+
+type HmrUpdateCallback = (event: { scope: PluginHmrScope }) => void
 
 type ThemeChangeCallback = (theme: "light" | "dark") => void
 
@@ -29,6 +33,9 @@ export interface ThunderBrowserPluginClient {
   }
   theme: {
     onChange(callback: ThemeChangeCallback): () => void
+  }
+  hmr: {
+    onUpdate(callback: HmrUpdateCallback): () => void
   }
   worker: {
     invoke<TResult = unknown, TPayload = unknown>(method: string, payload?: TPayload): Promise<TResult>
@@ -155,6 +162,28 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
             return
           }
           callback(data.theme)
+        }
+
+        window.addEventListener("message", handleMessage)
+        return () => window.removeEventListener("message", handleMessage)
+      },
+    },
+    hmr: {
+      onUpdate: (callback: HmrUpdateCallback) => {
+        if (typeof window === "undefined") return () => {}
+
+        function handleMessage(event: MessageEvent<PluginUpdatedEvent>) {
+          const data = event.data
+          if (
+            !data ||
+            data.source !== PLUGIN_BRIDGE_RESPONSE_SOURCE ||
+            data.version !== PLUGIN_BRIDGE_VERSION ||
+            data.type !== "plugin.updated" ||
+            (data.scope !== "ui" && data.scope !== "worker" && data.scope !== "all")
+          ) {
+            return
+          }
+          callback({ scope: data.scope })
         }
 
         window.addEventListener("message", handleMessage)

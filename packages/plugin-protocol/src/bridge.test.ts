@@ -1,11 +1,14 @@
 import assert from "node:assert/strict"
 import {
   PLUGIN_BRIDGE_REQUEST_SOURCE,
+  PLUGIN_BRIDGE_RESPONSE_SOURCE,
   PLUGIN_BRIDGE_VERSION,
   PluginProtocolError,
   getRequiredPluginPermission,
   parsePluginBridgeRequest,
   pluginBridgeMethods,
+  type PluginUpdatedEvent,
+  type PluginHmrScope,
 } from "./index"
 
 assert.deepEqual(pluginBridgeMethods, [
@@ -66,5 +69,20 @@ assert.throws(
     error instanceof PluginProtocolError &&
     error.code === "INVALID_PARAMS",
 )
+
+// PluginUpdatedEvent type check — verify the event shape is correctly typed
+const validScopes: PluginHmrScope[] = ["ui", "worker", "all"]
+for (const scope of validScopes) {
+  const event: PluginUpdatedEvent = {
+    source: PLUGIN_BRIDGE_RESPONSE_SOURCE,
+    version: PLUGIN_BRIDGE_VERSION,
+    type: "plugin.updated",
+    scope,
+    timestamp: Date.now(),
+  }
+  assert.equal(event.type, "plugin.updated")
+  assert.equal(event.scope, scope)
+  assert.equal(typeof event.timestamp, "number")
+}
 
 console.log("[plugin-protocol] bridge tests passed")

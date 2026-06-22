@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { cp, mkdir, rm } from "node:fs/promises"
 import { join, resolve } from "node:path"
-import { buildPlugin, type BuildPluginResult, type PluginProject } from "./build"
+import { buildPlugin, type BuildPluginResult, type BuildRebuildScope, type PluginProject } from "./build"
 import { createLocalInstallPayload } from "./trust"
 import { findMonorepoRoot } from "../workspace"
 
@@ -25,6 +25,7 @@ export interface DesktopDevHostClient {
   }>
   installLocalPlugin(project: PluginProject, pluginPath?: string): Promise<void>
   startRuntime(pluginId: string): Promise<void>
+  reloadPlugin(pluginId: string, scope: "ui" | "worker" | "all"): Promise<void>
 }
 
 function createDesktopDevHostClient(apiBaseUrl: string): DesktopDevHostClient {
@@ -77,6 +78,19 @@ function createDesktopDevHostClient(apiBaseUrl: string): DesktopDevHostClient {
         },
       )
       await readJsonOrThrow(response, "桌面插件 runtime 启动失败")
+    },
+    async reloadPlugin(pluginId, scope) {
+      const response = await fetch(
+        `${apiBaseUrl}/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/runtime/reload`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ scope }),
+        },
+      )
+      await readJsonOrThrow(response, "桌面插件 HMR reload 失败")
     },
   }
 }
@@ -221,7 +235,8 @@ function printDevStatus(
   }
   console.log(`UI: ${manifest.contributes?.sidebar ? "watching" : "not configured"}`)
   console.log(`Worker: ${manifest.runtime ? "watching" : "not configured"}`)
-  console.log("Reload: watching")
+  console.log(`Reload: watching`)
+  console.log(`HMR: enabled`)
   console.log(`Host: ${hostState}`)
   console.log(`Devtools: ready (${devtoolsUrl})`)
 }
@@ -232,7 +247,8 @@ function shouldIgnoreReinstallPath(relativePath: string): boolean {
     relativePath.startsWith("node_modules/") ||
     relativePath.startsWith("artifacts/") ||
     relativePath.startsWith(".thunder-plugin-dev/") ||
-    relativePath.startsWith("dist/")
+    relativePath.startsWith("dist/") ||
+    relativePath.startsWith("src/")
   )
 }
 
@@ -337,6 +353,22 @@ export async function runDevCommand(rootDir: string): Promise<void> {
   openDevtoolsPage(devtoolsUrl)
 
   const reinstallWatcher = createReinstallWatcher(result.project, reinstall)
+
+  // HMR: listen for esbuild rebuild events and reload the plugin with scope awareness
+  result.onRebuild?.(async (scope: BuildRebuildScope) => {
+    try {
+      const installDir = await prepareDevInstallDirectory(result.project)
+      await client.installLocalPlugin(result.project, installDir)
+      const reloadScope = scope === "both" ? "all" : scope
+      await client.reloadPlugin(result.project.manifest.id, reloadScope)
+      console.log(`HMR: ${scope} reloaded`)
+    } catch (error) {
+      console.error(
+        `[plugin-cli] HMR reload failed: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  })
+
   const runtimeStatusPoll = result.project.manifest.runtime
     ? setInterval(async () => {
         try {

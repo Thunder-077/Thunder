@@ -33,6 +33,7 @@ import { notificationStore } from "@/lib/notification-store"
 import { ActivityClient } from "@thunder/api-client"
 import type { PluginLogEntry, PluginRpcLogEntry, PluginWorkerStatus } from "@thunder/plugin-devtools"
 import { PLUGIN_BRIDGE_RESPONSE_SOURCE } from "@thunder/plugin-protocol"
+import type { PluginHmrScope } from "@thunder/plugin-protocol"
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
 export default function DesktopPluginPage() {
@@ -52,7 +53,9 @@ export default function DesktopPluginPage() {
   const [, setDevLogs] = useState<PluginLogEntry[]>([])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previousWorkerStatusRef = useRef<string | null>(null)
+  const lastKnownPidRef = useRef<number | undefined>(undefined)
   const rateLimiterRef = useRef(new DesktopPluginRateLimiter())
+  const [reloadKey, setReloadKey] = useState(0)
   const { resolvedTheme } = useTheme()
 
   const appendLog = useCallback((level: PluginLogEntry["level"], message: string) => {
@@ -95,6 +98,22 @@ export default function DesktopPluginPage() {
     []
   )
 
+  const pushPluginUpdatedEvent = useCallback(
+    (scope: PluginHmrScope, frameOrigin: string) => {
+      iframeRef.current?.contentWindow?.postMessage(
+        {
+          source: PLUGIN_BRIDGE_RESPONSE_SOURCE,
+          version: PLUGIN_BRIDGE_VERSION,
+          type: "plugin.updated",
+          scope,
+          timestamp: Date.now(),
+        },
+        frameOrigin
+      )
+    },
+    []
+  )
+
   const refreshWorkerStatus = useCallback(async () => {
     if (!plugin || plugin.manifest.kind === "sandboxed") {
       setWorkerStatus({ phase: "stopped", running: false, consecutiveCrashCount: 0 })
@@ -103,6 +122,30 @@ export default function DesktopPluginPage() {
 
     try {
       const runtimeStatus = await getDesktopPluginRuntimeStatus(plugin.manifest.id)
+
+      // Detect worker restart by PID change — push update event and reload iframe
+      const prevPid = lastKnownPidRef.current
+      if (
+        runtimeStatus.running &&
+        runtimeStatus.pid &&
+        prevPid !== undefined &&
+        prevPid !== runtimeStatus.pid
+      ) {
+        const entryUrl = getDesktopPluginEntryUrl(plugin)
+        if (entryUrl && hostOrigin) {
+          const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
+          const frameOrigin = new URL(frameUrl).origin
+          pushPluginUpdatedEvent("worker", frameOrigin)
+        }
+        // Give the iframe a brief window to persist state before reload
+        await new Promise((r) => setTimeout(r, 200))
+        setReloadKey((k) => k + 1)
+        appendLog("info", `worker 已热重载: PID ${prevPid} → ${runtimeStatus.pid}`)
+      }
+      if (runtimeStatus.pid) {
+        lastKnownPidRef.current = runtimeStatus.pid
+      }
+
       setWorkerStatus({
         phase: runtimeStatus.phase,
         running: runtimeStatus.running,
@@ -120,7 +163,7 @@ export default function DesktopPluginPage() {
         lastError: runtimeError instanceof Error ? runtimeError.message : "运行时状态读取失败",
       })
     }
-  }, [plugin])
+  }, [appendLog, hostOrigin, plugin, pushPluginUpdatedEvent])
 
   useEffect(() => {
     if (!desktopEnabled) {
@@ -374,6 +417,7 @@ export default function DesktopPluginPage() {
   return (
     <div className="min-h-0 overflow-hidden rounded-xl border border-border/30 bg-background shadow-sm">
       <iframe
+        key={reloadKey}
         ref={iframeRef}
         title={plugin.manifest.name}
         src={frameUrl}
