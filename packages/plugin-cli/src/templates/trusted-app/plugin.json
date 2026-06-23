@@ -6,7 +6,7 @@
   "description": "",
   "kind": "trusted",
   "engines": {
-    "thunder": "^2.0.0"
+    "thunder": "^0.1.0"
   },
   "author": {
     "name": "Your Name"

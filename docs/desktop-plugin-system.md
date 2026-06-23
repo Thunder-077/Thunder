@@ -41,7 +41,7 @@ AppData/com.thunder.desktop/
   "description": "桌面提词器插件",
   "kind": "trusted",
   "engines": {
-    "thunder": "^2.0.0"
+    "thunder": "^0.1.0"
   },
   "author": { "name": "Thunder" },
   "icon": "ScrollText",

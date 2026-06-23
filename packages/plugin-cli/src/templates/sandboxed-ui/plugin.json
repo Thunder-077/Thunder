@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "description": "",
   "kind": "sandboxed",
-  "engines": { "thunder": "^2.0.0" },
+  "engines": { "thunder": "^0.1.0" },
   "author": { "name": "Your Name" },
   "icon": "Puzzle",
   "permissions": ["storage", "notifications"],
