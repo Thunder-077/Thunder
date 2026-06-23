@@ -13,6 +13,14 @@ networkLimiter.assertAllowed(true, 0)
 assert.throws(() => networkLimiter.assertAllowed(true, 0), /网络请求过于频繁/)
 networkLimiter.assertAllowed(true, 60_001)
 
+// ---- Layout updates have an independent limit ----
+const layoutLimiter = new DesktopPluginRateLimiter(60_000, 1, 1, 2)
+layoutLimiter.assertAllowedMethod("layout.setFrameHeight", 0)
+layoutLimiter.assertAllowedMethod("layout.setFrameHeight", 0)
+assert.throws(() => layoutLimiter.assertAllowedMethod("layout.setFrameHeight", 0), /布局更新过于频繁/)
+layoutLimiter.assertAllowedMethod("storage.get", 0)
+assert.throws(() => layoutLimiter.assertAllowedMethod("storage.get", 0), /Bridge 调用过于频繁/)
+
 // ---- Sliding window: no burst at boundary ----
 // With a fixed-window limiter, calling at 59_999 and 60_001 would both succeed
 // because the window resets. With a sliding window, the first call at 59_999

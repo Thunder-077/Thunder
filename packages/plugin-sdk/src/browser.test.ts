@@ -100,6 +100,7 @@ async function main() {
 
   const thunder = createThunderPluginClient()
   thunder.plugin.setFrameHeight(640.2)
+  thunder.plugin.setFrameHeight(640.2)
   assert.equal(bridge.postedRequests.length, 1)
   assert.deepEqual(bridge.postedRequests[0], {
     source: "thunder-plugin",

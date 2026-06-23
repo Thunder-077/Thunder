@@ -72,6 +72,12 @@ export interface ThunderBrowserPluginClient {
 }
 
 let nextRequestId = 1
+let lastFrameHeight: number | null = null
+let lastFrameHeightSentAt = 0
+let pendingFrameHeight: number | null = null
+let pendingFrameHeightTimer: number | null = null
+
+const FRAME_HEIGHT_MIN_INTERVAL_MS = 250
 
 export function normalizeThunderPluginStorageKey(key: string): string {
   return normalizePluginStorageKey(key)
@@ -143,6 +149,43 @@ function postHostEvent(method: PluginBridgeMethod, params?: unknown): void {
   window.parent.postMessage(request, "*")
 }
 
+/**
+ * 合并高频 iframe 高度上报。
+ * ResizeObserver 可能在布局收敛期间连续触发，宿主只需要最新高度。
+ */
+function postFrameHeight(height: number): void {
+  if (typeof window === "undefined") return
+  if (height === lastFrameHeight || height === pendingFrameHeight) return
+
+  const now = Date.now()
+  const elapsed = now - lastFrameHeightSentAt
+  const send = (nextHeight: number) => {
+    lastFrameHeight = nextHeight
+    pendingFrameHeight = null
+    lastFrameHeightSentAt = Date.now()
+    postHostEvent("layout.setFrameHeight", { height: nextHeight })
+  }
+
+  if (!lastFrameHeightSentAt || elapsed >= FRAME_HEIGHT_MIN_INTERVAL_MS) {
+    if (pendingFrameHeightTimer !== null) {
+      window.clearTimeout(pendingFrameHeightTimer)
+      pendingFrameHeightTimer = null
+    }
+    send(height)
+    return
+  }
+
+  pendingFrameHeight = height
+  if (pendingFrameHeightTimer !== null) return
+
+  pendingFrameHeightTimer = window.setTimeout(() => {
+    pendingFrameHeightTimer = null
+    if (pendingFrameHeight !== null) {
+      send(pendingFrameHeight)
+    }
+  }, FRAME_HEIGHT_MIN_INTERVAL_MS - elapsed)
+}
+
 export function createThunderPluginClient(): ThunderBrowserPluginClient {
   return {
     plugin: {
@@ -152,9 +195,7 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
           throw new Error("Thunder plugin frame height is invalid")
         }
 
-        postHostEvent("layout.setFrameHeight", {
-          height: Math.max(320, Math.ceil(height)),
-        })
+        postFrameHeight(Math.max(320, Math.ceil(height)))
       },
     },
     theme: {

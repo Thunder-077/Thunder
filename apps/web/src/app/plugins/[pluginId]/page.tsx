@@ -338,7 +338,7 @@ export default function DesktopPluginPage() {
         if (requestBytes > 512 * 1024) {
           throw new Error("插件 Host Bridge 请求超过 512 KiB")
         }
-        rateLimiterRef.current.assertAllowed(request.method === "network.request")
+        rateLimiterRef.current.assertAllowedMethod(request.method)
         const startedAt = performance.now()
         const dispatched = await dispatchDesktopPluginHostRequest(request, {
           manifest: currentPlugin.manifest as ThunderPluginManifest,
