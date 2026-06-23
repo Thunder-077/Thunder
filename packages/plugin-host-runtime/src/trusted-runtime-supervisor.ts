@@ -463,6 +463,10 @@ export function createTrustedRuntimeSupervisor(
       }
     },
     stop,
+    async stopAll() {
+      const pluginIds = [...records.keys()]
+      await Promise.allSettled(pluginIds.map((id) => stop(id)))
+    },
     getStatus(pluginId) {
       return (
         records.get(pluginId)?.status ??

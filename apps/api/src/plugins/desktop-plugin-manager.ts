@@ -56,6 +56,16 @@ const STATIC_CONTENT_TYPES: Record<string, string> = {
 const trustedRuntimeSupervisor = createTrustedRuntimeSupervisor()
 const pluginOperationLocks = new Map<string, Promise<void>>()
 
+/**
+ * Gracefully shut down all trusted plugin runtimes and clear operation locks.
+ * Must be called during server shutdown to prevent orphaned child processes
+ * and leaked pipe connections.
+ */
+export async function shutdownPluginSystem(): Promise<void> {
+  await trustedRuntimeSupervisor.stopAll()
+  pluginOperationLocks.clear()
+}
+
 export interface InstallLocalPluginOptions {
   pluginPath: string
   trustDecision?: DesktopPluginTrustDecision
@@ -509,7 +519,8 @@ async function startTrustedDesktopPluginRuntime(
     throw new DesktopPluginError("当前仅支持 trusted runtime", 501)
   }
   const installRecord = await readJsonFile(join(plugin.pluginRoot, ".thunder-install.json"), parseInstallRecord).catch(() => null)
-  assertPluginTrustedForRuntime(installRecord, plugin.manifest)
+  const currentManifestSha256 = sha256(await readFile(join(plugin.pluginRoot, "plugin.json")))
+  assertPluginTrustedForRuntime(installRecord, plugin.manifest, currentManifestSha256)
 
   const currentStatus = trustedRuntimeSupervisor.getStatus(plugin.manifest.id)
   if (currentStatus.running) {

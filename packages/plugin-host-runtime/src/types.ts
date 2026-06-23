@@ -76,5 +76,7 @@ export interface TrustedPluginRuntimeSupervisor {
     payload?: unknown,
   ): Promise<unknown>
   stop(pluginId: string): Promise<PluginRuntimeStatus>
+  /** Stop all running plugin runtimes. Used for graceful shutdown. */
+  stopAll(): Promise<void>
   getStatus(pluginId: string): PluginRuntimeStatus
 }

@@ -98,6 +98,62 @@ assert.doesNotThrow(() =>
   ),
 )
 
+// SHA256 match — should pass when currentManifestSha256 matches the trust record.
+assert.doesNotThrow(() =>
+  assertPluginTrustedForRuntime(
+    {
+      id: trustedManifest.id,
+      version: trustedManifest.version,
+      installedAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      source: "local-directory",
+      sourceRef: "/tmp/plugin",
+      manifestSha256: "trusted-sha",
+      trust: confirmedTrust,
+    },
+    trustedManifest,
+    confirmedTrust.manifestSha256,
+  ),
+)
+
+// SHA256 mismatch — should throw when manifest has been tampered with post-install.
+assert.throws(
+  () =>
+    assertPluginTrustedForRuntime(
+      {
+        id: trustedManifest.id,
+        version: trustedManifest.version,
+        installedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        source: "local-directory",
+        sourceRef: "/tmp/plugin",
+        manifestSha256: "trusted-sha",
+        trust: confirmedTrust,
+      },
+      trustedManifest,
+      "tampered-sha256-value",
+    ),
+  /清单已变更/,
+)
+
+// SHA256 omitted — backward compatible, should not throw (no verification when not provided).
+assert.doesNotThrow(() =>
+  assertPluginTrustedForRuntime(
+    {
+      id: trustedManifest.id,
+      version: trustedManifest.version,
+      installedAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      source: "local-directory",
+      sourceRef: "/tmp/plugin",
+      manifestSha256: "trusted-sha",
+      trust: confirmedTrust,
+    },
+    trustedManifest,
+    undefined,
+  ),
+)
+
 assert.throws(
   () => assertPluginTrustedForRuntime(null, trustedManifest),
   /未完成信任确认/,

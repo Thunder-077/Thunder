@@ -152,9 +152,23 @@ export function createDesktopPluginTrustRecord({
 export function assertPluginTrustedForRuntime(
   record: DesktopPluginInstallRecord | null,
   manifest: ThunderPluginManifest,
+  currentManifestSha256?: string,
 ): void {
   if (manifest.kind !== "trusted") return
   if (!record?.trust?.acceptedRisk) {
     throw new DesktopPluginTrustError("Trusted 插件未完成信任确认，无法启动本地 runtime", 403)
+  }
+  // Verify the manifest hasn't been modified since the trust decision was made.
+  // This prevents post-install tampering (e.g. permission escalation) from
+  // bypassing the trust gate.
+  if (
+    currentManifestSha256 &&
+    record.trust.manifestSha256 &&
+    currentManifestSha256 !== record.trust.manifestSha256
+  ) {
+    throw new DesktopPluginTrustError(
+      "插件清单已变更（SHA256 不匹配），需要重新确认信任后才能启动 runtime",
+      409,
+    )
   }
 }

@@ -75,8 +75,9 @@ function withTransaction<T>(db: DatabaseSync, fn: () => T): T {
 }
 
 export async function getPluginStorage(pluginId: string, key: string): Promise<unknown | null> {
+  const normalizedKey = normalizePluginStorageKey(key)
   return withPluginStorageDb(pluginId, (db) => {
-    const row = db.prepare("SELECT value FROM kv WHERE key = ?").get(key) as { value: string } | undefined
+    const row = db.prepare("SELECT value FROM kv WHERE key = ?").get(normalizedKey) as { value: string } | undefined
     if (!row) return null
     return JSON.parse(row.value)
   })
