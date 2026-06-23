@@ -6,6 +6,7 @@ import {
   pluginBridgeMethods,
   type PluginBridgeMethod,
   type PluginBridgeResponse,
+  type PluginBroadcastEvent,
   type PluginThemeChangeEvent,
 } from "@thunder/plugin-protocol"
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
@@ -37,9 +38,10 @@ async function main() {
   let frameHeight = 0
   let notificationCount = 0
   let activityCount = 0
+  let broadcastCount = 0
   let activeManifest = manifest
 
-  function emit(data: PluginBridgeResponse | PluginThemeChangeEvent): void {
+  function emit(data: PluginBridgeResponse | PluginThemeChangeEvent | PluginBroadcastEvent): void {
     for (const listener of listeners) {
       listener({
         source: windowMock.parent,
@@ -78,6 +80,9 @@ async function main() {
           },
           async requestNetwork() {
             return { status: 200, headers: { "content-type": "text/plain" }, body: "ok" }
+          },
+          broadcastEvent() {
+            broadcastCount += 1
           },
         })
           .then((dispatched) => {
@@ -132,11 +137,13 @@ async function main() {
       payload: { text: "hello" },
     },
   )
+  await thunder.events.broadcast("draft.updated", { text: "hello" })
 
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.equal(frameHeight, 641)
   assert.equal(notificationCount, 1)
   assert.equal(activityCount, 1)
+  assert.equal(broadcastCount, 1)
   assert.deepEqual(
     [...seenMethods].sort(),
     [...pluginBridgeMethods].sort(),
@@ -154,6 +161,25 @@ async function main() {
   })
   assert.equal(theme, "dark")
   unsubscribe()
+
+  let pluginEvent: { senderId: string; event: string; data?: unknown } | null = null
+  const unsubscribeEvents = thunder.events.onMessage((value) => {
+    pluginEvent = value
+  })
+  emit({
+    source: PLUGIN_BRIDGE_RESPONSE_SOURCE,
+    version: PLUGIN_BRIDGE_VERSION,
+    type: "plugin.event",
+    senderId: "sender-plugin",
+    event: "draft.updated",
+    data: { text: "hello" },
+  })
+  assert.deepEqual(pluginEvent, {
+    senderId: "sender-plugin",
+    event: "draft.updated",
+    data: { text: "hello" },
+  })
+  unsubscribeEvents()
 
   activeManifest = { ...manifest, permissions: [] }
   await assert.rejects(

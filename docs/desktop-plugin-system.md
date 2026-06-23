@@ -118,6 +118,7 @@ AppData/com.thunder.desktop/
 | `activity.track` | `activity` | 记录活动 |
 | `network.request` | `network:<origin>` | 通过宿主代理访问精确授权的 origin |
 | `worker.invoke` | `native-runtime` | 调用 trusted worker handler |
+| `events.broadcast` | 无 | 向当前已加载的其他插件 iframe 广播轻量事件 |
 
 宿主会同时校验：
 
@@ -133,7 +134,8 @@ Bridge 契约统一定义在 `packages/plugin-protocol`。Browser SDK 与 Web
 宿主共享同一套方法、参数、响应和权限映射，并通过契约测试防止两端漂移。
 
 网络请求由 API 代理执行，不向 iframe 开放外部 `connect-src`，重定向后的
-origin 也必须已声明。当前不支持 Secrets、命令贡献点或设置贡献点。Manifest 声明
+origin 也必须已声明。`events.broadcast` 只做当前宿主页内的即时转发，不保证
+持久化、重放或跨进程投递。当前不支持 Secrets、命令贡献点或设置贡献点。Manifest 声明
 `secrets`、`contributes.commands` 或 `contributes.settings` 会被拒绝。
 
 资源限制：插件存储总量 1 MiB、单值 256 KiB、Bridge 请求 512 KiB、
@@ -206,7 +208,10 @@ DELETE /api/v1/desktop/plugins/:id
 GET    /api/v1/desktop/plugins/:id/ui/*
 POST   /api/v1/desktop/plugins/:id/worker/invoke
 GET    /api/v1/desktop/plugins/:id/runtime
+GET    /api/v1/desktop/plugins/:id/runtime/events
 POST   /api/v1/desktop/plugins/:id/runtime/start
+POST   /api/v1/desktop/plugins/:id/runtime/stop
+POST   /api/v1/desktop/plugins/:id/runtime/reload
 ```
 
 说明：
@@ -214,6 +219,7 @@ POST   /api/v1/desktop/plugins/:id/runtime/start
 - `install/local`: 开发态安装本地目录；高风险插件必须携带 `trustDecision`。
 - `install/bundled`: 从官方内置插件目录按 `pluginId` 安装。
 - `install/package`: 当前仍未作为正式能力启用。
+- `runtime/events` 与 `runtime/reload`: 宿主页和开发态工具使用的辅助入口，不作为插件作者直接调用的稳定 API。
 
 替换同 id 插件时会走升级路径：
 

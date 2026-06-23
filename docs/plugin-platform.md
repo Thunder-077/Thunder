@@ -93,7 +93,7 @@ plugin.json
 当前正式 Host Bridge 能力：
 
 - `plugin.getManifest`
-- `plugin.setFrameHeight`
+- `layout.setFrameHeight`
 - `theme.onChange`
 - `storage.get`
 - `storage.set`
@@ -104,6 +104,7 @@ plugin.json
 - `activity.track`
 - `network.request`
 - `worker.invoke`
+- `events.broadcast`
 
 权限由宿主页按方法校验，不信任插件自行声称的能力。后端能力也会重复
 校验：storage API 校验 `storage`，网络代理校验精确 `network:<origin>`，
@@ -113,9 +114,28 @@ Host Bridge 的唯一协议源是 `packages/plugin-protocol`。它统一维护�
 版本、消息 envelope、方法参数、返回值和权限映射；SDK 与宿主不得各自
 维护方法清单。
 
-`storage.*` 方法的实际存储后端是宿主页（`apps/web/src/app/plugins/[pluginId]/page.tsx`）
-持有的 IndexedDB，详见 `docs/desktop-plugin-system.md#插件存储后端`。
-协议层只关心方法与权限，不耦合到具体存储实现。
+`storage.*` 方法的实际存储后端是 API 侧插件私有 SQLite 文件。宿主页只负责
+校验 iframe 消息并通过桌面插件 API 转发存储调用，详见
+`docs/desktop-plugin-system.md#插件存储后端`。协议层只关心方法与权限，
+不耦合到具体存储实现。
+
+插件间事件通信使用 `events.broadcast`。宿主只把事件转发给当前已加载的其他
+插件 iframe，不持久化、不跨进程广播，也不保证离线投递。该能力适合轻量 UI
+联动，不应用作可靠任务队列或数据同步通道。
+
+### API 稳定性
+
+当前稳定公开能力限定为 Manifest v2、Browser SDK 中的 Host Bridge 方法、
+Worker SDK 的 `defineWorker`、本地/内置安装入口、runtime 状态查询和
+插件私有存储。稳定 API 发生破坏性变化时需要更新 `manifestVersion` 或
+`engines.thunder` 兼容范围。
+
+以下能力属于宿主内部或开发态辅助能力，不应被第三方插件直接依赖：
+
+- `/api/v1/desktop/plugins/:id/runtime/events`：宿主页使用的 runtime 状态事件流。
+- `/api/v1/desktop/plugins/:id/runtime/reload`：开发态热重载辅助入口。
+- `plugin.updated`：开发态 HMR 通知。
+- `packages/plugin-host-runtime`：宿主内部 runtime 托管实现。
 
 网络能力由 API 代理实现，并使用 `network:<origin>` 精确授权；iframe
 自身的 CSP 不开放外部连接。当前稳定能力不包含 Secrets、命令贡献点或

@@ -9,6 +9,7 @@ import {
   type PluginBridgeMethod,
   type PluginBridgeRequest,
   type PluginBridgeResponse,
+  type PluginBroadcastEvent,
   type PluginHmrScope,
   type PluginNotificationParams,
   type PluginNetworkRequestParams,
@@ -25,6 +26,12 @@ type WorkerInvokeResponse<T> = {
 type HmrUpdateCallback = (event: { scope: PluginHmrScope }) => void
 
 type ThemeChangeCallback = (theme: "light" | "dark") => void
+
+type PluginEventCallback = (event: {
+  senderId: string
+  event: string
+  data?: unknown
+}) => void
 
 export interface ThunderBrowserPluginClient {
   plugin: {
@@ -57,6 +64,10 @@ export interface ThunderBrowserPluginClient {
     request(params: PluginNetworkRequestParams): Promise<PluginNetworkResponse>
     get(url: string, headers?: Record<string, string>): Promise<PluginNetworkResponse>
     post(url: string, body?: string, headers?: Record<string, string>): Promise<PluginNetworkResponse>
+  }
+  events: {
+    broadcast(event: string, data?: unknown): Promise<void>
+    onMessage(callback: PluginEventCallback): () => void
   }
 }
 
@@ -235,6 +246,35 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
         postHostMessage<PluginNetworkResponse>("network.request", { url, method: "GET", headers }),
       post: (url, body, headers) =>
         postHostMessage<PluginNetworkResponse>("network.request", { url, method: "POST", body, headers }),
+    },
+    events: {
+      broadcast: (event, data) =>
+        postHostMessage<void>("events.broadcast", { event, data }),
+      onMessage: (callback) => {
+        if (typeof window === "undefined") return () => {}
+
+        function handleMessage(event: MessageEvent<PluginBroadcastEvent>) {
+          const data = event.data
+          if (
+            !data ||
+            data.source !== PLUGIN_BRIDGE_RESPONSE_SOURCE ||
+            data.version !== PLUGIN_BRIDGE_VERSION ||
+            data.type !== "plugin.event" ||
+            typeof data.senderId !== "string" ||
+            typeof data.event !== "string"
+          ) {
+            return
+          }
+          callback({
+            senderId: data.senderId,
+            event: data.event,
+            data: data.data,
+          })
+        }
+
+        window.addEventListener("message", handleMessage)
+        return () => window.removeEventListener("message", handleMessage)
+      },
     },
   }
 }

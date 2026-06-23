@@ -8,7 +8,7 @@ import {
   assertPluginId,
   getPluginDirs,
 } from "./desktop-plugin-internal"
-import { getInstalledPlugin } from "./desktop-plugin-manager"
+import { getInstalledPlugin } from "./desktop-plugin-registry"
 
 const MAX_PLUGIN_STORAGE_BYTES = 1024 * 1024
 const MAX_PLUGIN_STORAGE_VALUE_BYTES = 256 * 1024
