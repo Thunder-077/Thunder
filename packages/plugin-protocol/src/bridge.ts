@@ -29,12 +29,24 @@ export interface PluginNetworkRequestParams {
   method?: PluginNetworkMethod
   headers?: Record<string, string>
   body?: string
+  /**
+   * Controls how the response body is encoded.
+   * - `"text"` (default): UTF-8 decoded string. Suitable for JSON/text APIs.
+   * - `"base64"`: Base64-encoded string of the raw bytes. Required for binary
+   *   data (images, protobuf, gzip, etc.) to avoid corruption.
+   */
+  responseType?: "text" | "base64"
 }
 
 export interface PluginNetworkResponse {
   status: number
   headers: Record<string, string>
   body: string
+  /**
+   * Present only when the body is base64-encoded. Absent for plain text
+   * responses (backward compatible).
+   */
+  encoding?: "base64"
 }
 
 export interface PluginBridgeMethodMap {
@@ -340,11 +352,16 @@ export function parsePluginBridgeParams(
     if (input.body !== undefined && typeof input.body !== "string") {
       invalidParams(method, "body must be a string")
     }
+    const responseType = input.responseType ?? "text"
+    if (responseType !== "text" && responseType !== "base64") {
+      invalidParams(method, "responseType must be \"text\" or \"base64\"")
+    }
     return {
       url: url.toString(),
       method: requestMethod as PluginNetworkMethod,
       headers: input.headers as Record<string, string> | undefined,
       body: input.body as string | undefined,
+      responseType: responseType as "text" | "base64",
     }
   }
 

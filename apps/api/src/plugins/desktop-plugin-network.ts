@@ -26,12 +26,14 @@ export interface DesktopPluginNetworkRequest {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
   headers?: Record<string, string>
   body?: string
+  responseType?: "text" | "base64"
 }
 
 export interface DesktopPluginNetworkResponse {
   status: number
   headers: Record<string, string>
   body: string
+  encoding?: "base64"
 }
 
 function parseNetworkRequest(input: unknown): DesktopPluginNetworkRequest {
@@ -58,11 +60,16 @@ function parseNetworkRequest(input: unknown): DesktopPluginNetworkRequest {
   if (request.body !== undefined && typeof request.body !== "string") {
     throw new DesktopPluginError("插件网络请求 body 无效", 400)
   }
+  const responseType = request.responseType ?? "text"
+  if (responseType !== "text" && responseType !== "base64") {
+    throw new DesktopPluginError("插件网络请求 responseType 无效，仅支持 text 或 base64", 400)
+  }
   return {
     url: request.url,
     method: method as DesktopPluginNetworkRequest["method"],
     headers: request.headers as Record<string, string> | undefined,
     body: request.body as string | undefined,
+    responseType,
   }
 }
 
@@ -142,10 +149,15 @@ export async function proxyDesktopPluginNetworkRequest(
           responseHeaders[name] = value
         }
       })
+
+      const useBase64 = request.responseType === "base64"
       return {
         status: response.status,
         headers: responseHeaders,
-        body: new TextDecoder().decode(bytes),
+        body: useBase64
+          ? Buffer.from(bytes).toString("base64")
+          : new TextDecoder().decode(bytes),
+        ...(useBase64 ? { encoding: "base64" as const } : {}),
       }
     }
     throw new DesktopPluginError("插件网络请求重定向次数过多", 502)

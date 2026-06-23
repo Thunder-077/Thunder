@@ -7,13 +7,19 @@ import type {
   DesktopPluginTrustRecord,
   DesktopPluginTrustSource,
 } from "./desktop-plugin-types"
+import { DesktopPluginError } from "./desktop-plugin-internal"
 
-export class DesktopPluginTrustError extends Error {
+/**
+ * Trust-specific plugin error. Extends DesktopPluginError so the route
+ * error handler catches it uniformly via `instanceof DesktopPluginError`.
+ */
+export class DesktopPluginTrustError extends DesktopPluginError {
   constructor(
     message: string,
-    readonly status = 409,
+    status = 409,
   ) {
-    super(message)
+    super(message, status)
+    this.name = "DesktopPluginTrustError"
   }
 }
 

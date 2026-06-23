@@ -17,6 +17,10 @@ import {
   type DesktopPluginTrustDecision,
 } from "./desktop-plugin-trust"
 import {
+  closeAllStorageConnections,
+  closePluginStorageConnection,
+} from "./desktop-plugin-storage"
+import {
   DesktopPluginError,
   getDesktopPluginRoot,
   getPluginDirs,
@@ -57,12 +61,13 @@ const trustedRuntimeSupervisor = createTrustedRuntimeSupervisor()
 const pluginOperationLocks = new Map<string, Promise<void>>()
 
 /**
- * Gracefully shut down all trusted plugin runtimes and clear operation locks.
- * Must be called during server shutdown to prevent orphaned child processes
- * and leaked pipe connections.
+ * Gracefully shut down all trusted plugin runtimes, close storage connections,
+ * and clear operation locks. Must be called during server shutdown to prevent
+ * orphaned child processes and leaked resources.
  */
 export async function shutdownPluginSystem(): Promise<void> {
   await trustedRuntimeSupervisor.stopAll()
+  closeAllStorageConnections()
   pluginOperationLocks.clear()
 }
 
@@ -438,6 +443,7 @@ export async function uninstallDesktopPlugin(id: string): Promise<void> {
   assertPluginId(id)
   await withPluginOperationLock(id, async () => {
     await stopDesktopPluginRuntime(id)
+    closePluginStorageConnection(id)
 
     const { pluginsDir } = getPluginDirs()
     const targetDir = join(pluginsDir, id)

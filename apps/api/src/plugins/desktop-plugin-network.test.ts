@@ -45,6 +45,36 @@ async function main() {
     /请求方法无效/,
   )
 
+  // ---- Test: base64 responseType preserves binary data ----
+  const binaryPayload = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe])
+  const base64Response = await proxyDesktopPluginNetworkRequest(
+    manifest,
+    {
+      url: "https://example.com/image.png",
+      responseType: "base64",
+    },
+    async () => new Response(binaryPayload, {
+      status: 200,
+      headers: { "content-type": "image/png" },
+    }),
+  )
+  assert.equal(base64Response.encoding, "base64", "base64 response should have encoding field")
+  const decodedBytes = Buffer.from(base64Response.body, "base64")
+  assert.deepEqual(
+    new Uint8Array(decodedBytes),
+    binaryPayload,
+    "base64 body should round-trip binary data without corruption",
+  )
+
+  // ---- Test: text responseType (default) omits encoding field ----
+  const textResponse = await proxyDesktopPluginNetworkRequest(
+    manifest,
+    { url: "https://example.com/data" },
+    async () => new Response("hello", { status: 200 }),
+  )
+  assert.equal(textResponse.body, "hello")
+  assert.equal(textResponse.encoding, undefined, "text response should not have encoding field")
+
   console.log("[desktop-plugin-network] tests passed")
 }
 

@@ -1,4 +1,5 @@
 import { Hono } from "hono"
+import { createMiddleware } from "hono/factory"
 import {
   DesktopPluginError,
   getDesktopPluginRuntimeStatus,
@@ -28,6 +29,28 @@ import {
 
 export const desktopPlugins = new Hono()
 
+/**
+ * Guard middleware: rejects all plugin API requests when the plugin system
+ * is not enabled (i.e. non-desktop environments). Applied globally so
+ * individual routes don't need to duplicate the check.
+ */
+const pluginSystemGuard = createMiddleware(async (c, next) => {
+  if (!isDesktopPluginRuntimeEnabled()) {
+    return c.json({ ok: false, message: "插件系统仅在桌面端启用" }, 403)
+  }
+  await next()
+})
+
+// Apply the guard to all routes that operate on a specific plugin.
+// The list and marketplace endpoints intentionally skip the guard —
+// listInstalledDesktopPlugins already returns [] when disabled, and
+// marketplace browsing is allowed regardless.
+desktopPlugins.use("/:id/*", pluginSystemGuard)
+desktopPlugins.use("/:id", pluginSystemGuard)
+
+// Installation and uninstallation endpoints also need the guard.
+desktopPlugins.use("/install/*", pluginSystemGuard)
+
 const BLOCKED_PLUGIN_API_PROXY_HEADERS = new Set([
   "authorization",
   "connection",
@@ -52,13 +75,7 @@ export function sanitizePluginApiProxyHeaders(headers: Headers): Headers {
 
 function toErrorResponse(error: unknown) {
   if (error instanceof DesktopPluginError) {
-    return { status: error.status, body: { ok: false, message: error.message } }
-  }
-  if (
-    error instanceof Error &&
-    "status" in error &&
-    typeof error.status === "number"
-  ) {
+    // Covers DesktopPluginError and all subclasses (e.g. DesktopPluginTrustError).
     return { status: error.status, body: { ok: false, message: error.message } }
   }
   console.error("[desktop-plugins] unexpected error", error)
@@ -108,10 +125,7 @@ desktopPlugins.post("/install/local", async (c) => {
       | null
 
     if (!body?.pluginPath) {
-      return new Response(JSON.stringify({ ok: false, message: "pluginPath 不能为空" }), {
-        status: 400,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      })
+      return c.json({ ok: false, message: "pluginPath 不能为空" }, 400)
     }
 
     const plugin = await installPackagedPlugin({
@@ -133,10 +147,7 @@ desktopPlugins.post("/install/bundled", async (c) => {
     const body = (await c.req.json().catch(() => null)) as { pluginId?: string } | null
 
     if (!body?.pluginId) {
-      return new Response(JSON.stringify({ ok: false, message: "pluginId 不能为空" }), {
-        status: 400,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      })
+      return c.json({ ok: false, message: "pluginId 不能为空" }, 400)
     }
 
     const plugin = await installBundledDesktopPlugin(body.pluginId)
@@ -165,10 +176,7 @@ desktopPlugins.post("/:id/worker/invoke", async (c) => {
       | null
 
     if (!body?.method || typeof body.method !== "string") {
-      return new Response(JSON.stringify({ ok: false, message: "method 不能为空" }), {
-        status: 400,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      })
+      return c.json({ ok: false, message: "method 不能为空" }, 400)
     }
 
     const result = await invokeDesktopPluginWorker(c.req.param("id"), body.method, body.payload)
@@ -235,10 +243,7 @@ desktopPlugins.post("/:id/runtime/reload", async (c) => {
 
     const scope = body?.scope ?? "all"
     if (scope !== "ui" && scope !== "worker" && scope !== "all") {
-      return new Response(JSON.stringify({ ok: false, message: "scope 必须是 ui、worker 或 all" }), {
-        status: 400,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      })
+      return c.json({ ok: false, message: "scope 必须是 ui、worker 或 all" }, 400)
     }
 
     let runtimeStatus = undefined
@@ -259,10 +264,7 @@ desktopPlugins.get("/:id/ui/*", async (c) => {
   try {
     const id = c.req.param("id")
     if (!id) {
-      return new Response(JSON.stringify({ ok: false, message: "插件 id 不能为空" }), {
-        status: 400,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      })
+      return c.json({ ok: false, message: "插件 id 不能为空" }, 400)
     }
 
     const rawPath = c.req.path.split(`/api/v1/desktop/plugins/${id}/ui/`)[1] ?? ""
@@ -325,20 +327,11 @@ desktopPlugins.get("/:id/ui/*", async (c) => {
 
 // ===== Plugin Storage endpoints =====
 desktopPlugins.get("/:id/storage", async (c) => {
-  if (!isDesktopPluginRuntimeEnabled()) {
-    return new Response(JSON.stringify({ ok: false, message: "插件系统仅在桌面端启用" }), {
-      status: 403,
-      headers: { "content-type": "application/json; charset=utf-8" },
-    })
-  }
   try {
     const pluginId = c.req.param("id")
     const key = c.req.query("key")
     if (!key) {
-      return new Response(JSON.stringify({ ok: false, message: "key query 参数不能为空" }), {
-        status: 400,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      })
+      return c.json({ ok: false, message: "key query 参数不能为空" }, 400)
     }
     const value = await getPluginStorage(pluginId, key)
     return c.json({ ok: true, data: value })
@@ -348,12 +341,6 @@ desktopPlugins.get("/:id/storage", async (c) => {
 })
 
 desktopPlugins.get("/:id/storage/keys", async (c) => {
-  if (!isDesktopPluginRuntimeEnabled()) {
-    return new Response(JSON.stringify({ ok: false, message: "插件系统仅在桌面端启用" }), {
-      status: 403,
-      headers: { "content-type": "application/json; charset=utf-8" },
-    })
-  }
   try {
     const pluginId = c.req.param("id")
     const keys = await listPluginStorageKeys(pluginId)
@@ -364,12 +351,6 @@ desktopPlugins.get("/:id/storage/keys", async (c) => {
 })
 
 desktopPlugins.put("/:id/storage", async (c) => {
-  if (!isDesktopPluginRuntimeEnabled()) {
-    return new Response(JSON.stringify({ ok: false, message: "插件系统仅在桌面端启用" }), {
-      status: 403,
-      headers: { "content-type": "application/json; charset=utf-8" },
-    })
-  }
   try {
     const pluginId = c.req.param("id")
     const body = (await c.req.json().catch(() => null)) as
@@ -380,10 +361,7 @@ desktopPlugins.put("/:id/storage", async (c) => {
       | null
 
     if (!body?.key || typeof body.key !== "string") {
-      return new Response(JSON.stringify({ ok: false, message: "key 必须是非空字符串" }), {
-        status: 400,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      })
+      return c.json({ ok: false, message: "key 必须是非空字符串" }, 400)
     }
 
     await setPluginStorage(pluginId, body.key, body.value)
@@ -394,12 +372,6 @@ desktopPlugins.put("/:id/storage", async (c) => {
 })
 
 desktopPlugins.delete("/:id/storage", async (c) => {
-  if (!isDesktopPluginRuntimeEnabled()) {
-    return new Response(JSON.stringify({ ok: false, message: "插件系统仅在桌面端启用" }), {
-      status: 403,
-      headers: { "content-type": "application/json; charset=utf-8" },
-    })
-  }
   try {
     const pluginId = c.req.param("id")
     const key = c.req.query("key")

@@ -3,6 +3,7 @@ import { join, resolve } from "node:path"
 import assert from "node:assert/strict"
 import {
   clearPluginStorage,
+  closeAllStorageConnections,
   getPluginStorage,
   listPluginStorageKeys,
   removePluginStorage,
@@ -166,6 +167,9 @@ async function main() {
 
     console.log("[desktop-plugin-storage] all tests passed")
   } finally {
+    // Close pooled connections before cleaning up the test directory,
+    // otherwise the database file handle blocks deletion on Windows.
+    closeAllStorageConnections()
     await env.cleanup()
   }
 }
