@@ -3,6 +3,7 @@ import {
   parsePluginBridgeRequest,
   type PluginActivityParams,
   type PluginBridgeRequest,
+  type PluginEventBroadcastParams,
   type PluginNotificationParams,
   type PluginNetworkRequestParams,
   type PluginNetworkResponse,
@@ -25,6 +26,8 @@ export interface DesktopPluginHostContext {
   trackActivity(params: PluginActivityParams): Promise<void>
   invokeWorker(method: string, payload: unknown): Promise<unknown>
   requestNetwork(params: PluginNetworkRequestParams): Promise<PluginNetworkResponse>
+  /** Broadcast an event to all other loaded plugins via the host event bus. */
+  broadcastEvent?(params: PluginEventBroadcastParams): void
 }
 
 export interface DesktopPluginDispatchResult {
@@ -96,6 +99,11 @@ export async function dispatchDesktopPluginHostRequest(
       )
       result = { ok: true, result: workerResult }
       diagnosticMethod = `${request.method}:${request.params.method}`
+      break
+    }
+    case "events.broadcast": {
+      context.broadcastEvent?.(request.params)
+      diagnosticMethod = `${request.method}:${request.params.event}`
       break
     }
   }

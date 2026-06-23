@@ -22,6 +22,17 @@ export interface PluginActivityParams {
   metadata?: Record<string, unknown>
 }
 
+/**
+ * Parameters for broadcasting an event from one plugin to all others.
+ * The host forwards the event to every other loaded plugin's iframe.
+ */
+export interface PluginEventBroadcastParams {
+  /** Event type name, e.g. "transcription.updated" */
+  event: string
+  /** Arbitrary JSON-serializable payload */
+  data?: unknown
+}
+
 export type PluginNetworkMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
 
 export interface PluginNetworkRequestParams {
@@ -94,6 +105,10 @@ export interface PluginBridgeMethodMap {
     params: { method: string; payload?: unknown }
     result: { ok: true; result: unknown }
   }
+  "events.broadcast": {
+    params: PluginEventBroadcastParams
+    result: undefined
+  }
 }
 
 export type PluginBridgeMethod = keyof PluginBridgeMethodMap
@@ -136,6 +151,22 @@ export type PluginUpdatedEvent = {
   timestamp: number
 }
 
+/**
+ * Inbound event from another plugin, forwarded by the host.
+ * Received via postMessage in the plugin iframe.
+ */
+export type PluginBroadcastEvent = {
+  source: typeof PLUGIN_BRIDGE_RESPONSE_SOURCE
+  version: typeof PLUGIN_BRIDGE_VERSION
+  type: "plugin.event"
+  /** ID of the plugin that sent the event */
+  senderId: string
+  /** Event type name */
+  event: string
+  /** Arbitrary JSON-serializable payload */
+  data?: unknown
+}
+
 export const pluginBridgeMethods = [
   "plugin.getManifest",
   "layout.setFrameHeight",
@@ -148,6 +179,7 @@ export const pluginBridgeMethods = [
   "activity.track",
   "network.request",
   "worker.invoke",
+  "events.broadcast",
 ] as const satisfies readonly PluginBridgeMethod[]
 
 const METHOD_PERMISSIONS: Partial<
@@ -365,8 +397,24 @@ export function parsePluginBridgeParams(
     }
   }
 
-  return {
-    method: normalizePluginWorkerMethod(input.method),
-    ...(input.payload === undefined ? {} : { payload: input.payload }),
+  if (method === "worker.invoke") {
+    return {
+      method: normalizePluginWorkerMethod(input.method),
+      ...(input.payload === undefined ? {} : { payload: input.payload }),
+    }
   }
+
+  if (method === "events.broadcast") {
+    if (typeof input.event !== "string" || input.event.trim().length === 0) {
+      invalidParams(method, "event name is required")
+    }
+    return {
+      event: input.event.trim(),
+      ...(input.data === undefined ? {} : { data: input.data }),
+    }
+  }
+
+  // Exhaustive — if we reach here, a new method was added to the type
+  // without a corresponding parser case.
+  invalidParams(method, "unknown bridge method")
 }

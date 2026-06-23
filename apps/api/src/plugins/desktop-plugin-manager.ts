@@ -5,6 +5,7 @@ import {
   createTrustedRuntimeSupervisor,
   PluginRuntimeError,
 } from "@thunder/plugin-host-runtime"
+import { satisfiesSemverRange } from "@thunder/plugin-schema"
 import type {
   DesktopPluginInstallRecord,
   DesktopPluginRuntimeStatus,
@@ -59,6 +60,13 @@ const STATIC_CONTENT_TYPES: Record<string, string> = {
 }
 const trustedRuntimeSupervisor = createTrustedRuntimeSupervisor()
 const pluginOperationLocks = new Map<string, Promise<void>>()
+
+/**
+ * Current Thunder platform version for engine compatibility checks.
+ * Sourced from THUNDER_VERSION env var (set by the desktop build) or
+ * falls back to a sensible default.
+ */
+const THUNDER_PLATFORM_VERSION = process.env.THUNDER_VERSION ?? "0.1.1"
 
 /**
  * Gracefully shut down all trusted plugin runtimes, close storage connections,
@@ -302,6 +310,19 @@ export async function installPackagedPlugin(
 
   const manifest = await readManifest(sourcePath)
   const manifestSha256 = sha256(await readFile(join(sourcePath, "plugin.json")))
+
+  // Verify engine compatibility — reject plugins that declare a thunder
+  // engine range the current platform doesn't satisfy.
+  if (
+    manifest.engines?.thunder &&
+    manifest.engines.thunder !== "*" &&
+    !satisfiesSemverRange(THUNDER_PLATFORM_VERSION, manifest.engines.thunder)
+  ) {
+    throw new DesktopPluginError(
+      `插件要求 Thunder ${manifest.engines.thunder}，当前版本为 ${THUNDER_PLATFORM_VERSION}`,
+    )
+  }
+
   await assertNoSymlinks(sourcePath)
 
   const { pluginsDir, stagingDir } = getPluginDirs()

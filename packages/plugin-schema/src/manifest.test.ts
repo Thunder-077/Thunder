@@ -167,6 +167,22 @@ assert.throws(() =>
   /engines\.thunder is required/,
 );
 
+// ---- Semver version format validation ----
+for (const invalidVersion of ["🎉", "1.0", "v1.0.0", "not-a-version", "1.0.0.0"]) {
+  assert.throws(
+    () => parseThunderPluginManifest({ ...trustedManifest, version: invalidVersion }),
+    /version must be a valid semver/,
+    `expected semver rejection for version: ${JSON.stringify(invalidVersion)}`,
+  );
+}
+// Valid semver versions should pass
+for (const validVersion of ["1.0.0", "0.0.1", "2.10.300", "1.0.0-alpha", "1.0.0-beta.1"]) {
+  assert.doesNotThrow(
+    () => parseThunderPluginManifest({ ...trustedManifest, version: validVersion }),
+    `expected semver acceptance for version: ${JSON.stringify(validVersion)}`,
+  );
+}
+
 // ---- String length limit tests ----
 assert.throws(
   () => parseThunderPluginManifest({ ...trustedManifest, name: "x".repeat(129) }),

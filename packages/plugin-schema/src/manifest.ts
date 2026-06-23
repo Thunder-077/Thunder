@@ -5,6 +5,7 @@ import {
   normalizeThunderPluginNetworkPermission,
   type ThunderPluginPermission,
 } from "./permissions.js";
+import { isValidSemver } from "./semver.js";
 
 // ---- Manifest field length limits ----
 const MAX_NAME_LENGTH = 128;
@@ -228,6 +229,10 @@ export function parseThunderPluginManifest(
   assertManifest(
     typeof input.version === "string" && input.version.length > 0 && input.version.length <= MAX_VERSION_LENGTH,
     `version is required and must not exceed ${MAX_VERSION_LENGTH} characters`,
+  );
+  assertManifest(
+    isValidSemver(input.version),
+    `version must be a valid semver string (MAJOR.MINOR.PATCH), got: ${String(input.version)}`,
   );
   assertManifest(
     input.kind === "sandboxed" || input.kind === "trusted",
