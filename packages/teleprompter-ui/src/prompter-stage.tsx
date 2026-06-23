@@ -56,6 +56,16 @@ const fullscreenStopButtonClass =
   "h-8 gap-1.5 border-destructive/35 bg-destructive/10 px-3 text-xs text-destructive shadow-none hover:border-destructive/50 hover:bg-destructive/20 hover:text-destructive"
 const fullscreenResetButtonClass =
   "h-8 gap-1.5 border-primary-foreground/25 bg-primary-foreground/10 px-3 text-xs text-primary-foreground shadow-none hover:border-primary-foreground/40 hover:bg-primary-foreground/20 hover:text-primary-foreground"
+const readCharClass = "text-slate-500/70"
+const unreadCharClass = "text-slate-100"
+const currentCharClasses = ["bg-cyan-400/25", "text-cyan-50"] as const
+
+type PrompterCharVisualState = "read" | "current" | "unread"
+type FollowDomVisualSnapshot = {
+  index: number
+  offset: number
+  boundaryIndex: number | null
+}
 
 type PrompterSegmentRowProps = {
   segment: ScriptSegment
@@ -96,9 +106,116 @@ function getPrompterSegmentVisualState(props: PrompterSegmentRowProps) {
     visibleReadOffset: props.visibleReadOffset,
   })
 
-  return followState === "active" || followState === "partial"
-    ? `${followState}:${props.visibleReadOffset}`
-    : followState
+  return followState
+}
+
+function getInitialCharVisualState(input: {
+  mode: TeleprompterMode
+  index: number
+  charEndOffset: number
+  visibleCurrentIndex: number
+  visibleReadOffset: number
+  autoScrollActiveIndex: number
+}): PrompterCharVisualState {
+  if (input.mode === "auto-scroll") {
+    return input.index < input.autoScrollActiveIndex ? "read" : "unread"
+  }
+
+  if (input.charEndOffset <= input.visibleReadOffset) {
+    return "read"
+  }
+
+  if (input.charEndOffset === input.visibleReadOffset + 1 && input.index === input.visibleCurrentIndex) {
+    return "current"
+  }
+
+  return "unread"
+}
+
+function getPrompterCharVisualClass(state: PrompterCharVisualState) {
+  if (state === "read") return readCharClass
+  if (state === "current") return currentCharClasses.join(" ")
+  return unreadCharClass
+}
+
+function setPrompterCharVisualState(element: HTMLElement, state: PrompterCharVisualState) {
+  if (element.dataset.followVisual === state) return
+
+  // 高频跟读动画只切换字符 class，不让 React 重新渲染整段字符。
+  element.classList.remove(readCharClass, unreadCharClass, ...currentCharClasses)
+  if (state === "current") {
+    element.classList.add(...currentCharClasses)
+  } else {
+    element.classList.add(state === "read" ? readCharClass : unreadCharClass)
+  }
+  element.dataset.followVisual = state
+}
+
+function getSegmentCharElements(segmentEl: HTMLElement) {
+  return Array.from(segmentEl.querySelectorAll<HTMLElement>("[data-offset]"))
+}
+
+function findSegmentIndexByOffset(segments: ScriptSegment[], script: string, offset: number) {
+  return segments.findIndex((segment) => {
+    const segmentStartOffset = getSegmentTextStartOffset(script, segment)
+    const segmentEndOffset = getSegmentTextEndOffset(script, segment)
+    return offset >= segmentStartOffset && offset <= segmentEndOffset
+  })
+}
+
+function updateWholeSegmentVisualState(input: {
+  segmentEl: HTMLElement | null | undefined
+  index: number
+  visibleCurrentIndex: number
+  visibleReadOffset: number
+}) {
+  if (!input.segmentEl) return
+
+  for (const charEl of getSegmentCharElements(input.segmentEl)) {
+    const charEndOffset = Number(charEl.dataset.offset)
+    if (!Number.isFinite(charEndOffset)) continue
+
+    const state = input.index < input.visibleCurrentIndex
+      ? "read"
+      : input.index > input.visibleCurrentIndex
+        ? "unread"
+        : charEndOffset <= input.visibleReadOffset
+          ? "read"
+          : charEndOffset === input.visibleReadOffset + 1
+            ? "current"
+            : "unread"
+    setPrompterCharVisualState(charEl, state)
+  }
+}
+
+function updateActiveSegmentVisualRange(input: {
+  segmentEl: HTMLElement | null | undefined
+  previousOffset: number
+  nextOffset: number
+}) {
+  if (!input.segmentEl) return
+
+  if (input.nextOffset <= input.previousOffset) {
+    updateWholeSegmentVisualState({
+      segmentEl: input.segmentEl,
+      index: 0,
+      visibleCurrentIndex: 0,
+      visibleReadOffset: input.nextOffset,
+    })
+    return
+  }
+
+  for (let offset = input.previousOffset + 1; offset <= input.nextOffset; offset += 1) {
+    const charEl = input.segmentEl.querySelector<HTMLElement>(`[data-offset="${offset}"]`)
+    if (charEl) {
+      setPrompterCharVisualState(charEl, "read")
+    }
+  }
+
+  const currentCharEl = input.segmentEl.querySelector<HTMLElement>(`[data-offset="${input.nextOffset + 1}"]`)
+  if (currentCharEl) {
+    setPrompterCharVisualState(currentCharEl, "current")
+  }
 }
 
 function arePrompterSegmentRowsEqual(prev: PrompterSegmentRowProps, next: PrompterSegmentRowProps) {
@@ -164,15 +281,20 @@ const PrompterSegmentRow = memo(function PrompterSegmentRow({
         {Array.from(segment.raw).map((char, charIndex) => {
           const absoluteOffset = textStartOffset + charIndex
           const charEndOffset = absoluteOffset + 1
-          const isRead = mode === "follow-read"
-            ? charEndOffset < visibleReadOffset
-            : index < autoScrollActiveIndex
-          const isCurrentChar = charEndOffset === visibleReadOffset && index === visibleCurrentIndex
+          const charVisualState = getInitialCharVisualState({
+            mode,
+            index,
+            charEndOffset,
+            visibleCurrentIndex,
+            visibleReadOffset,
+            autoScrollActiveIndex,
+          })
 
           return (
             <span
               key={`${segment.id}-${charEndOffset}`}
               data-offset={charEndOffset}
+              data-follow-visual={charVisualState}
               onClick={() => {
                 const selection = window.getSelection()?.toString()
                 if (selection && selection.length > 0) return
@@ -180,9 +302,7 @@ const PrompterSegmentRow = memo(function PrompterSegmentRow({
               }}
               className={cn(
                 "inline cursor-pointer rounded-sm px-0.5 py-0 text-left font-[inherit] leading-[inherit] transition-colors hover:bg-muted/20 select-text",
-                isRead && "text-slate-500/70",
-                !isRead && "text-slate-100",
-                isCurrentChar && "bg-cyan-400/25 text-cyan-50",
+                getPrompterCharVisualClass(charVisualState),
               )}
             >
               {char}
@@ -234,6 +354,7 @@ export function PrompterStage({
 }: PrompterStageProps) {
   const [controlsVisible, setControlsVisible] = useState(true)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const followDomVisualRef = useRef<FollowDomVisualSnapshot | null>(null)
 
   const showControls = useCallback(() => {
     setControlsVisible(true)
@@ -291,6 +412,92 @@ export function PrompterStage({
 
   const isFollowPlaying = followStatus === "following" || followStatus === "listening"
   const isAutoScrollPlaying = autoScrollStatus === "scrolling" || autoScrollStatus === "countdown"
+
+  useEffect(() => {
+    if (mode !== "follow-read" || isEditingScript || segments.length === 0) {
+      followDomVisualRef.current = null
+      return
+    }
+
+    const previous = followDomVisualRef.current
+    const boundaryIndex = findSegmentIndexByOffset(segments, script, visibleReadOffset)
+    const activeSegmentEl = segmentRefs.current[visibleCurrentIndex]
+    const boundarySegmentEl = boundaryIndex >= 0 ? segmentRefs.current[boundaryIndex] : null
+    const shouldRescanActiveSegment =
+      !previous
+      || previous.index !== visibleCurrentIndex
+      || visibleReadOffset <= previous.offset
+    const shouldRescanBoundarySegment =
+      boundaryIndex >= 0
+      && (
+        !previous
+        || previous.boundaryIndex !== boundaryIndex
+        || previous.index !== visibleCurrentIndex
+        || visibleReadOffset <= previous.offset
+      )
+
+    if (previous && previous.index !== visibleCurrentIndex) {
+      updateWholeSegmentVisualState({
+        segmentEl: segmentRefs.current[previous.index],
+        index: previous.index,
+        visibleCurrentIndex,
+        visibleReadOffset,
+      })
+    }
+
+    if (
+      previous?.boundaryIndex !== null
+      && previous?.boundaryIndex !== undefined
+      && previous.boundaryIndex !== previous.index
+      && previous.boundaryIndex !== visibleCurrentIndex
+      && previous.boundaryIndex !== boundaryIndex
+    ) {
+      updateWholeSegmentVisualState({
+        segmentEl: segmentRefs.current[previous.boundaryIndex],
+        index: previous.boundaryIndex,
+        visibleCurrentIndex,
+        visibleReadOffset,
+      })
+    }
+
+    if (shouldRescanActiveSegment) {
+      updateWholeSegmentVisualState({
+        segmentEl: activeSegmentEl,
+        index: visibleCurrentIndex,
+        visibleCurrentIndex,
+        visibleReadOffset,
+      })
+    } else {
+      updateActiveSegmentVisualRange({
+        segmentEl: activeSegmentEl,
+        previousOffset: previous.offset,
+        nextOffset: visibleReadOffset,
+      })
+    }
+
+    if (boundaryIndex >= 0 && boundaryIndex !== visibleCurrentIndex) {
+      if (shouldRescanBoundarySegment) {
+        updateWholeSegmentVisualState({
+          segmentEl: boundarySegmentEl,
+          index: boundaryIndex,
+          visibleCurrentIndex,
+          visibleReadOffset,
+        })
+      } else if (previous) {
+        updateActiveSegmentVisualRange({
+          segmentEl: boundarySegmentEl,
+          previousOffset: previous.offset,
+          nextOffset: visibleReadOffset,
+        })
+      }
+    }
+
+    followDomVisualRef.current = {
+      index: visibleCurrentIndex,
+      offset: visibleReadOffset,
+      boundaryIndex,
+    }
+  }, [isEditingScript, mode, script, segmentRefs, segments, visibleCurrentIndex, visibleReadOffset])
 
   return (
     <section

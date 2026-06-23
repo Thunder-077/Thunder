@@ -225,7 +225,6 @@ export default function DesktopPluginPage() {
   // network traffic while still being responsive to status changes.
   useEffect(() => {
     if (!plugin || plugin.manifest.kind === "sandboxed") {
-      setWorkerStatus({ phase: "stopped", running: false, consecutiveCrashCount: 0 })
       return
     }
 

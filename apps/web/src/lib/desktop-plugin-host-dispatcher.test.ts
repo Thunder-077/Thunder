@@ -33,6 +33,7 @@ function createContext(): DesktopPluginHostContext & {
   frameHeight: number
   notifications: unknown[]
   activities: unknown[]
+  broadcasts: unknown[]
 } {
   const values = new Map<string, unknown>()
   const context = {
@@ -41,6 +42,7 @@ function createContext(): DesktopPluginHostContext & {
     frameHeight: 0,
     notifications: [] as unknown[],
     activities: [] as unknown[],
+    broadcasts: [] as unknown[],
     storage: {
       get: async (key: string) => values.get(key) ?? null,
       set: async (key: string, value: unknown) => {
@@ -66,6 +68,9 @@ function createContext(): DesktopPluginHostContext & {
     },
     async requestNetwork() {
       return { status: 200, headers: {}, body: "ok" }
+    },
+    broadcastEvent(params: unknown) {
+      context.broadcasts.push(params)
     },
   }
   return context
@@ -96,6 +101,7 @@ const inputs: Record<PluginBridgeMethod, unknown> = {
   "activity.track": { action: "save", title: "Saved draft" },
   "network.request": { url: "https://example.com", method: "GET" },
   "worker.invoke": { method: "draft.normalize", payload: { text: "hello" } },
+  "events.broadcast": { event: "draft.updated", data: { text: "hello" } },
 }
 
 async function main() {
