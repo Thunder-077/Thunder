@@ -151,10 +151,23 @@ const result = await thunder.worker.invoke("speech.transcribe", { text: "hello w
 - `activity.track`
 - `network.request` / `network.get` / `network.post`
 - `worker.invoke`
+- `events.broadcast` / `events.onMessage`
 
 网络权限按精确 origin 声明，例如 `network:https://api.example.com`。
 iframe 不直接访问外网，请求由宿主代理执行，不转发 Cookie、Authorization
-或浏览器凭据。当前不提供 Secrets、命令或设置贡献点。
+或浏览器凭据。插件间事件通信只会转发给当前已加载的其他插件 iframe，不保证
+离线投递或可靠重放。当前不提供 Secrets、命令或设置贡献点。
+
+```ts
+await thunder.events.broadcast("draft.updated", { text: "hello" })
+
+const unsubscribe = thunder.events.onMessage((message) => {
+  if (message.event === "draft.updated") {
+    console.log(message.senderId, message.data)
+  }
+})
+unsubscribe()
+```
 
 ### Worker SDK
 

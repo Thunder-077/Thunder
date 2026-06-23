@@ -29,6 +29,7 @@ import {
   subscribeDesktopPluginRuntimeStatus,
   type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
+import { pluginEventBus } from "@/lib/desktop-plugin-event-bus"
 import { notificationStore } from "@/lib/notification-store"
 import { ActivityClient } from "@thunder/api-client"
 import type { PluginLogEntry, PluginRpcLogEntry, PluginWorkerStatus } from "@thunder/plugin-devtools"
@@ -220,6 +221,21 @@ export default function DesktopPluginPage() {
     )
   }, [hostOrigin, plugin, resolvedTheme])
 
+  // Register the current iframe as a receiver for controlled inter-plugin events.
+  useEffect(() => {
+    if (!plugin || !hostOrigin || !iframeRef.current) return
+    const entryUrl = getDesktopPluginEntryUrl(plugin)
+    if (!entryUrl) return
+
+    const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
+    const frameOrigin = new URL(frameUrl).origin
+    pluginEventBus.subscribe(plugin.manifest.id, iframeRef.current, frameOrigin)
+
+    return () => {
+      pluginEventBus.unsubscribe(plugin.manifest.id)
+    }
+  }, [hostOrigin, plugin, reloadKey])
+
   // Subscribe to runtime status changes via SSE (with polling fallback).
   // Replaces the previous 3-second polling interval, reducing unnecessary
   // network traffic while still being responsive to status changes.
@@ -364,6 +380,13 @@ export default function DesktopPluginPage() {
             ),
           requestNetwork: (params) =>
             requestDesktopPluginNetwork(currentPlugin.manifest.id, params),
+          broadcastEvent: (params) => {
+            pluginEventBus.broadcast(
+              currentPlugin.manifest.id,
+              params.event,
+              params.data,
+            )
+          },
         })
 
         if (dispatched.request.method === "worker.invoke") {

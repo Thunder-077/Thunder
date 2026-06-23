@@ -2,19 +2,27 @@ import { Hono } from "hono"
 import { createMiddleware } from "hono/factory"
 import {
   DesktopPluginError,
-  getDesktopPluginRuntimeStatus,
+} from "./desktop-plugin-internal"
+import {
   getInstalledPlugin,
-  installBundledDesktopPlugin,
-  installPackagedPlugin,
   isDesktopPluginRuntimeEnabled,
   listInstalledDesktopPlugins,
+} from "./desktop-plugin-registry"
+import {
+  installBundledDesktopPlugin,
+  installPackagedPlugin,
+  uninstallDesktopPlugin,
+} from "./desktop-plugin-install-service"
+import {
   readDesktopPluginUiAsset,
+} from "./desktop-plugin-asset-service"
+import {
+  getDesktopPluginRuntimeStatus,
+  invokeDesktopPluginWorker,
   restartDesktopPluginRuntime,
   startDesktopPluginRuntime,
   stopDesktopPluginRuntime,
-  uninstallDesktopPlugin,
-  invokeDesktopPluginWorker,
-} from "./desktop-plugin-manager"
+} from "./desktop-plugin-runtime-service"
 import { fetchDesktopPluginMarketplace } from "./desktop-plugin-marketplace"
 import {
   getPluginStorage,
