@@ -16,6 +16,17 @@ const workspaceRoot = resolve(apiRoot, "..", "..")
 const runtimeApiDir = resolve(workspaceRoot, "apps", "desktop", "runtime", "api")
 const runtimeSqliteClientDir = resolve(workspaceRoot, "apps", "desktop", "runtime", "generated", "sqlite-client")
 const outfile = resolve(runtimeApiDir, "server.cjs")
+const trustedRuntimeBootstrapSource = resolve(
+  workspaceRoot,
+  "packages",
+  "plugin-host-runtime",
+  "src",
+  "trusted-process-bootstrap.mjs",
+)
+const trustedRuntimeBootstrapTarget = resolve(
+  runtimeApiDir,
+  "trusted-process-bootstrap.mjs",
+)
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
@@ -108,6 +119,8 @@ await build({
     "process.env.NODE_ENV": JSON.stringify("production"),
   },
 })
+
+await copyFile(trustedRuntimeBootstrapSource, trustedRuntimeBootstrapTarget)
 
 await writeFile(
   resolve(runtimeApiDir, "package.json"),

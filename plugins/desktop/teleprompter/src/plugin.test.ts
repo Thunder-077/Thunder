@@ -85,7 +85,13 @@ const originalFetch = globalThis.fetch
 const originalWindow = (globalThis as typeof globalThis & { window?: unknown }).window
 
 {
-  ;(globalThis as typeof globalThis & { window?: unknown }).window = {
+  const speechWindow = globalThis as unknown as {
+    window?: {
+      SpeechRecognition: typeof FakeSpeechRecognition
+      setTimeout: typeof setTimeout
+    }
+  }
+  speechWindow.window = {
     SpeechRecognition: FakeSpeechRecognition,
     setTimeout,
   }

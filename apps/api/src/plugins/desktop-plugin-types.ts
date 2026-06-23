@@ -27,11 +27,29 @@ export interface DesktopPluginInstallRecord {
     algorithm: "ed25519"
     signature: string
   }
+  trust?: DesktopPluginTrustRecord
+}
+
+export type DesktopPluginTrustSource =
+  | "sandboxed-default"
+  | "user-confirmed"
+  | "official-bundled"
+
+export interface DesktopPluginTrustRecord {
+  source: DesktopPluginTrustSource
+  trustedAt: string
+  manifestSha256: string
+  kind: import("@thunder/plugin-schema").ThunderPluginKind
+  permissions: string[]
+  highRiskPermissions: string[]
+  acceptedRisk: boolean
+  reason?: string
 }
 
 export interface InstalledDesktopPlugin {
   manifest: import("@thunder/plugin-schema").ThunderPluginManifest
   pluginRoot: string
+  trust?: DesktopPluginTrustRecord
   route: string
   uiEntryUrl: string | null
   installedAt?: string
@@ -41,14 +59,15 @@ export interface InstalledDesktopPlugin {
 
 export interface DesktopPluginRuntimeStatus {
   pluginId: string
+  phase: import("@thunder/plugin-host-runtime").PluginRuntimePhase
   running: boolean
   pid?: number
-  port?: number
-  baseUrl?: string
-  endpoint?: string
   startedAt?: string
   lastExitAt?: string
   lastExitCode?: number | null
+  lastExitSignal?: NodeJS.Signals | null
+  consecutiveCrashCount: number
+  circuitOpenUntil?: string
   lastError?: string
 }
 
@@ -86,6 +105,10 @@ export interface DesktopPluginMarketplaceEntry {
     url?: string
   }
   permissions: string[]
+  kind?: import("@thunder/plugin-schema").ThunderPluginKind
+  highRiskPermissions?: string[]
+  requiresTrustConfirmation?: boolean
+  manifestSha256?: string
   source?: "package" | "bundled"
   packageUrl?: string
   packageSha256?: string

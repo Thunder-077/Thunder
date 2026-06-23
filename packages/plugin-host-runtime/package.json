@@ -12,7 +12,7 @@
     "@thunder/plugin-schema": "workspace:*"
   },
   "scripts": {
-    "test": "tsx src/runtime.test.ts",
+    "test": "tsx src/runtime.test.ts && tsx src/runtime-policy.test.ts && tsx src/rpc/pipe.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

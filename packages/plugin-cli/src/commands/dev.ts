@@ -2,9 +2,11 @@ import { watch } from "node:fs"
 import { spawn, type ChildProcess } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { fileURLToPath } from "node:url"
-import { resolve } from "node:path"
-import { buildPlugin, type BuildPluginResult, type PluginProject } from "./build"
-import { findMonorepoRoot } from "../workspace"
+import { cp, mkdir, rm } from "node:fs/promises"
+import { join, resolve } from "node:path"
+import { buildPlugin, type BuildPluginResult, type BuildRebuildScope, type PluginProject } from "./build.js"
+import { createLocalInstallPayload } from "./trust.js"
+import { findMonorepoRoot } from "../workspace.js"
 
 const CLI_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..")
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:3001"
@@ -15,9 +17,15 @@ const REINSTALL_DEBOUNCE_MS = 500
 const WORKER_STATUS_POLL_INTERVAL_MS = 3000
 
 export interface DesktopDevHostClient {
-  getRuntimeStatus(pluginId: string): Promise<{ running: boolean; endpoint?: string; lastError?: string }>
-  installLocalPlugin(pluginPath: string): Promise<void>
+  getRuntimeStatus(pluginId: string): Promise<{
+    phase?: "stopped" | "starting" | "running" | "degraded" | "crashed" | "stopping"
+    running: boolean
+    pid?: number
+    lastError?: string
+  }>
+  installLocalPlugin(project: PluginProject, pluginPath?: string): Promise<void>
   startRuntime(pluginId: string): Promise<void>
+  reloadPlugin(pluginId: string, scope: "ui" | "worker" | "all"): Promise<void>
 }
 
 function createDesktopDevHostClient(apiBaseUrl: string): DesktopDevHostClient {
@@ -44,15 +52,21 @@ function createDesktopDevHostClient(apiBaseUrl: string): DesktopDevHostClient {
         },
       )
       const payload = await readJsonOrThrow(response, "桌面插件 runtime 状态读取失败")
-      return payload.data as { running: boolean; endpoint?: string; lastError?: string }
+      return payload.data as {
+        phase?: "stopped" | "starting" | "running" | "degraded" | "crashed" | "stopping"
+        running: boolean
+        pid?: number
+        lastError?: string
+      }
     },
-    async installLocalPlugin(pluginPath) {
+    async installLocalPlugin(project, pluginPath) {
+      const payload = await createLocalInstallPayload(project, pluginPath)
       const response = await fetch(`${apiBaseUrl}/api/v1/desktop/plugins/install/local`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({ pluginPath }),
+        body: JSON.stringify(payload),
       })
       await readJsonOrThrow(response, "桌面插件安装失败")
     },
@@ -64,6 +78,19 @@ function createDesktopDevHostClient(apiBaseUrl: string): DesktopDevHostClient {
         },
       )
       await readJsonOrThrow(response, "桌面插件 runtime 启动失败")
+    },
+    async reloadPlugin(pluginId, scope) {
+      const response = await fetch(
+        `${apiBaseUrl}/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/runtime/reload`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ scope }),
+        },
+      )
+      await readJsonOrThrow(response, "桌面插件 HMR reload 失败")
     },
   }
 }
@@ -171,13 +198,26 @@ async function installAndStartPlugin(
   project: PluginProject,
   log: (message: string) => void,
 ): Promise<void> {
-  await client.installLocalPlugin(project.rootDir)
+  const installDir = await prepareDevInstallDirectory(project)
+  await client.installLocalPlugin(project, installDir)
   log("Install: synced")
 
   if (project.manifest.runtime) {
     await client.startRuntime(project.manifest.id)
     log("Worker: connected")
   }
+}
+
+async function prepareDevInstallDirectory(project: PluginProject): Promise<string> {
+  const installDir = join(project.rootDir, ".thunder-plugin-dev", project.manifest.id)
+  await rm(installDir, { recursive: true, force: true })
+  await mkdir(installDir, { recursive: true })
+
+  // The desktop installer rejects symlinks. Copy only runtime payload files so
+  // external projects with pnpm/npm node_modules remain installable in dev mode.
+  await cp(join(project.rootDir, "plugin.json"), join(installDir, "plugin.json"))
+  await cp(join(project.rootDir, "dist"), join(installDir, "dist"), { recursive: true })
+  return installDir
 }
 
 function printDevStatus(
@@ -195,7 +235,8 @@ function printDevStatus(
   }
   console.log(`UI: ${manifest.contributes?.sidebar ? "watching" : "not configured"}`)
   console.log(`Worker: ${manifest.runtime ? "watching" : "not configured"}`)
-  console.log("Reload: watching")
+  console.log(`Reload: watching`)
+  console.log(`HMR: enabled`)
   console.log(`Host: ${hostState}`)
   console.log(`Devtools: ready (${devtoolsUrl})`)
 }
@@ -205,7 +246,9 @@ function shouldIgnoreReinstallPath(relativePath: string): boolean {
     relativePath.includes("/node_modules/") ||
     relativePath.startsWith("node_modules/") ||
     relativePath.startsWith("artifacts/") ||
-    relativePath.startsWith("dist/")
+    relativePath.startsWith(".thunder-plugin-dev/") ||
+    relativePath.startsWith("dist/") ||
+    relativePath.startsWith("src/")
   )
 }
 
@@ -310,6 +353,22 @@ export async function runDevCommand(rootDir: string): Promise<void> {
   openDevtoolsPage(devtoolsUrl)
 
   const reinstallWatcher = createReinstallWatcher(result.project, reinstall)
+
+  // HMR: listen for esbuild rebuild events and reload the plugin with scope awareness
+  result.onRebuild?.(async (scope: BuildRebuildScope) => {
+    try {
+      const installDir = await prepareDevInstallDirectory(result.project)
+      await client.installLocalPlugin(result.project, installDir)
+      const reloadScope = scope === "both" ? "all" : scope
+      await client.reloadPlugin(result.project.manifest.id, reloadScope)
+      console.log(`HMR: ${scope} reloaded`)
+    } catch (error) {
+      console.error(
+        `[plugin-cli] HMR reload failed: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  })
+
   const runtimeStatusPoll = result.project.manifest.runtime
     ? setInterval(async () => {
         try {
@@ -359,6 +418,7 @@ export {
   isDesktopHostReady,
   locateAutoStartMonorepo,
   openDevtoolsPage,
+  prepareDevInstallDirectory,
   shouldIgnoreReinstallPath,
   startDesktopDevHost,
   waitForCondition,

@@ -4,7 +4,7 @@
   "name": "Hello Plugin",
   "version": "1.0.0",
   "description": "A minimal Thunder desktop plugin example.",
-  "kind": "trusted",
+  "kind": "sandboxed",
   "engines": {
     "thunder": "^2.0.0"
   },
@@ -19,8 +19,5 @@
       "icon": "Package",
       "entry": "dist/index.html"
     }
-  },
-  "runtime": {
-    "entry": "dist/worker.js"
   }
 }

@@ -1,8 +1,25 @@
-import { ThunderPluginManifestError } from "./errors";
+import { ThunderPluginManifestError } from "./errors.js";
+import { isRecord } from "./guards.js";
 import {
   isThunderPluginPermission,
+  normalizeThunderPluginNetworkPermission,
   type ThunderPluginPermission,
-} from "./permissions";
+} from "./permissions.js";
+import { isValidSemver } from "./semver.js";
+
+// ---- Manifest field length limits ----
+const MAX_NAME_LENGTH = 128;
+const MAX_DESCRIPTION_LENGTH = 2048;
+const MAX_VERSION_LENGTH = 64;
+const MAX_ICON_LENGTH = 128;
+const MAX_AUTHOR_NAME_LENGTH = 128;
+const MAX_AUTHOR_EMAIL_LENGTH = 256;
+const MAX_AUTHOR_URL_LENGTH = 1024;
+const MAX_SIDEBAR_TITLE_LENGTH = 128;
+const MAX_SIDEBAR_ENTRY_LENGTH = 256;
+const MAX_SIDEBAR_ICON_LENGTH = 128;
+const MAX_RUNTIME_ENTRY_LENGTH = 256;
+const MAX_ENGINES_THUNDER_LENGTH = 64;
 
 export type ThunderPluginKind = "sandboxed" | "trusted";
 
@@ -18,23 +35,8 @@ export interface ThunderPluginSidebarContribution {
   entry: string;
 }
 
-export interface ThunderPluginCommandContribution {
-  id: string;
-  title: string;
-}
-
-export interface ThunderPluginSettingContribution {
-  key: string;
-  type: string;
-  title: string;
-  default?: unknown;
-  options?: string[];
-}
-
 export interface ThunderPluginContributes {
   sidebar?: ThunderPluginSidebarContribution;
-  commands?: ThunderPluginCommandContribution[];
-  settings?: ThunderPluginSettingContribution[];
 }
 
 export interface ThunderPluginRuntime {
@@ -68,20 +70,18 @@ function assertManifest(
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function parsePermissions(input: unknown): ThunderPluginPermission[] {
   assertManifest(Array.isArray(input), "permissions must be an array");
 
-  return input.map((permission) => {
+  const permissions = input.map((permission) => {
     assertManifest(
       typeof permission === "string" && isThunderPluginPermission(permission),
       `invalid permission: ${String(permission)}`,
     );
-    return permission;
+    return normalizeThunderPluginNetworkPermission(permission) ?? permission;
   });
+  assertManifest(new Set(permissions).size === permissions.length, "permissions must not contain duplicates");
+  return permissions;
 }
 
 function parseRuntime(
@@ -96,10 +96,11 @@ function parseRuntime(
     return undefined;
   }
 
+  assertManifest(kind === "trusted", "sandboxed plugins cannot declare runtime");
   assertManifest(isRecord(input), "runtime must be an object");
   assertManifest(
-    typeof input.entry === "string" && input.entry.length > 0,
-    "runtime.entry is required",
+    typeof input.entry === "string" && input.entry.length > 0 && input.entry.length <= MAX_RUNTIME_ENTRY_LENGTH,
+    `runtime.entry is required and must not exceed ${MAX_RUNTIME_ENTRY_LENGTH} characters`,
   );
 
   return {
@@ -110,8 +111,8 @@ function parseRuntime(
 function parseEngines(input: unknown): { thunder: string } {
   assertManifest(isRecord(input), "engines must be an object");
   assertManifest(
-    typeof input.thunder === "string" && input.thunder.length > 0,
-    "engines.thunder is required",
+    typeof input.thunder === "string" && input.thunder.length > 0 && input.thunder.length <= MAX_ENGINES_THUNDER_LENGTH,
+    `engines.thunder is required and must not exceed ${MAX_ENGINES_THUNDER_LENGTH} characters`,
   );
 
   return {
@@ -126,16 +127,16 @@ function parseAuthor(input: unknown): ThunderPluginAuthor | undefined {
 
   assertManifest(isRecord(input), "author must be an object");
   assertManifest(
-    typeof input.name === "string" && input.name.length > 0,
-    "author.name is required",
+    typeof input.name === "string" && input.name.length > 0 && input.name.length <= MAX_AUTHOR_NAME_LENGTH,
+    `author.name is required and must not exceed ${MAX_AUTHOR_NAME_LENGTH} characters`,
   );
 
   if (input.email != null) {
-    assertManifest(typeof input.email === "string", "author.email must be a string");
+    assertManifest(typeof input.email === "string" && input.email.length <= MAX_AUTHOR_EMAIL_LENGTH, `author.email must be a string of at most ${MAX_AUTHOR_EMAIL_LENGTH} characters`);
   }
 
   if (input.url != null) {
-    assertManifest(typeof input.url === "string", "author.url must be a string");
+    assertManifest(typeof input.url === "string" && input.url.length <= MAX_AUTHOR_URL_LENGTH, `author.url must be a string of at most ${MAX_AUTHOR_URL_LENGTH} characters`);
   }
 
   const author: ThunderPluginAuthor = {
@@ -153,111 +154,43 @@ function parseAuthor(input: unknown): ThunderPluginAuthor | undefined {
   return author;
 }
 
-function parseCommands(input: unknown): ThunderPluginCommandContribution[] | undefined {
-  if (input == null) {
-    return undefined;
-  }
-
-  assertManifest(Array.isArray(input), "contributes.commands must be an array");
-
-  return input.map((command, index) => {
-    assertManifest(
-      isRecord(command),
-      `contributes.commands[${index}] must be an object`,
-    );
-    assertManifest(
-      typeof command.id === "string" && command.id.length > 0,
-      `contributes.commands[${index}].id is required`,
-    );
-    assertManifest(
-      typeof command.title === "string" && command.title.length > 0,
-      `contributes.commands[${index}].title is required`,
-    );
-
-    return {
-      id: command.id,
-      title: command.title,
-    };
-  });
-}
-
-function parseSettings(input: unknown): ThunderPluginSettingContribution[] | undefined {
-  if (input == null) {
-    return undefined;
-  }
-
-  assertManifest(Array.isArray(input), "contributes.settings must be an array");
-
-  return input.map((setting, index) => {
-    assertManifest(
-      isRecord(setting),
-      `contributes.settings[${index}] must be an object`,
-    );
-    assertManifest(
-      typeof setting.key === "string" && setting.key.length > 0,
-      `contributes.settings[${index}].key is required`,
-    );
-    assertManifest(
-      typeof setting.type === "string" && setting.type.length > 0,
-      `contributes.settings[${index}].type is required`,
-    );
-    assertManifest(
-      typeof setting.title === "string" && setting.title.length > 0,
-      `contributes.settings[${index}].title is required`,
-    );
-
-    if (setting.options != null) {
-      assertManifest(
-        Array.isArray(setting.options) &&
-          setting.options.every(
-            (option) => typeof option === "string" && option.length > 0,
-          ),
-        `contributes.settings[${index}].options must be a string array`,
-      );
-    }
-
-    return {
-      key: setting.key,
-      type: setting.type,
-      title: setting.title,
-      default: setting.default,
-      options: Array.isArray(setting.options) ? [...setting.options] : undefined,
-    };
-  });
-}
-
 function parseContributes(input: unknown): ThunderPluginContributes | undefined {
   if (input == null) {
     return undefined;
   }
 
   assertManifest(isRecord(input), "contributes must be an object");
+  assertManifest(
+    input.commands == null,
+    "contributes.commands is not supported",
+  );
+  assertManifest(
+    input.settings == null,
+    "contributes.settings is not supported",
+  );
 
   const contributes: ThunderPluginContributes = {};
 
   if (input.sidebar != null) {
     assertManifest(isRecord(input.sidebar), "contributes.sidebar must be an object");
     assertManifest(
-      typeof input.sidebar.title === "string" && input.sidebar.title.length > 0,
-      "contributes.sidebar.title is required",
+      typeof input.sidebar.title === "string" && input.sidebar.title.length > 0 && input.sidebar.title.length <= MAX_SIDEBAR_TITLE_LENGTH,
+      `contributes.sidebar.title is required and must not exceed ${MAX_SIDEBAR_TITLE_LENGTH} characters`,
     );
     assertManifest(
-      typeof input.sidebar.entry === "string" && input.sidebar.entry.length > 0,
-      "contributes.sidebar.entry is required",
+      typeof input.sidebar.entry === "string" && input.sidebar.entry.length > 0 && input.sidebar.entry.length <= MAX_SIDEBAR_ENTRY_LENGTH,
+      `contributes.sidebar.entry is required and must not exceed ${MAX_SIDEBAR_ENTRY_LENGTH} characters`,
     );
 
     contributes.sidebar = {
       title: input.sidebar.title,
       entry: input.sidebar.entry,
       icon:
-        typeof input.sidebar.icon === "string" && input.sidebar.icon.length > 0
+        typeof input.sidebar.icon === "string" && input.sidebar.icon.length > 0 && input.sidebar.icon.length <= MAX_SIDEBAR_ICON_LENGTH
           ? input.sidebar.icon
           : undefined,
     };
   }
-
-  contributes.commands = parseCommands(input.commands);
-  contributes.settings = parseSettings(input.settings);
 
   return contributes;
 }
@@ -278,19 +211,28 @@ function validateKindPermissions(
   }
 }
 
+export const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]{1,62}$/;
+
 export function parseThunderPluginManifest(
   input: unknown,
 ): ThunderPluginManifest {
   assertManifest(isRecord(input), "manifest must be an object");
   assertManifest(input.manifestVersion === 2, "manifestVersion must be 2");
-  assertManifest(typeof input.id === "string" && input.id.length > 0, "id is required");
   assertManifest(
-    typeof input.name === "string" && input.name.length > 0,
-    "name is required",
+    typeof input.id === "string" && PLUGIN_ID_PATTERN.test(input.id),
+    "id must match /^[a-z][a-z0-9-]{1,62}$/",
   );
   assertManifest(
-    typeof input.version === "string" && input.version.length > 0,
-    "version is required",
+    typeof input.name === "string" && input.name.length > 0 && input.name.length <= MAX_NAME_LENGTH,
+    `name is required and must not exceed ${MAX_NAME_LENGTH} characters`,
+  );
+  assertManifest(
+    typeof input.version === "string" && input.version.length > 0 && input.version.length <= MAX_VERSION_LENGTH,
+    `version is required and must not exceed ${MAX_VERSION_LENGTH} characters`,
+  );
+  assertManifest(
+    isValidSemver(input.version),
+    `version must be a valid semver string (MAJOR.MINOR.PATCH), got: ${String(input.version)}`,
   );
   assertManifest(
     input.kind === "sandboxed" || input.kind === "trusted",
@@ -305,11 +247,11 @@ export function parseThunderPluginManifest(
     id: input.id,
     name: input.name,
     version: input.version,
-    description: typeof input.description === "string" ? input.description : undefined,
+    description: typeof input.description === "string" && input.description.length <= MAX_DESCRIPTION_LENGTH ? input.description : undefined,
     kind: input.kind,
     engines: parseEngines(input.engines),
     author: parseAuthor(input.author),
-    icon: typeof input.icon === "string" ? input.icon : undefined,
+    icon: typeof input.icon === "string" && input.icon.length <= MAX_ICON_LENGTH ? input.icon : undefined,
     permissions,
     contributes: parseContributes(input.contributes),
     runtime: parseRuntime(input.kind, input.runtime),

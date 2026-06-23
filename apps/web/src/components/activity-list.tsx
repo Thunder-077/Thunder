@@ -136,7 +136,7 @@ export function ActivityList({ limit = DEFAULT_ACTIVITY_LIMIT }: ActivityListPro
         mod.id,
         {
           label: mod.name,
-          icon: ICON_MAP[mod.icon] ?? defaultMeta?.icon ?? Puzzle,
+          icon: ICON_MAP[mod.icon ?? ""] ?? defaultMeta?.icon ?? Puzzle,
           iconClassName: defaultMeta?.iconClassName ?? "text-slate-500 bg-slate-100 dark:bg-slate-900/60",
         },
       ] as const
@@ -146,7 +146,7 @@ export function ActivityList({ limit = DEFAULT_ACTIVITY_LIMIT }: ActivityListPro
       `plugin:${plugin.manifest.id}`,
       {
         label: plugin.manifest.name,
-        icon: ICON_MAP[plugin.manifest.icon] ?? Package,
+        icon: ICON_MAP[plugin.manifest.icon ?? ""] ?? Package,
         iconClassName: "text-sky-500 bg-sky-50 dark:bg-sky-950/30",
       },
     ] as const)

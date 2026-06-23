@@ -99,6 +99,7 @@ export function AppDialog({
   const canClose = !loading
   const showIcon = !hideIcon
   const confirmVariant = type === "danger" || type === "error" ? "destructive" : "primary"
+  const descriptionIsPlainText = typeof description === "string" || typeof description === "number"
 
   const resolvedIcon = useMemo(() => {
     if (!showIcon) return null
@@ -181,10 +182,15 @@ export function AppDialog({
               <DialogTitle id={titleId} className="text-base leading-snug font-semibold">
                 {title}
               </DialogTitle>
-              {description && (
+              {description && descriptionIsPlainText && (
                 <DialogDescription id={descriptionId} className="text-sm leading-snug text-muted-foreground">
                   {description}
                 </DialogDescription>
+              )}
+              {description && !descriptionIsPlainText && (
+                <div id={descriptionId} className="text-sm leading-snug text-muted-foreground">
+                  {description}
+                </div>
               )}
             </div>
           </div>

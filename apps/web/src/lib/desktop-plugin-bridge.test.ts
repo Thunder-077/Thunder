@@ -1,45 +1,17 @@
+import "fake-indexeddb/auto"
 import assert from "node:assert/strict"
 import {
   clearPluginStorage,
   createIsolatedPluginFrameUrl,
-  getRequiredPluginPermissionForBridgeMethod,
   getPluginStorageValue,
+  getRequiredPluginPermissionForBridgeMethod,
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
   listPluginStorageKeys,
   normalizePluginFrameHeight,
   normalizeStorageKey,
-  pluginStorageKey,
   setPluginStorageValue,
 } from "./desktop-plugin-bridge"
-
-class MemoryStorage implements Storage {
-  private readonly data = new Map<string, string>()
-
-  get length(): number {
-    return this.data.size
-  }
-
-  clear(): void {
-    this.data.clear()
-  }
-
-  getItem(key: string): string | null {
-    return this.data.get(key) ?? null
-  }
-
-  key(index: number): string | null {
-    return [...this.data.keys()][index] ?? null
-  }
-
-  removeItem(key: string): void {
-    this.data.delete(key)
-  }
-
-  setItem(key: string, value: string): void {
-    this.data.set(key, value)
-  }
-}
 
 function rejects(fn: () => unknown, label: string): void {
   let rejected = false
@@ -51,7 +23,69 @@ function rejects(fn: () => unknown, label: string): void {
   assert.equal(rejected, true, label)
 }
 
-function main() {
+function installPluginStorageFetchMock(): void {
+  const stores = new Map<string, Map<string, unknown>>()
+
+  // 当前插件存储通过宿主 HTTP API 访问；测试环境没有浏览器 origin，
+  // 因此在这里用 fetch mock 验证 URL、方法和配额语义。
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input), "http://localhost:3000")
+    const match = url.pathname.match(/^\/api\/v1\/desktop\/plugins\/([^/]+)\/storage(\/keys)?$/)
+    if (!match) {
+      return Response.json({ ok: false, message: "unexpected url" }, { status: 404 })
+    }
+
+    const pluginId = decodeURIComponent(match[1])
+    const store = stores.get(pluginId) ?? new Map<string, unknown>()
+    stores.set(pluginId, store)
+
+    if (match[2] === "/keys") {
+      return Response.json({ ok: true, data: [...store.keys()].sort() })
+    }
+
+    const method = init?.method ?? "GET"
+    if (method === "GET") {
+      return Response.json({ ok: true, data: store.get(url.searchParams.get("key") ?? "") ?? null })
+    }
+
+    if (method === "PUT") {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { key: string; value: unknown }
+      const serialized = JSON.stringify(body.value ?? null)
+      if (new TextEncoder().encode(serialized).byteLength > 256 * 1024) {
+        return Response.json({ ok: false, message: "插件单个存储值超过 256 KiB" }, { status: 413 })
+      }
+
+      const nextStore = new Map(store)
+      nextStore.set(body.key, body.value)
+      const totalBytes = [...nextStore.values()].reduce<number>(
+        (total, value) => total + new TextEncoder().encode(JSON.stringify(value ?? null)).byteLength,
+        0,
+      )
+      if (totalBytes > 1024 * 1024) {
+        return Response.json({ ok: false, message: "插件存储空间超过 1 MiB" }, { status: 413 })
+      }
+
+      store.set(body.key, body.value)
+      return Response.json({ ok: true, data: { pluginId, key: body.key } })
+    }
+
+    if (method === "DELETE") {
+      const key = url.searchParams.get("key")
+      if (key) {
+        store.delete(key)
+      } else {
+        store.clear()
+      }
+      return Response.json({ ok: true, data: { pluginId } })
+    }
+
+    return Response.json({ ok: false, message: "unexpected method" }, { status: 405 })
+  }
+}
+
+async function main() {
+  installPluginStorageFetchMock()
+
   assert.equal(getRequiredPluginPermissionForBridgeMethod("plugin.getManifest"), null)
   assert.equal(getRequiredPluginPermissionForBridgeMethod("storage.get"), "storage")
   assert.equal(getRequiredPluginPermissionForBridgeMethod("notification.add"), "notifications")
@@ -88,18 +122,32 @@ function main() {
   rejects(() => normalizeStorageKey("x".repeat(129)), "storage key must enforce length")
   rejects(() => normalizeStorageKey("bad\nkey"), "storage key must reject control characters")
 
-  const storage = new MemoryStorage()
-  setPluginStorageValue(storage, "alpha", "theme", { compact: true })
-  setPluginStorageValue(storage, "alpha", "space key", 1)
-  setPluginStorageValue(storage, "beta", "theme", "dark")
-  assert.deepEqual(getPluginStorageValue(storage, "alpha", "theme"), { compact: true })
-  assert.equal(storage.getItem(pluginStorageKey("alpha", "space key")), "1")
-  assert.deepEqual(listPluginStorageKeys(storage, "alpha"), ["space key", "theme"])
-  clearPluginStorage(storage, "alpha")
-  assert.deepEqual(listPluginStorageKeys(storage, "alpha"), [])
-  assert.equal(getPluginStorageValue(storage, "beta", "theme"), "dark")
+  await setPluginStorageValue("alpha", "theme", { compact: true })
+  await setPluginStorageValue("alpha", "space key", 1)
+  await setPluginStorageValue("beta", "theme", "dark")
+  assert.deepEqual(await getPluginStorageValue("alpha", "theme"), { compact: true })
+  assert.deepEqual(await getPluginStorageValue("alpha", "space key"), 1)
+  assert.deepEqual(await listPluginStorageKeys("alpha"), ["space key", "theme"])
+  await clearPluginStorage("alpha")
+  assert.deepEqual(await listPluginStorageKeys("alpha"), [])
+  assert.equal(await getPluginStorageValue("beta", "theme"), "dark")
+
+  const bigValue = "x".repeat(200 * 1024)
+  await setPluginStorageValue("quota", "a", bigValue)
+  await setPluginStorageValue("quota", "b", bigValue)
+  await setPluginStorageValue("quota", "c", bigValue)
+  await setPluginStorageValue("quota", "d", bigValue)
+  await setPluginStorageValue("quota", "e", bigValue)
+  await assert.rejects(
+    setPluginStorageValue("quota", "f", bigValue),
+    /插件存储空间超过 1 MiB/,
+  )
+  await assert.rejects(
+    setPluginStorageValue("big", "huge", "z".repeat(256 * 1024 + 1)),
+    /插件单个存储值超过 256 KiB/,
+  )
 
   console.log("[desktop-plugin-bridge] tests passed")
 }
 
-main()
+void main()

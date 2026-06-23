@@ -1,14 +1,6 @@
-import { access, readdir } from "node:fs/promises"
+import { readFile, readdir } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
-
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await access(path)
-    return true
-  } catch {
-    return false
-  }
-}
+import { fileExists } from "./project.js"
 
 /**
  * Walk up from `startDir` looking for a pnpm-workspace.yaml marker. Returns the
@@ -35,7 +27,7 @@ export async function findMonorepoRoot(startDir: string): Promise<string | null>
 }
 
 /**
- * Discover `@thunder/plugin-*` package entry points from a Thunder monorepo's
+ * Discover `@thunder/*` package entry points from a Thunder monorepo's
  * `packages/` directory. Returns a map of bare specifier -> absolute src path
  * suitable for use as an esbuild resolve alias.
  *
@@ -53,8 +45,9 @@ export async function readThunderWorkspacePackages(
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
-    if (!entry.name.startsWith("plugin-")) continue
-    const packageName = `@thunder/${entry.name}`
+    const packageJsonPath = join(packagesDir, entry.name, "package.json")
+    const packageName = await readWorkspacePackageName(packageJsonPath)
+    if (!packageName?.startsWith("@thunder/")) continue
     const srcEntry = join(packagesDir, entry.name, "src", "index.ts")
     if (await fileExists(srcEntry)) {
       aliases.set(packageName, srcEntry)
@@ -73,4 +66,12 @@ export async function readThunderWorkspacePackages(
   }
 
   return aliases
+}
+
+async function readWorkspacePackageName(packageJsonPath: string): Promise<string | null> {
+  if (!(await fileExists(packageJsonPath))) {
+    return null
+  }
+  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as { name?: unknown }
+  return typeof packageJson.name === "string" ? packageJson.name : null
 }

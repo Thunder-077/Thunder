@@ -35,6 +35,16 @@ env.NEXT_PUBLIC_EXCLUDE_MODULES = env.THUNDER_EXCLUDE_MODULES ?? ""
 
 await run("node", [resolve(workspaceRoot, "scripts/generate-enabled-modules.mjs")], { env })
 
+if (mode === "build") {
+  await runPnpm([
+    "--filter",
+    "@thunder/plugin-schema",
+    "--filter",
+    "@thunder/plugin-protocol",
+    "build",
+  ], { env })
+}
+
 const nextArgs = [mode, "--webpack"]
 await run(process.execPath, [nextBin, ...nextArgs], {
   cwd: webRoot,
@@ -58,6 +68,13 @@ function run(command, args, options = {}) {
       reject(new Error(`${command} ${args.join(" ")} exited with code ${code ?? -1}`))
     })
   })
+}
+
+function runPnpm(args, options = {}) {
+  if (process.env.npm_execpath) {
+    return run(process.execPath, [process.env.npm_execpath, ...args], options)
+  }
+  return run("pnpm", args, options)
 }
 
 function resolveCommand(command) {

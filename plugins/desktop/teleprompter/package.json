@@ -4,18 +4,40 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "build": "thunder-plugin build .",
+    "dev": "thunder-plugin dev .",
     "test": "tsx src/plugin.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@thunder/plugin-sdk": "workspace:*",
+    "@thunder/teleprompter-core": "workspace:*",
+    "@thunder/teleprompter-ui": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@thunder/plugin-cli": "workspace:*",
     "@types/node": "^20",
     "@types/react": "^19.2.4",
+    "@types/react-dom": "^19.2.3",
     "tsx": "^4.19.4",
     "typescript": "^5"
+  },
+  "thunderPlugin": {
+    "css": {
+      "input": "../../../apps/web/src/app/globals.css",
+      "output": "dist/assets/main.css",
+      "sources": [
+        "src",
+        "../../../packages/plugin-ui/src",
+        "../../../packages/ui/src",
+        "../../../packages/teleprompter-ui/src",
+        "../../../packages/teleprompter-core/src"
+      ]
+    },
+    "define": {
+      "process.env.NEXT_PUBLIC_PLATFORM": "desktop"
+    }
   }
 }

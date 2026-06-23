@@ -1,7 +1,13 @@
 import type { DesktopPluginPermission } from "@/lib/desktop-plugins"
+import {
+  PLUGIN_BRIDGE_REQUEST_SOURCE,
+  PLUGIN_BRIDGE_VERSION,
+  getRequiredPluginPermission,
+  isPluginBridgeMethod,
+  normalizePluginStorageKey,
+} from "@thunder/plugin-protocol"
 
-export const PLUGIN_BRIDGE_REQUEST_SOURCE = "thunder-plugin"
-export const PLUGIN_BRIDGE_VERSION = 1
+export { PLUGIN_BRIDGE_REQUEST_SOURCE, PLUGIN_BRIDGE_VERSION }
 
 export type PluginBridgeRequest = {
   source?: string
@@ -16,22 +22,8 @@ export type StorageRequestParams = {
   value?: unknown
 }
 
-type PluginStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">
-
-const BRIDGE_METHOD_PERMISSIONS: Partial<Record<string, DesktopPluginPermission>> = {
-  "storage.get": "storage",
-  "storage.set": "storage",
-  "storage.remove": "storage",
-  "storage.keys": "storage",
-  "storage.clear": "storage",
-  "notification.add": "notifications",
-  "activity.track": "activity",
-  "worker.invoke": "native-runtime",
-  "runtime.request": "native-runtime",
-}
-
 export function getRequiredPluginPermissionForBridgeMethod(method: string): DesktopPluginPermission | null {
-  return BRIDGE_METHOD_PERMISSIONS[method] ?? null
+  return isPluginBridgeMethod(method) ? getRequiredPluginPermission(method) : null
 }
 
 function getIsolatedLoopbackHostname(hostname: string): string | null {
@@ -66,11 +58,7 @@ export function isPluginFrameOriginIsolated(frameUrl: string, hostOrigin: string
 }
 
 export function normalizeStorageKey(key: string | undefined): string {
-  const rawKey = key?.trim()
-  if (!rawKey || rawKey.length > 128 || /[\u0000-\u001f\u007f]/.test(rawKey)) {
-    throw new Error("插件存储 key 无效")
-  }
-  return rawKey
+  return normalizePluginStorageKey(key)
 }
 
 export function normalizePluginFrameHeight(height: number | undefined): number {
@@ -81,40 +69,75 @@ export function normalizePluginFrameHeight(height: number | undefined): number {
   return Math.max(320, Math.ceil(height))
 }
 
-export function pluginStoragePrefix(pluginId: string): string {
-  return `thunder:desktop-plugin:${pluginId}:storage:`
-}
+// ===== HTTP-based plugin storage =====
 
-export function pluginStorageKey(pluginId: string, key: string): string {
-  return `${pluginStoragePrefix(pluginId)}${encodeURIComponent(key)}`
-}
+const ABSOLUTE_API_URL_REGEX = /^https?:\/\//i
 
-export function listPluginStorageKeys(storage: PluginStorage, pluginId: string): string[] {
-  const prefix = pluginStoragePrefix(pluginId)
-  const keys: string[] = []
-  for (let index = 0; index < storage.length; index += 1) {
-    const storageKey = storage.key(index)
-    if (!storageKey?.startsWith(prefix)) continue
-    keys.push(decodeURIComponent(storageKey.slice(prefix.length)))
+function getPluginStorageApiUrl(pluginId: string): string {
+  if (typeof window !== "undefined" && ABSOLUTE_API_URL_REGEX.test(window.location.origin)) {
+    return `${window.location.origin}/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/storage`
   }
-  return keys.sort((a, b) => a.localeCompare(b))
+  return `/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/storage`
 }
 
-export function getPluginStorageValue(storage: PluginStorage, pluginId: string, key: string): unknown {
-  const rawValue = storage.getItem(pluginStorageKey(pluginId, normalizeStorageKey(key)))
-  return rawValue === null ? null : JSON.parse(rawValue)
-}
-
-export function setPluginStorageValue(storage: PluginStorage, pluginId: string, key: string, value: unknown): void {
-  storage.setItem(pluginStorageKey(pluginId, normalizeStorageKey(key)), JSON.stringify(value ?? null))
-}
-
-export function removePluginStorageValue(storage: PluginStorage, pluginId: string, key: string): void {
-  storage.removeItem(pluginStorageKey(pluginId, normalizeStorageKey(key)))
-}
-
-export function clearPluginStorage(storage: PluginStorage, pluginId: string): void {
-  for (const key of listPluginStorageKeys(storage, pluginId)) {
-    storage.removeItem(pluginStorageKey(pluginId, key))
+async function fetchPluginStorage(
+  pluginId: string,
+  path: string,
+  options?: RequestInit,
+): Promise<{
+  ok?: boolean
+  message?: string
+  data?: unknown
+}> {
+  const baseUrl = getPluginStorageApiUrl(pluginId)
+  const url = `${baseUrl}${path}`
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      ...(options?.headers ?? {}),
+    },
+  })
+  const payload = (await response.json().catch(() => null)) as {
+    ok?: boolean
+    message?: string
+    data?: unknown
+  } | null
+  if (!response.ok || !payload?.ok) {
+    throw new Error(payload?.message || "插件存储操作失败")
   }
+  return payload
+}
+
+export async function getPluginStorageValue(pluginId: string, key: string): Promise<unknown> {
+  const payload = await fetchPluginStorage(pluginId, `?key=${encodeURIComponent(key)}`)
+  return payload.data ?? null
+}
+
+export async function setPluginStorageValue(
+  pluginId: string,
+  key: string,
+  value: unknown,
+): Promise<void> {
+  await fetchPluginStorage(pluginId, "", {
+    method: "PUT",
+    body: JSON.stringify({ key, value }),
+  })
+}
+
+export async function removePluginStorageValue(pluginId: string, key: string): Promise<void> {
+  await fetchPluginStorage(pluginId, `?key=${encodeURIComponent(key)}`, {
+    method: "DELETE",
+  })
+}
+
+export async function listPluginStorageKeys(pluginId: string): Promise<string[]> {
+  const payload = await fetchPluginStorage(pluginId, "/keys")
+  return (payload.data as string[]) ?? []
+}
+
+export async function clearPluginStorage(pluginId: string): Promise<void> {
+  await fetchPluginStorage(pluginId, "", {
+    method: "DELETE",
+  })
 }

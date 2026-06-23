@@ -164,7 +164,7 @@ export default function InstalledPluginsPage() {
       id: p.manifest.id,
       name: p.manifest.name,
       author: p.manifest.author?.name || "Thunder",
-      description: p.manifest.description,
+      description: p.manifest.description ?? "",
       version: p.manifest.version,
       installedDate: getDesktopPluginInstalledAt(p)?.split("T")[0] ?? "暂无",
       icon: resolveIcon(p.manifest.icon),

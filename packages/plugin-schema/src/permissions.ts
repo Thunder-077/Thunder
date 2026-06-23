@@ -1,6 +1,5 @@
 const STATIC_PLUGIN_PERMISSIONS = [
   "storage",
-  "secrets",
   "notifications",
   "activity",
   "microphone",
@@ -11,40 +10,51 @@ const STATIC_PLUGIN_PERMISSIONS = [
 export type StaticThunderPluginPermission =
   (typeof STATIC_PLUGIN_PERMISSIONS)[number];
 
-export type NetworkThunderPluginPermission = `network:${string}`;
-
+export type ThunderPluginNetworkPermission = `network:${string}`;
 export type ThunderPluginPermission =
   | StaticThunderPluginPermission
-  | NetworkThunderPluginPermission;
+  | ThunderPluginNetworkPermission;
 
 export const thunderPluginPermissions = [...STATIC_PLUGIN_PERMISSIONS];
-
-export function isNetworkPermission(
-  permission: string,
-): permission is NetworkThunderPluginPermission {
-  if (!permission.startsWith("network:")) {
-    return false;
-  }
-
-  const origin = permission.slice("network:".length);
-  if (origin.length === 0 || origin === "*") {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(origin);
-    return parsed.origin === origin;
-  } catch {
-    return false;
-  }
-}
 
 export function isThunderPluginPermission(
   permission: string,
 ): permission is ThunderPluginPermission {
   return (
-    thunderPluginPermissions.includes(
-      permission as StaticThunderPluginPermission,
-    ) || isNetworkPermission(permission)
+    thunderPluginPermissions.includes(permission as StaticThunderPluginPermission) ||
+    normalizeThunderPluginNetworkPermission(permission) !== null
   );
+}
+
+export function normalizeThunderPluginNetworkPermission(
+  permission: string,
+): ThunderPluginNetworkPermission | null {
+  if (!permission.startsWith("network:")) return null;
+
+  const rawOrigin = permission.slice("network:".length);
+  let url: URL;
+  try {
+    url = new URL(rawOrigin);
+  } catch {
+    return null;
+  }
+
+  const loopback =
+    url.hostname === "localhost" ||
+    url.hostname === "127.0.0.1" ||
+    url.hostname === "[::1]";
+  if (
+    (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) ||
+    url.username ||
+    url.password ||
+    url.hostname.includes("*") ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash ||
+    rawOrigin !== url.origin
+  ) {
+    return null;
+  }
+
+  return `network:${url.origin}`;
 }

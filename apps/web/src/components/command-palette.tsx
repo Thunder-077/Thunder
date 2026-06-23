@@ -64,6 +64,10 @@ function useCommands(): Command[] {
     Package,
   }
 
+  function compactKeywords(values: Array<string | undefined>): string[] {
+    return values.filter((value): value is string => Boolean(value?.trim()))
+  }
+
   return [
     {
       id: "home",
@@ -82,15 +86,15 @@ function useCommands(): Command[] {
     ...getCurrentPlatformModules().map((module) => ({
       id: `module:${module.id}`,
       label: `打开${module.name}`,
-      icon: moduleIconMap[module.icon] ?? Puzzle,
-      keywords: [module.id, module.name, module.description],
+      icon: moduleIconMap[module.icon ?? ""] ?? Puzzle,
+      keywords: compactKeywords([module.id, module.name, module.description]),
       action: () => router.push(module.route),
     })),
     ...desktopPlugins.plugins.map((plugin) => ({
       id: `desktop-plugin:${plugin.manifest.id}`,
       label: `打开${plugin.manifest.name}`,
-      icon: moduleIconMap[plugin.manifest.icon] ?? Package,
-      keywords: [plugin.manifest.id, plugin.manifest.name, plugin.manifest.description, "插件"],
+      icon: moduleIconMap[plugin.manifest.icon ?? ""] ?? Package,
+      keywords: compactKeywords([plugin.manifest.id, plugin.manifest.name, plugin.manifest.description, "插件"]),
       action: () => router.push(plugin.route),
     })),
     {

@@ -3,23 +3,41 @@ import { createServer } from "node:http"
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { buildPlugin } from "./commands/build"
-import { createPluginProject } from "./commands/create"
+import { buildPlugin } from "./commands/build.js"
+import { createPluginProject } from "./commands/create.js"
 import {
   createDesktopDevHostClient,
   getOpenCommand,
+  prepareDevInstallDirectory,
   shouldIgnoreReinstallPath,
   waitForCondition,
-} from "./commands/dev"
-import { packPlugin } from "./commands/pack"
+} from "./commands/dev.js"
+import { packPlugin } from "./commands/pack.js"
+import { runPublishCommand } from "./commands/publish.js"
+import { validatePluginProject } from "./commands/validate.js"
 
 const pluginRoot = await mkdtemp(join(tmpdir(), "thunder-plugin-cli-"))
+const sandboxedFiles = await createPluginProject({ name: "hello-sandboxed", template: "sandboxed-ui" }, pluginRoot)
+assert.equal(sandboxedFiles["plugin.json"].includes('"kind": "sandboxed"'), true)
+assert.equal("src/worker.ts" in sandboxedFiles, false)
+
 const files = await createPluginProject({ name: "teleprompter", template: "trusted-app" }, pluginRoot)
+const packageJson = JSON.parse(files["package.json"]) as Record<string, unknown>
+packageJson.thunderPlugin = {
+  css: {
+    input: "src/styles.css",
+    output: "dist/assets/main.css",
+    sources: ["src"],
+  },
+}
+files["package.json"] = `${JSON.stringify(packageJson, null, 2)}\n`
+files["src/styles.css"] = ".plugin-root { color: rgb(12 34 56); }\n"
 
 assert.equal(files["plugin.json"].includes('"kind": "trusted"'), true)
 assert.equal(files["src/worker.ts"].includes("defineWorker"), true)
 assert.equal(files["src/index.tsx"].includes("@thunder/plugin-sdk/browser"), true)
 assert.equal(files["src/index.tsx"].includes("definePlugin"), false)
+assert.equal(files["package.json"].includes('"@thunder/plugin-cli"'), true)
 assert.equal(typeof files["tsconfig.json"], "string")
 assert.equal(typeof files[".gitignore"], "string")
 assert.equal(typeof files["README.md"], "string")
@@ -33,18 +51,62 @@ for (const [relativePath, contents] of Object.entries(files)) {
 const buildResult = await buildPlugin({ rootDir: pluginRoot })
 assert.equal(buildResult.outputs.includes("dist/index.html"), true)
 assert.equal(buildResult.outputs.includes("dist/index.js"), true)
+assert.equal(buildResult.outputs.includes("dist/assets/main.css"), true)
 assert.equal(buildResult.outputs.includes("dist/worker.js"), true)
 assert.equal(
   (await readFile(join(pluginRoot, "dist/index.html"), "utf8")).includes("index.js"),
   true,
 )
+assert.equal(
+  (await readFile(join(pluginRoot, "dist/index.html"), "utf8")).includes("assets/main.css"),
+  true,
+)
+assert.equal(
+  (await readFile(join(pluginRoot, "dist/assets/main.css"), "utf8")).includes(".plugin-root"),
+  true,
+)
 
-const packResult = await packPlugin(pluginRoot)
+const validationResult = await validatePluginProject(pluginRoot)
+assert.equal(validationResult.requiresTrustConfirmation, true)
+assert.deepEqual(
+  validationResult.highRiskPermissions.sort(),
+  ["native-runtime"].sort(),
+)
+
+const packResult = await packPlugin({
+  rootDir: pluginRoot,
+  writeEntry: true,
+  baseUrl: "https://plugins.example.test/",
+})
 assert.equal(packResult.packagePath.endsWith(".tar.gz"), true)
 assert.equal(packResult.packageSha256.length, 64)
+assert.equal(packResult.manifestSha256.length, 64)
+assert.equal(packResult.marketplaceEntry?.id, "teleprompter")
+assert.equal(packResult.marketplaceEntry?.kind, "trusted")
+assert.equal(packResult.marketplaceEntry?.packageSha256, packResult.packageSha256)
+assert.equal(packResult.marketplaceEntry?.manifestSha256, packResult.manifestSha256)
+assert.equal(packResult.marketplaceEntry?.packageUrl, "https://plugins.example.test/teleprompter-0.1.0.tar.gz")
 assert.equal((await readdir(join(pluginRoot, "artifacts"))).length > 0, true)
+
+const publishResult = await runPublishCommand({
+  entriesDir: join(pluginRoot, "artifacts"),
+  outPath: join(pluginRoot, "artifacts", "index.json"),
+})
+assert.equal(publishResult.index.version, 1)
+assert.equal(publishResult.index.plugins.length, 1)
+assert.equal(publishResult.index.plugins[0]?.id, "teleprompter")
+assert.equal(
+  JSON.parse(await readFile(join(pluginRoot, "artifacts", "index.json"), "utf8")).plugins.length,
+  1,
+)
+
 assert.equal(shouldIgnoreReinstallPath("dist/index.js"), true)
-assert.equal(shouldIgnoreReinstallPath("src/index.tsx"), false)
+assert.equal(shouldIgnoreReinstallPath(".thunder-plugin-dev/teleprompter/plugin.json"), true)
+assert.equal(shouldIgnoreReinstallPath("src/index.tsx"), true, "src/ is now handled by esbuild HMR watcher")
+assert.equal(shouldIgnoreReinstallPath("plugin.json"), false, "plugin.json should still trigger full reinstall")
+const devInstallDir = await prepareDevInstallDirectory(buildResult.project)
+assert.equal((await readFile(join(devInstallDir, "plugin.json"), "utf8")).includes('"id": "teleprompter"'), true)
+assert.equal((await readFile(join(devInstallDir, "dist", "index.html"), "utf8")).includes("index.js"), true)
 
 const openCommand = getOpenCommand("http://127.0.0.1:3000/plugins/teleprompter?devtools=1")
 assert.equal(Array.isArray(openCommand.args), true)
@@ -52,6 +114,9 @@ assert.equal(openCommand.args.length > 0, true)
 
 let installRequests = 0
 let startRequests = 0
+let reloadRequests = 0
+let installPayload: unknown = null
+let lastReloadScope: string | null = null
 const server = createServer((request, response) => {
   if (request.url === "/api/v1/desktop/plugins" && request.method === "GET") {
     response.writeHead(200, { "content-type": "application/json" })
@@ -61,8 +126,15 @@ const server = createServer((request, response) => {
 
   if (request.url === "/api/v1/desktop/plugins/install/local" && request.method === "POST") {
     installRequests += 1
-    response.writeHead(201, { "content-type": "application/json" })
-    response.end(JSON.stringify({ ok: true, data: { installed: true } }))
+    let body = ""
+    request.on("data", (chunk) => {
+      body += String(chunk)
+    })
+    request.on("end", () => {
+      installPayload = JSON.parse(body)
+      response.writeHead(201, { "content-type": "application/json" })
+      response.end(JSON.stringify({ ok: true, data: { installed: true } }))
+    })
     return
   }
 
@@ -75,7 +147,37 @@ const server = createServer((request, response) => {
 
   if (request.url === "/api/v1/desktop/plugins/teleprompter/runtime" && request.method === "GET") {
     response.writeHead(200, { "content-type": "application/json" })
-    response.end(JSON.stringify({ ok: true, data: { running: true, endpoint: "pipe://teleprompter" } }))
+    response.end(JSON.stringify({
+      ok: true,
+      data: {
+        phase: "running",
+        running: true,
+        pid: 1234,
+        consecutiveCrashCount: 0,
+      },
+    }))
+    return
+  }
+
+  if (request.url === "/api/v1/desktop/plugins/teleprompter/runtime/reload" && request.method === "POST") {
+    reloadRequests += 1
+    let body = ""
+    request.on("data", (chunk) => {
+      body += String(chunk)
+    })
+    request.on("end", () => {
+      const parsed = JSON.parse(body) as { scope?: string }
+      lastReloadScope = parsed.scope ?? null
+      response.writeHead(200, { "content-type": "application/json" })
+      response.end(JSON.stringify({
+        ok: true,
+        data: {
+          scope: parsed.scope,
+          runtimeStatus: { phase: "running", running: true },
+          reloadId: "test-reload-id",
+        },
+      }))
+    })
     return
   }
 
@@ -103,10 +205,35 @@ const hostReady = await waitForCondition(
   50,
 )
 assert.equal(hostReady, true)
-await client.installLocalPlugin(pluginRoot)
+await client.installLocalPlugin(buildResult.project, devInstallDir)
 await client.startRuntime("teleprompter")
 assert.equal(installRequests, 1)
 assert.equal(startRequests, 1)
+assert.equal((installPayload as { pluginPath?: string }).pluginPath, devInstallDir)
+assert.equal((installPayload as { trustDecision?: { acceptedRisk?: boolean } }).trustDecision?.acceptedRisk, true)
+assert.equal((installPayload as { trustDecision?: { kind?: string } }).trustDecision?.kind, "trusted")
+assert.equal(
+  (installPayload as { trustDecision?: { permissions?: string[] } }).trustDecision?.permissions?.includes("native-runtime"),
+  true,
+)
+assert.equal(
+  (installPayload as { trustDecision?: { manifestSha256?: string } }).trustDecision?.manifestSha256?.length,
+  64,
+)
+
+// Test reloadPlugin client method (HMR)
+await client.reloadPlugin("teleprompter", "worker")
+assert.equal(reloadRequests, 1)
+assert.equal(lastReloadScope, "worker")
+
+await client.reloadPlugin("teleprompter", "ui")
+assert.equal(reloadRequests, 2)
+assert.equal(lastReloadScope, "ui")
+
+await client.reloadPlugin("teleprompter", "all")
+assert.equal(reloadRequests, 3)
+assert.equal(lastReloadScope, "all")
+
 await new Promise<void>((resolvePromise, reject) => {
   server.close((error) => {
     if (error) {

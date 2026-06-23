@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { findMonorepoRoot } from "../workspace"
+import { findMonorepoRoot } from "../workspace.js"
 
-export type PluginTemplate = "trusted-app" | "sandboxed-basic" | "sandboxed-ui"
+export type PluginTemplate = "trusted-app" | "sandboxed-ui"
 
 export interface CreatePluginProjectOptions {
   name: string
@@ -95,6 +95,20 @@ function createTrustedAppTemplate(pluginName: string): GeneratedPluginFiles {
   }
 }
 
+function createSandboxedUiTemplate(pluginName: string): GeneratedPluginFiles {
+  return {
+    "plugin.json": replaceTemplateTokens(readTemplateFile("sandboxed-ui", "plugin.json"), pluginName),
+    "package.json": replaceTemplateTokens(readTemplateFile("sandboxed-ui", "package.json"), pluginName),
+    "tsconfig.json": readTemplateFile("sandboxed-ui", "tsconfig.json"),
+    ".gitignore": readTemplateFile("sandboxed-ui", ".gitignore"),
+    "README.md": replaceTemplateTokens(readTemplateFile("sandboxed-ui", "README.md"), pluginName),
+    "src/index.tsx": replaceTemplateTokens(
+      readTemplateFile("sandboxed-ui", "src", "index.tsx"),
+      pluginName,
+    ),
+  }
+}
+
 export async function createPluginProject(
   options: CreatePluginProjectOptions,
   targetDir: string,
@@ -105,7 +119,7 @@ export async function createPluginProject(
   if (options.template === "trusted-app") {
     files = createTrustedAppTemplate(pluginName)
   } else {
-    throw new Error(`Unsupported template: ${options.template}`)
+    files = createSandboxedUiTemplate(pluginName)
   }
 
   return rewriteForMonorepoIfNeeded(files, targetDir)

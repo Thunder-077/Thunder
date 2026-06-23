@@ -49,12 +49,19 @@ function getArchiveSpec() {
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(command, args, {
+    const child = process.platform === "win32"
+      ? spawn("cmd.exe", ["/d", "/s", "/c", command, ...args], {
+        cwd: desktopRoot,
+        stdio: "inherit",
+        shell: false,
+        ...options,
+      })
+      : spawn(command, args, {
       cwd: desktopRoot,
       stdio: "inherit",
-      shell: process.platform === "win32",
+        shell: false,
       ...options,
-    })
+      })
 
     child.on("exit", (code) => {
       if (code === 0) {

@@ -29,6 +29,9 @@ importers:
       '@thunder/plugin-host-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-host-runtime
+      '@thunder/plugin-protocol':
+        specifier: workspace:*
+        version: link:../../packages/plugin-protocol
       '@thunder/plugin-schema':
         specifier: workspace:*
         version: link:../../packages/plugin-schema
@@ -121,6 +124,9 @@ importers:
       '@thunder/plugin-devtools':
         specifier: workspace:*
         version: link:../../packages/plugin-devtools
+      '@thunder/plugin-protocol':
+        specifier: workspace:*
+        version: link:../../packages/plugin-protocol
       '@thunder/plugin-schema':
         specifier: workspace:*
         version: link:../../packages/plugin-schema
@@ -206,6 +212,9 @@ importers:
       eslint-config-next:
         specifier: 16.2.4
         version: 16.2.4(@typescript-eslint/parser@8.59.0(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
+      fake-indexeddb:
+        specifier: ^6.2.5
+        version: 6.2.5
       postcss:
         specifier: ^8.5.15
         version: 8.5.15
@@ -342,6 +351,9 @@ importers:
 
   packages/plugin-cli:
     dependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.2.4
       '@thunder/plugin-schema':
         specifier: workspace:*
         version: link:../plugin-schema
@@ -351,6 +363,9 @@ importers:
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
+      postcss:
+        specifier: ^8.5.15
+        version: 8.5.15
       tar:
         specifier: ^7.5.15
         version: 7.5.15
@@ -403,6 +418,22 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/plugin-protocol:
+    dependencies:
+      '@thunder/plugin-schema':
+        specifier: workspace:*
+        version: link:../plugin-schema
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/plugin-schema:
     devDependencies:
       '@types/node':
@@ -417,6 +448,9 @@ importers:
 
   packages/plugin-sdk:
     dependencies:
+      '@thunder/plugin-protocol':
+        specifier: workspace:*
+        version: link:../plugin-protocol
       '@thunder/plugin-schema':
         specifier: workspace:*
         version: link:../plugin-schema
@@ -505,6 +539,9 @@ importers:
         specifier: ^19.0.0
         version: 19.2.4
     devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
       '@types/react':
         specifier: ^19
         version: 19.2.14
@@ -536,6 +573,43 @@ importers:
       '@types/react':
         specifier: ^19
         version: 19.2.14
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  plugins/desktop/teleprompter:
+    dependencies:
+      '@thunder/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+      '@thunder/teleprompter-core':
+        specifier: workspace:*
+        version: link:../../../packages/teleprompter-core
+      '@thunder/teleprompter-ui':
+        specifier: workspace:*
+        version: link:../../../packages/teleprompter-ui
+      react:
+        specifier: ^19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.2.4
+        version: 19.2.4(react@19.2.4)
+    devDependencies:
+      '@thunder/plugin-cli':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-cli
+      '@types/node':
+        specifier: ^20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.2.4
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      tsx:
+        specifier: ^4.19.4
+        version: 4.21.0
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -3799,6 +3873,10 @@ packages:
 
   exsolve@1.0.8:
     resolution: {integrity: sha512-LmDxfWXwcTArk8fUEnOfSZpHOJ6zOMUJKOtFLFqJLoKJetuQG874Uc7/Kki7zFLzYybmZhp1M7+98pfMqeX8yA==}
+
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+    engines: {node: '>=18'}
 
   fast-check@3.23.2:
     resolution: {integrity: sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==}
@@ -9390,6 +9468,8 @@ snapshots:
       - supports-color
 
   exsolve@1.0.8: {}
+
+  fake-indexeddb@6.2.5: {}
 
   fast-check@3.23.2:
     dependencies:

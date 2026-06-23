@@ -7,33 +7,37 @@ import { PageHeader } from "@/components/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { useTheme } from "@/components/theme-provider"
 import {
-  PLUGIN_BRIDGE_REQUEST_SOURCE,
-  PLUGIN_BRIDGE_VERSION,
   clearPluginStorage,
   createIsolatedPluginFrameUrl,
-  getRequiredPluginPermissionForBridgeMethod,
   getPluginStorageValue,
   isAllowedPluginBridgeOrigin,
   isPluginFrameOriginIsolated,
   listPluginStorageKeys,
-  normalizePluginFrameHeight,
-  normalizeStorageKey,
   removePluginStorageValue,
   setPluginStorageValue,
   type PluginBridgeRequest,
-  type StorageRequestParams,
 } from "@/lib/desktop-plugin-bridge"
+import { dispatchDesktopPluginHostRequest } from "@/lib/desktop-plugin-host-dispatcher"
+import { DesktopPluginRateLimiter } from "@/lib/desktop-plugin-rate-limit"
 import {
   getDesktopPluginRuntimeStatus,
   getDesktopPlugin,
   getDesktopPluginEntryUrl,
   shouldLoadDesktopPlugins,
   invokeDesktopPluginWorker,
+  requestDesktopPluginNetwork,
+  subscribeDesktopPluginRuntimeStatus,
   type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
 import { notificationStore } from "@/lib/notification-store"
 import { ActivityClient } from "@thunder/api-client"
 import type { PluginLogEntry, PluginRpcLogEntry, PluginWorkerStatus } from "@thunder/plugin-devtools"
+import {
+  PLUGIN_BRIDGE_RESPONSE_SOURCE,
+  PLUGIN_BRIDGE_VERSION,
+} from "@thunder/plugin-protocol"
+import type { PluginHmrScope } from "@thunder/plugin-protocol"
+import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
 export default function DesktopPluginPage() {
   const params = useParams<{ pluginId: string }>()
@@ -43,41 +47,51 @@ export default function DesktopPluginPage() {
   const [error, setError] = useState<string | null>(null)
   const [hostOrigin] = useState<string | null>(() => (typeof window === "undefined" ? null : window.location.origin))
   const [frameHeight, setFrameHeight] = useState(960)
-  const [workerStatus, setWorkerStatus] = useState<PluginWorkerStatus>({ running: false })
-  const [rpcCalls, setRpcCalls] = useState<PluginRpcLogEntry[]>([])
-  const [devLogs, setDevLogs] = useState<PluginLogEntry[]>([])
+  const [workerStatus, setWorkerStatus] = useState<PluginWorkerStatus>({
+    phase: "stopped",
+    running: false,
+    consecutiveCrashCount: 0,
+  })
+  // Dev logs and RPC calls are collected for future devtools integration.
+  // Use refs instead of state to avoid re-renders on every append.
+  const rpcCallsRef = useRef<PluginRpcLogEntry[]>([])
+  const devLogsRef = useRef<PluginLogEntry[]>([])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previousWorkerStatusRef = useRef<string | null>(null)
+  const lastKnownPidRef = useRef<number | undefined>(undefined)
+  const rateLimiterRef = useRef(new DesktopPluginRateLimiter())
+  const activityClientRef = useRef(new ActivityClient())
+  const [reloadKey, setReloadKey] = useState(0)
   const { resolvedTheme } = useTheme()
 
   const appendLog = useCallback((level: PluginLogEntry["level"], message: string) => {
-    setDevLogs((previous) => [
+    devLogsRef.current = [
       {
         id: crypto.randomUUID(),
         level,
         message,
         at: new Date().toISOString(),
       },
-      ...previous,
-    ].slice(0, 100))
+      ...devLogsRef.current,
+    ].slice(0, 100)
   }, [])
 
   const appendRpcCall = useCallback((entry: Omit<PluginRpcLogEntry, "id" | "at">) => {
-    setRpcCalls((previous) => [
+    rpcCallsRef.current = [
       {
         ...entry,
         id: crypto.randomUUID(),
         at: new Date().toISOString(),
       },
-      ...previous,
-    ].slice(0, 100))
+      ...rpcCallsRef.current,
+    ].slice(0, 100)
   }, [])
 
   const postBridgeResponse = useCallback(
     (targetOrigin: string, id: string, ok: boolean, data?: unknown, bridgeError?: string) => {
       iframeRef.current?.contentWindow?.postMessage(
         {
-          source: "thunder-host",
+          source: PLUGIN_BRIDGE_RESPONSE_SOURCE,
           version: PLUGIN_BRIDGE_VERSION,
           id,
           ok,
@@ -90,26 +104,72 @@ export default function DesktopPluginPage() {
     []
   )
 
+  const pushPluginUpdatedEvent = useCallback(
+    (scope: PluginHmrScope, frameOrigin: string) => {
+      iframeRef.current?.contentWindow?.postMessage(
+        {
+          source: PLUGIN_BRIDGE_RESPONSE_SOURCE,
+          version: PLUGIN_BRIDGE_VERSION,
+          type: "plugin.updated",
+          scope,
+          timestamp: Date.now(),
+        },
+        frameOrigin
+      )
+    },
+    []
+  )
+
   const refreshWorkerStatus = useCallback(async () => {
-    if (!plugin) {
-      setWorkerStatus({ running: false })
+    if (!plugin || plugin.manifest.kind === "sandboxed") {
+      setWorkerStatus({ phase: "stopped", running: false, consecutiveCrashCount: 0 })
       return
     }
 
     try {
       const runtimeStatus = await getDesktopPluginRuntimeStatus(plugin.manifest.id)
+
+      // Detect worker restart by PID change — push update event and reload iframe
+      const prevPid = lastKnownPidRef.current
+      if (
+        runtimeStatus.running &&
+        runtimeStatus.pid &&
+        prevPid !== undefined &&
+        prevPid !== runtimeStatus.pid
+      ) {
+        const entryUrl = getDesktopPluginEntryUrl(plugin)
+        if (entryUrl && hostOrigin) {
+          const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
+          const frameOrigin = new URL(frameUrl).origin
+          pushPluginUpdatedEvent("worker", frameOrigin)
+        }
+        // Give the iframe a brief window to persist state before reload
+        await new Promise((r) => setTimeout(r, 200))
+        setReloadKey((k) => k + 1)
+        appendLog("info", `worker 已热重载: PID ${prevPid} → ${runtimeStatus.pid}`)
+      }
+      if (runtimeStatus.pid) {
+        lastKnownPidRef.current = runtimeStatus.pid
+      }
+
       setWorkerStatus({
+        phase: runtimeStatus.phase,
         running: runtimeStatus.running,
-        endpoint: runtimeStatus.endpoint,
+        pid: runtimeStatus.pid,
+        startedAt: runtimeStatus.startedAt,
+        consecutiveCrashCount: runtimeStatus.consecutiveCrashCount,
+        circuitOpenUntil: runtimeStatus.circuitOpenUntil,
         lastError: runtimeStatus.lastError,
       })
     } catch (runtimeError) {
       setWorkerStatus({
+        phase: "crashed",
         running: false,
+        consecutiveCrashCount: 0,
         lastError: runtimeError instanceof Error ? runtimeError.message : "运行时状态读取失败",
       })
     }
-  }, [plugin])
+  }, [appendLog, hostOrigin, plugin, pushPluginUpdatedEvent])
 
   useEffect(() => {
     if (!desktopEnabled) {
@@ -136,8 +196,7 @@ export default function DesktopPluginPage() {
   // Record plugin.opened activity
   useEffect(() => {
     if (!plugin) return
-    const activityClient = new ActivityClient()
-    activityClient
+    activityClientRef.current
       .recordActivity({
         module: `plugin:${pluginId}`,
         action: "plugin.opened",
@@ -156,22 +215,68 @@ export default function DesktopPluginPage() {
     const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
     const frameOrigin = new URL(frameUrl).origin
     iframeRef.current?.contentWindow?.postMessage(
-      { source: "thunder-host", type: "theme.change", theme: resolvedTheme },
+      { source: PLUGIN_BRIDGE_RESPONSE_SOURCE, version: PLUGIN_BRIDGE_VERSION, type: "theme.change", theme: resolvedTheme },
       frameOrigin
     )
   }, [hostOrigin, plugin, resolvedTheme])
 
+  // Subscribe to runtime status changes via SSE (with polling fallback).
+  // Replaces the previous 3-second polling interval, reducing unnecessary
+  // network traffic while still being responsive to status changes.
   useEffect(() => {
-    void refreshWorkerStatus()
-  }, [refreshWorkerStatus])
+    if (!plugin || plugin.manifest.kind === "sandboxed") {
+      return
+    }
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      void refreshWorkerStatus()
-    }, 3000)
+    const unsubscribe = subscribeDesktopPluginRuntimeStatus(
+      plugin.manifest.id,
+      (runtimeStatus) => {
+        // Detect worker restart by PID change — push update event and reload iframe
+        const prevPid = lastKnownPidRef.current
+        if (
+          runtimeStatus.running &&
+          runtimeStatus.pid &&
+          prevPid !== undefined &&
+          prevPid !== runtimeStatus.pid
+        ) {
+          if (hostOrigin) {
+            const entryUrl = getDesktopPluginEntryUrl(plugin)
+            if (entryUrl) {
+              const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
+              const frameOrigin = new URL(frameUrl).origin
+              pushPluginUpdatedEvent("worker", frameOrigin)
+            }
+          }
+          // Give the iframe a brief window to persist state before reload
+          setTimeout(() => setReloadKey((k) => k + 1), 200)
+          appendLog("info", `worker 已热重载: PID ${prevPid} → ${runtimeStatus.pid}`)
+        }
+        if (runtimeStatus.pid) {
+          lastKnownPidRef.current = runtimeStatus.pid
+        }
 
-    return () => window.clearInterval(timer)
-  }, [refreshWorkerStatus])
+        setWorkerStatus({
+          phase: runtimeStatus.phase,
+          running: runtimeStatus.running,
+          pid: runtimeStatus.pid,
+          startedAt: runtimeStatus.startedAt,
+          consecutiveCrashCount: runtimeStatus.consecutiveCrashCount,
+          circuitOpenUntil: runtimeStatus.circuitOpenUntil,
+          lastError: runtimeStatus.lastError,
+        })
+      },
+      (err) => {
+        setWorkerStatus({
+          phase: "crashed",
+          running: false,
+          consecutiveCrashCount: 0,
+          lastError: err.message || "运行时状态读取失败",
+        })
+      },
+    )
+
+    return unsubscribe
+  }, [appendLog, hostOrigin, plugin, pushPluginUpdatedEvent])
 
   useEffect(() => {
     const nextSignature = JSON.stringify(workerStatus)
@@ -185,7 +290,7 @@ export default function DesktopPluginPage() {
       appendLog(
         workerStatus.running ? "info" : "warn",
         workerStatus.running
-          ? `worker 已连接${workerStatus.endpoint ? `: ${workerStatus.endpoint}` : ""}`
+          ? `worker 已启动${workerStatus.pid ? `: PID ${workerStatus.pid}` : ""}`
           : `worker 未运行${workerStatus.lastError ? `: ${workerStatus.lastError}` : ""}`,
       )
     }
@@ -206,8 +311,6 @@ export default function DesktopPluginPage() {
         !isAllowedPluginBridgeOrigin(event.origin, frameUrl) ||
         event.source !== iframeRef.current?.contentWindow ||
         !request ||
-        request.source !== PLUGIN_BRIDGE_REQUEST_SOURCE ||
-        request.version !== PLUGIN_BRIDGE_VERSION ||
         typeof request.id !== "string" ||
         typeof request.method !== "string"
       ) {
@@ -215,178 +318,70 @@ export default function DesktopPluginPage() {
       }
 
       try {
+        const requestBytes = new TextEncoder().encode(JSON.stringify(request)).byteLength
+        if (requestBytes > 512 * 1024) {
+          throw new Error("插件 Host Bridge 请求超过 512 KiB")
+        }
+        rateLimiterRef.current.assertAllowed(request.method === "network.request")
         const startedAt = performance.now()
-        const requiredPermission = getRequiredPluginPermissionForBridgeMethod(request.method)
-        if (requiredPermission && !currentPlugin.manifest.permissions.includes(requiredPermission)) {
-          throw new Error(`插件未声明 ${requiredPermission} 权限`)
-        }
+        const dispatched = await dispatchDesktopPluginHostRequest(request, {
+          manifest: currentPlugin.manifest as ThunderPluginManifest,
+          storage: {
+            get: (key) => getPluginStorageValue(currentPlugin.manifest.id, key),
+            set: (key, value) =>
+              setPluginStorageValue(currentPlugin.manifest.id, key, value),
+            remove: (key) => removePluginStorageValue(currentPlugin.manifest.id, key),
+            keys: () => listPluginStorageKeys(currentPlugin.manifest.id),
+            clear: () => clearPluginStorage(currentPlugin.manifest.id),
+          },
+          setFrameHeight,
+          addNotification: (params) => {
+            notificationStore.addNotification({
+              type:
+                params.type === "success" || params.type === "error"
+                  ? params.type
+                  : "info",
+              title: params.title?.trim() || currentPlugin.manifest.name,
+              description: params.description?.trim() || "",
+            })
+          },
+          trackActivity: async (params) => {
+            await activityClientRef.current.recordActivity({
+              module: `plugin:${currentPlugin.manifest.id}`,
+              action: params.action,
+              title: params.title,
+              description: params.description,
+              metadataJson: params.metadata
+                ? JSON.stringify(params.metadata)
+                : undefined,
+            })
+          },
+          invokeWorker: (method, payload) =>
+            invokeDesktopPluginWorker(
+              currentPlugin.manifest.id,
+              method,
+              payload,
+            ),
+          requestNetwork: (params) =>
+            requestDesktopPluginNetwork(currentPlugin.manifest.id, params),
+        })
 
-        if (request.method === "plugin.getManifest") {
-          postBridgeResponse(frameOrigin, request.id, true, currentPlugin.manifest)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-            result: currentPlugin.manifest,
-          })
-          return
-        }
-
-        if (request.method === "layout.setFrameHeight") {
-          const params = request.params as { height?: number } | null
-          setFrameHeight(normalizePluginFrameHeight(params?.height))
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        if (request.method === "worker.invoke") {
-          const params = request.params as {
-            method?: string
-            payload?: unknown
-          } | null
-
-          if (!params?.method || typeof params.method !== "string") {
-            throw new Error("worker.invoke 缺少 method")
-          }
-
-          const result = await invokeDesktopPluginWorker(currentPlugin.manifest.id, params.method, params.payload)
+        if (dispatched.request.method === "worker.invoke") {
           await refreshWorkerStatus()
-          postBridgeResponse(frameOrigin, request.id, true, {
-            ok: true,
-            result,
-          })
-          appendRpcCall({
-            method: `${request.method}:${params.method}`,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: params.payload,
-            result,
-          })
-          return
         }
-
-        if (request.method === "notification.add") {
-          const params = request.params as {
-            type?: "info" | "success" | "error"
-            title?: string
-            description?: string
-          } | null
-          notificationStore.addNotification({
-            type: params?.type === "success" || params?.type === "error" ? params.type : "info",
-            title: params?.title?.trim() || currentPlugin.manifest.name,
-            description: params?.description?.trim() || "",
-          })
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        if (request.method === "storage.get") {
-          const params = request.params as StorageRequestParams | null
-          const key = normalizeStorageKey(params?.key)
-          postBridgeResponse(
-            frameOrigin,
-            request.id,
-            true,
-            getPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key)
-          )
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-            result: getPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key),
-          })
-          return
-        }
-
-        if (request.method === "storage.set") {
-          const params = request.params as StorageRequestParams | null
-          const key = normalizeStorageKey(params?.key)
-          setPluginStorageValue(window.localStorage, currentPlugin.manifest.id, key, params?.value)
-          postBridgeResponse(frameOrigin, request.id, true)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        if (request.method === "storage.remove") {
-          const params = request.params as StorageRequestParams | null
-          const key = normalizeStorageKey(params?.key)
-          removePluginStorageValue(window.localStorage, currentPlugin.manifest.id, key)
-          postBridgeResponse(frameOrigin, request.id, true)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        if (request.method === "storage.keys") {
-          const keys = listPluginStorageKeys(window.localStorage, currentPlugin.manifest.id)
-          postBridgeResponse(frameOrigin, request.id, true, keys)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            result: keys,
-          })
-          return
-        }
-
-        if (request.method === "storage.clear") {
-          clearPluginStorage(window.localStorage, currentPlugin.manifest.id)
-          postBridgeResponse(frameOrigin, request.id, true)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-          })
-          return
-        }
-
-        if (request.method === "activity.track") {
-          const params = request.params as {
-            action?: string
-            title?: string
-            description?: string
-            metadata?: Record<string, unknown>
-          } | null
-          const activityClient = new ActivityClient()
-          await activityClient.recordActivity({
-            module: `plugin:${currentPlugin.manifest.id}`,
-            action: params?.action ?? "",
-            title: params?.title ?? "",
-            description: params?.description,
-            metadataJson: params?.metadata ? JSON.stringify(params.metadata) : undefined,
-          })
-          postBridgeResponse(frameOrigin, request.id, true)
-          appendRpcCall({
-            method: request.method,
-            status: "ok",
-            durationMs: Math.round(performance.now() - startedAt),
-            payload: request.params,
-          })
-          return
-        }
-
-        throw new Error(`未知插件 Host API: ${request.method}`)
+        postBridgeResponse(
+          frameOrigin,
+          dispatched.request.id,
+          true,
+          dispatched.result,
+        )
+        appendRpcCall({
+          method: dispatched.diagnosticMethod,
+          status: "ok",
+          durationMs: Math.round(performance.now() - startedAt),
+          payload: dispatched.request.params,
+          result: dispatched.result,
+        })
       } catch (err) {
         appendRpcCall({
           method: request.method,
@@ -458,17 +453,22 @@ export default function DesktopPluginPage() {
   }
 
   const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
-  const frameSandbox = isPluginFrameOriginIsolated(frameUrl, hostOrigin)
-    ? "allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
-    : "allow-forms allow-modals allow-popups allow-scripts"
+  const isolated = isPluginFrameOriginIsolated(frameUrl, hostOrigin)
+  const frameSandbox = plugin.manifest.kind === "sandboxed"
+    ? `allow-forms allow-scripts${isolated ? " allow-same-origin" : ""}`
+    : `allow-forms allow-modals allow-popups allow-scripts${isolated ? " allow-same-origin" : ""}`
+  const frameAllow = plugin.manifest.permissions.includes("microphone")
+    ? "microphone; fullscreen"
+    : "fullscreen"
   return (
     <div className="min-h-0 overflow-hidden rounded-xl border border-border/30 bg-background shadow-sm">
       <iframe
+        key={reloadKey}
         ref={iframeRef}
         title={plugin.manifest.name}
         src={frameUrl}
         onLoad={() => appendLog("info", "插件 iframe 已加载")}
-        allow="microphone; fullscreen"
+        allow={frameAllow}
         sandbox={frameSandbox}
         referrerPolicy="no-referrer"
         className="block w-full border-0 bg-transparent"

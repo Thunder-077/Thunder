@@ -1,53 +1,14 @@
 import { isTauriDesktop } from "@/lib/platform"
+import type { ThunderPluginManifest } from "@thunder/plugin-schema"
 
 export const DESKTOP_PLUGINS_CHANGED_EVENT = "thunder:desktop-plugins-changed"
 
 export type DesktopPluginPermission = string
 
-export interface DesktopPluginManifest {
-  manifestVersion: number
-  id: string
-  name: string
-  version: string
-  description: string
-  kind?: "sandboxed" | "trusted"
+export type DesktopPluginManifest = ThunderPluginManifest & {
+  description?: string
   category?: string
   order?: number
-  engines?: {
-    thunder: string
-  }
-  author: {
-    name: string
-    email?: string
-    url?: string
-  }
-  icon: string
-  permissions: DesktopPluginPermission[]
-  web?: {
-    entry: string
-    contentSecurityPolicy?: string
-  }
-  api?: {
-    baseUrl?: string
-    healthPath?: string
-    runtime?: {
-      kind: "node"
-      entry: string
-      args?: string[]
-      portEnv?: string
-      env?: Record<string, string>
-    }
-  }
-  contributes?: {
-    sidebar?: {
-      title: string
-      icon?: string
-      entry: string
-    }
-  }
-  runtime?: {
-    entry: string
-  }
 }
 
 export interface InstalledDesktopPlugin {
@@ -67,7 +28,9 @@ export interface InstalledDesktopPlugin {
       algorithm: "ed25519"
       signature: string
     }
+    trust?: DesktopPluginTrustRecord
   }
+  trust?: DesktopPluginTrustRecord
   route: string
   webEntryUrl?: string
   uiEntryUrl?: string | null
@@ -78,22 +41,17 @@ export interface InstalledDesktopPlugin {
 
 export type DesktopInstalledPlugin = InstalledDesktopPlugin
 
-export interface DesktopPluginMigrationResult {
-  pluginId: string
-  applied: Array<{ name: string; sha256: string; appliedAt: string }>
-  skipped: Array<{ name: string; sha256: string; appliedAt: string }>
-}
-
 export interface DesktopPluginRuntimeStatus {
   pluginId: string
+  phase: "stopped" | "starting" | "running" | "degraded" | "crashed" | "stopping"
   running: boolean
   pid?: number
-  port?: number
-  baseUrl?: string
-  endpoint?: string
   startedAt?: string
   lastExitAt?: string
   lastExitCode?: number | null
+  lastExitSignal?: string | null
+  consecutiveCrashCount: number
+  circuitOpenUntil?: string
   lastError?: string
 }
 
@@ -114,6 +72,10 @@ export interface DesktopPluginMarketplaceEntry {
     url?: string
   }
   permissions: string[]
+  kind?: "sandboxed" | "trusted"
+  highRiskPermissions?: string[]
+  requiresTrustConfirmation?: boolean
+  manifestSha256?: string
   source?: "package" | "bundled"
   packageUrl?: string
   packageSha256?: string
@@ -122,6 +84,25 @@ export interface DesktopPluginMarketplaceEntry {
     algorithm: "ed25519"
     signature: string
   }
+}
+
+export interface DesktopPluginTrustRecord {
+  source: "sandboxed-default" | "user-confirmed" | "official-bundled"
+  trustedAt: string
+  manifestSha256: string
+  kind: "sandboxed" | "trusted"
+  permissions: string[]
+  highRiskPermissions: string[]
+  acceptedRisk: boolean
+  reason?: string
+}
+
+export interface DesktopPluginTrustDecision {
+  acceptedRisk: boolean
+  permissions: string[]
+  kind: "sandboxed" | "trusted"
+  manifestSha256: string
+  reason?: string
 }
 
 export interface DesktopPluginMarketplaceIndex {
@@ -225,14 +206,17 @@ export async function listDesktopPluginMarketplace(): Promise<DesktopPluginMarke
   return payload.data
 }
 
-export async function installLocalDesktopPlugin(pluginPath: string): Promise<InstalledDesktopPlugin> {
+export async function installLocalDesktopPlugin(
+  pluginPath: string,
+  trustDecision?: DesktopPluginTrustDecision,
+): Promise<InstalledDesktopPlugin> {
   const response = await fetch("/api/v1/desktop/plugins/install/local", {
     method: "POST",
     credentials: "same-origin",
     headers: {
       "content-type": "application/json",
     },
-    body: JSON.stringify({ pluginPath }),
+    body: JSON.stringify({ pluginPath, trustDecision }),
   })
 
   const payload = (await response.json()) as {
@@ -250,37 +234,13 @@ export async function installLocalDesktopPlugin(pluginPath: string): Promise<Ins
 }
 
 export async function installPackagedDesktopPlugin(
-  entry: DesktopPluginMarketplaceEntry
+  entry: DesktopPluginMarketplaceEntry,
+  trustDecision?: DesktopPluginTrustDecision,
 ): Promise<InstalledDesktopPlugin> {
-  if (!entry.packageUrl || !entry.packageSha256 || !entry.signature) {
-    throw new Error("插件市场条目缺少签名包信息")
-  }
-
-  const response = await fetch("/api/v1/desktop/plugins/install/package", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      packageUrl: entry.packageUrl,
-      packageSha256: entry.packageSha256,
-      signature: entry.signature,
-    }),
-  })
-
-  const payload = (await response.json()) as {
-    ok: boolean
-    data?: InstalledDesktopPlugin
-    message?: string
-  }
-
-  if (!response.ok || !payload.ok || !payload.data) {
-    throw new Error(payload.message || "插件安装失败")
-  }
-
-  notifyDesktopPluginsChanged()
-  return payload.data
+  void trustDecision
+  // 远程签名包安装的打包与索引结构已存在，但桌面端安装入口尚未开放。
+  // 在前端统一给出明确错误，避免外部开发者以为是包内容或签名配置错误。
+  throw new Error(`远程插件包安装暂未开放：${entry.name}`)
 }
 
 export async function installBundledDesktopPlugin(pluginId: string): Promise<InstalledDesktopPlugin> {
@@ -318,25 +278,6 @@ export async function uninstallDesktopPlugin(pluginId: string): Promise<void> {
     throw new Error(payload?.message || "插件卸载失败")
   }
   notifyDesktopPluginsChanged()
-}
-
-export async function runDesktopPluginMigrations(pluginId: string): Promise<DesktopPluginMigrationResult> {
-  const response = await fetch(`/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/migrations/run`, {
-    method: "POST",
-    credentials: "same-origin",
-  })
-
-  const payload = (await response.json()) as {
-    ok: boolean
-    data?: DesktopPluginMigrationResult
-    message?: string
-  }
-
-  if (!response.ok || !payload.ok || !payload.data) {
-    throw new Error(payload.message || "插件迁移执行失败")
-  }
-
-  return payload.data
 }
 
 export async function startDesktopPluginRuntime(pluginId: string): Promise<DesktopPluginRuntimeStatus> {
@@ -397,6 +338,30 @@ export async function invokeDesktopPluginWorker<TResult = unknown, TPayload = un
   return data.data.result
 }
 
+export async function requestDesktopPluginNetwork(
+  pluginId: string,
+  request: import("@thunder/plugin-protocol").PluginNetworkRequestParams,
+): Promise<import("@thunder/plugin-protocol").PluginNetworkResponse> {
+  const response = await fetch(
+    `/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/network/request`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(request),
+    },
+  )
+  const payload = (await response.json()) as {
+    ok: boolean
+    data?: import("@thunder/plugin-protocol").PluginNetworkResponse
+    message?: string
+  }
+  if (!response.ok || !payload.ok || !payload.data) {
+    throw new Error(payload.message || "插件网络请求失败")
+  }
+  return payload.data
+}
+
 const DESKTOP_PLUGIN_PERMISSION_LABELS: Record<string, string> = {
   storage: "保存插件私有数据",
   notifications: "显示通知",
@@ -427,4 +392,70 @@ async function postRuntimeAction(pluginId: string, action: "start" | "stop"): Pr
   }
 
   return payload.data
+}
+
+/**
+ * Subscribe to runtime status changes via Server-Sent Events.
+ * Returns an unsubscribe function. Falls back to polling if SSE is
+ * unavailable (e.g. non-browser environments or network errors).
+ */
+export function subscribeDesktopPluginRuntimeStatus(
+  pluginId: string,
+  onStatus: (status: DesktopPluginRuntimeStatus) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  const url = `/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/runtime/events`
+  let eventSource: EventSource | null = null
+  let fallbackTimer: ReturnType<typeof setInterval> | null = null
+  let closed = false
+
+  function startSSE(): void {
+    if (closed) return
+    try {
+      eventSource = new EventSource(url)
+      eventSource.onmessage = (event) => {
+        try {
+          const status = JSON.parse(event.data) as DesktopPluginRuntimeStatus
+          onStatus(status)
+        } catch {
+          // Malformed event data — ignore.
+        }
+      }
+      eventSource.onerror = () => {
+        // SSE connection failed — fall back to polling.
+        eventSource?.close()
+        eventSource = null
+        if (!closed) {
+          startPollingFallback()
+        }
+      }
+    } catch {
+      // EventSource constructor failed — fall back to polling.
+      startPollingFallback()
+    }
+  }
+
+  function startPollingFallback(): void {
+    if (closed || fallbackTimer) return
+    fallbackTimer = setInterval(async () => {
+      try {
+        const status = await getDesktopPluginRuntimeStatus(pluginId)
+        onStatus(status)
+      } catch (err) {
+        onError?.(err instanceof Error ? err : new Error("运行时状态读取失败"))
+      }
+    }, 3000)
+  }
+
+  startSSE()
+
+  return () => {
+    closed = true
+    eventSource?.close()
+    eventSource = null
+    if (fallbackTimer) {
+      clearInterval(fallbackTimer)
+      fallbackTimer = null
+    }
+  }
 }

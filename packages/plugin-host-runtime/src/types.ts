@@ -9,6 +9,7 @@ export interface LoadedPluginManifest {
 export interface RegisteredPlugin {
   manifest: ThunderPluginManifest
   pluginRoot: string
+  dataDirectory?: string
 }
 
 export interface PluginRegistry {
@@ -17,13 +18,6 @@ export interface PluginRegistry {
   get(id: string): RegisteredPlugin | null
   has(id: string): boolean
   list(): RegisteredPlugin[]
-}
-
-export interface PluginStorage {
-  readonly root: string
-  get<T>(pluginId: string, key: string): T | null
-  set(pluginId: string, key: string, value: unknown): void
-  delete(pluginId: string, key: string): boolean
 }
 
 export interface PluginInstallResult {
@@ -37,11 +31,32 @@ export interface PluginInstaller {
   installFromDirectory(sourcePath: string): Promise<PluginInstallResult>
 }
 
+export type PluginRuntimePhase =
+  | "stopped"
+  | "starting"
+  | "running"
+  | "degraded"
+  | "crashed"
+  | "stopping"
+
 export interface PluginRuntimeStatus {
   pluginId: string
-  kind: ThunderPluginManifest["kind"]
+  kind: "trusted" | "sandboxed"
+  /** Canonical lifecycle state for the runtime. */
+  phase: PluginRuntimePhase
+  /**
+   * Compatibility-derived flag. It must be true only when phase is
+   * "running" or "degraded".
+   */
   running: boolean
-  endpoint?: string
+  pid?: number
+  startedAt?: string
+  lastExitAt?: string
+  lastExitCode?: number | null
+  lastExitSignal?: NodeJS.Signals | null
+  consecutiveCrashCount: number
+  circuitOpenUntil?: string
+  lastError?: string
 }
 
 export interface SandboxedPluginRuntime {
@@ -51,8 +66,17 @@ export interface SandboxedPluginRuntime {
 }
 
 export interface TrustedPluginRuntimeSupervisor {
-  start(plugin: RegisteredPlugin): Promise<PluginRuntimeStatus>
+  start(
+    plugin: RegisteredPlugin,
+    options?: { manual?: boolean },
+  ): Promise<PluginRuntimeStatus>
+  invoke(
+    plugin: RegisteredPlugin,
+    method: string,
+    payload?: unknown,
+  ): Promise<unknown>
   stop(pluginId: string): Promise<PluginRuntimeStatus>
+  /** Stop all running plugin runtimes. Used for graceful shutdown. */
+  stopAll(): Promise<void>
   getStatus(pluginId: string): PluginRuntimeStatus
-  getEndpoint(pluginId: string): string | null
 }
