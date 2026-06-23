@@ -4,7 +4,7 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-05-05",
   "build": {
-    "command": "node ../../scripts/generate-enabled-modules.mjs"
+    "command": "node ./scripts/prepare-cloudflare-build.mjs"
   },
   "compatibility_flags": [
     "nodejs_compat",

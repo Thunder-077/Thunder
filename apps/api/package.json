@@ -11,7 +11,7 @@
     "build:plugin-marketplace": "node ./scripts/build-plugin-marketplace.mjs",
     "test:plugins": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/api exec tsx src/plugins/desktop-plugin-trust.test.ts && pnpm exec tsx src/plugins/desktop-plugin-manager.test.ts && pnpm exec tsx src/plugins/desktop-plugin-routes.test.ts && pnpm exec tsx src/plugins/desktop-plugin-e2e.test.ts",
     "start": "node dist/index.js",
-    "deploy:cf": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --filter @thunder/database db:generate && pnpm --filter @thunder/plugin-schema build && pnpm --filter @thunder/plugin-protocol build && wrangler deploy",
+    "deploy:cf": "wrangler deploy",
     "typecheck": "node ../../scripts/run-with-generated-modules.mjs -- pnpm --dir apps/api exec tsc --noEmit"
   },
   "dependencies": {
