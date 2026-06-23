@@ -26,6 +26,7 @@ import {
   shouldLoadDesktopPlugins,
   invokeDesktopPluginWorker,
   requestDesktopPluginNetwork,
+  subscribeDesktopPluginRuntimeStatus,
   type DesktopInstalledPlugin,
 } from "@/lib/desktop-plugins"
 import { notificationStore } from "@/lib/notification-store"
@@ -51,36 +52,39 @@ export default function DesktopPluginPage() {
     running: false,
     consecutiveCrashCount: 0,
   })
-  const [, setRpcCalls] = useState<PluginRpcLogEntry[]>([])
-  const [, setDevLogs] = useState<PluginLogEntry[]>([])
+  // Dev logs and RPC calls are collected for future devtools integration.
+  // Use refs instead of state to avoid re-renders on every append.
+  const rpcCallsRef = useRef<PluginRpcLogEntry[]>([])
+  const devLogsRef = useRef<PluginLogEntry[]>([])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const previousWorkerStatusRef = useRef<string | null>(null)
   const lastKnownPidRef = useRef<number | undefined>(undefined)
   const rateLimiterRef = useRef(new DesktopPluginRateLimiter())
+  const activityClientRef = useRef(new ActivityClient())
   const [reloadKey, setReloadKey] = useState(0)
   const { resolvedTheme } = useTheme()
 
   const appendLog = useCallback((level: PluginLogEntry["level"], message: string) => {
-    setDevLogs((previous) => [
+    devLogsRef.current = [
       {
         id: crypto.randomUUID(),
         level,
         message,
         at: new Date().toISOString(),
       },
-      ...previous,
-    ].slice(0, 100))
+      ...devLogsRef.current,
+    ].slice(0, 100)
   }, [])
 
   const appendRpcCall = useCallback((entry: Omit<PluginRpcLogEntry, "id" | "at">) => {
-    setRpcCalls((previous) => [
+    rpcCallsRef.current = [
       {
         ...entry,
         id: crypto.randomUUID(),
         at: new Date().toISOString(),
       },
-      ...previous,
-    ].slice(0, 100))
+      ...rpcCallsRef.current,
+    ].slice(0, 100)
   }, [])
 
   const postBridgeResponse = useCallback(
@@ -192,8 +196,7 @@ export default function DesktopPluginPage() {
   // Record plugin.opened activity
   useEffect(() => {
     if (!plugin) return
-    const activityClient = new ActivityClient()
-    activityClient
+    activityClientRef.current
       .recordActivity({
         module: `plugin:${pluginId}`,
         action: "plugin.opened",
@@ -217,21 +220,64 @@ export default function DesktopPluginPage() {
     )
   }, [hostOrigin, plugin, resolvedTheme])
 
+  // Subscribe to runtime status changes via SSE (with polling fallback).
+  // Replaces the previous 3-second polling interval, reducing unnecessary
+  // network traffic while still being responsive to status changes.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void refreshWorkerStatus()
-    }, 0)
+    if (!plugin || plugin.manifest.kind === "sandboxed") {
+      setWorkerStatus({ phase: "stopped", running: false, consecutiveCrashCount: 0 })
+      return
+    }
 
-    return () => window.clearTimeout(timer)
-  }, [refreshWorkerStatus])
+    const unsubscribe = subscribeDesktopPluginRuntimeStatus(
+      plugin.manifest.id,
+      (runtimeStatus) => {
+        // Detect worker restart by PID change — push update event and reload iframe
+        const prevPid = lastKnownPidRef.current
+        if (
+          runtimeStatus.running &&
+          runtimeStatus.pid &&
+          prevPid !== undefined &&
+          prevPid !== runtimeStatus.pid
+        ) {
+          if (hostOrigin) {
+            const entryUrl = getDesktopPluginEntryUrl(plugin)
+            if (entryUrl) {
+              const frameUrl = createIsolatedPluginFrameUrl(entryUrl, hostOrigin)
+              const frameOrigin = new URL(frameUrl).origin
+              pushPluginUpdatedEvent("worker", frameOrigin)
+            }
+          }
+          // Give the iframe a brief window to persist state before reload
+          setTimeout(() => setReloadKey((k) => k + 1), 200)
+          appendLog("info", `worker 已热重载: PID ${prevPid} → ${runtimeStatus.pid}`)
+        }
+        if (runtimeStatus.pid) {
+          lastKnownPidRef.current = runtimeStatus.pid
+        }
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      void refreshWorkerStatus()
-    }, 3000)
+        setWorkerStatus({
+          phase: runtimeStatus.phase,
+          running: runtimeStatus.running,
+          pid: runtimeStatus.pid,
+          startedAt: runtimeStatus.startedAt,
+          consecutiveCrashCount: runtimeStatus.consecutiveCrashCount,
+          circuitOpenUntil: runtimeStatus.circuitOpenUntil,
+          lastError: runtimeStatus.lastError,
+        })
+      },
+      (err) => {
+        setWorkerStatus({
+          phase: "crashed",
+          running: false,
+          consecutiveCrashCount: 0,
+          lastError: err.message || "运行时状态读取失败",
+        })
+      },
+    )
 
-    return () => window.clearInterval(timer)
-  }, [refreshWorkerStatus])
+    return unsubscribe
+  }, [appendLog, hostOrigin, plugin, pushPluginUpdatedEvent])
 
   useEffect(() => {
     const nextSignature = JSON.stringify(workerStatus)
@@ -301,8 +347,7 @@ export default function DesktopPluginPage() {
             })
           },
           trackActivity: async (params) => {
-            const activityClient = new ActivityClient()
-            await activityClient.recordActivity({
+            await activityClientRef.current.recordActivity({
               module: `plugin:${currentPlugin.manifest.id}`,
               action: params.action,
               title: params.title,

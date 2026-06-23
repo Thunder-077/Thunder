@@ -89,13 +89,30 @@ export interface StaticPluginAsset {
   lastModified?: string
 }
 
+let _pluginRuntimeEnabled: boolean | null = null
+
+/**
+ * Whether the desktop plugin system is enabled.
+ * Computed once per process and cached — the env vars and database URL
+ * never change during a server's lifetime.
+ */
 export function isDesktopPluginRuntimeEnabled(): boolean {
-  return (
-    process.env.THUNDER_TARGET_PLATFORM === "desktop" ||
-    process.env.NEXT_PUBLIC_PLATFORM === "desktop" ||
-    process.env.THUNDER_ENABLE_DESKTOP_PLUGINS === "1" ||
-    isLocalSqliteDatabase()
-  )
+  if (_pluginRuntimeEnabled === null) {
+    _pluginRuntimeEnabled =
+      process.env.THUNDER_TARGET_PLATFORM === "desktop" ||
+      process.env.NEXT_PUBLIC_PLATFORM === "desktop" ||
+      process.env.THUNDER_ENABLE_DESKTOP_PLUGINS === "1" ||
+      isLocalSqliteDatabase()
+  }
+  return _pluginRuntimeEnabled
+}
+
+/**
+ * Reset the cached value. Only needed for tests that mutate process.env.
+ * @internal
+ */
+export function _resetPluginRuntimeEnabledCache(): void {
+  _pluginRuntimeEnabled = null
 }
 
 async function getTrustedPluginDataDirectory(

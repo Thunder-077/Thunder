@@ -215,6 +215,65 @@ desktopPlugins.get("/:id/runtime", async (c) => {
   }
 })
 
+/**
+ * SSE endpoint for runtime status changes. Pushes a JSON event whenever the
+ * runtime phase or PID changes, eliminating the need for 3-second polling.
+ * Falls back gracefully — clients that don't support SSE can still use the
+ * regular GET /:id/runtime endpoint.
+ */
+desktopPlugins.get("/:id/runtime/events", async (c) => {
+  const pluginId = c.req.param("id")
+  try {
+    // Validate plugin exists (throws 404 if not).
+    getDesktopPluginRuntimeStatus(pluginId)
+  } catch (error) {
+    return jsonError(error)
+  }
+
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder()
+      let lastSignature = ""
+
+      function sendStatus(): void {
+        try {
+          const status = getDesktopPluginRuntimeStatus(pluginId)
+          const signature = JSON.stringify(status)
+          if (signature !== lastSignature) {
+            lastSignature = signature
+            controller.enqueue(encoder.encode(`data: ${signature}\n\n`))
+          }
+        } catch {
+          // Plugin may have been uninstalled — close the stream.
+          clearInterval(timer)
+          controller.close()
+        }
+      }
+
+      // Send current status immediately.
+      sendStatus()
+
+      // Check for changes every 1 second (server-side poll, much cheaper
+      // than client-side HTTP polling). Only pushes when something changes.
+      const timer = setInterval(sendStatus, 1000)
+
+      // Clean up when the client disconnects.
+      c.req.raw.signal.addEventListener("abort", () => {
+        clearInterval(timer)
+        try { controller.close() } catch { /* already closed */ }
+      })
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      "connection": "keep-alive",
+    },
+  })
+})
+
 desktopPlugins.post("/:id/runtime/start", async (c) => {
   try {
     const status = await startDesktopPluginRuntime(c.req.param("id"))

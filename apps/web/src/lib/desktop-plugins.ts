@@ -393,3 +393,69 @@ async function postRuntimeAction(pluginId: string, action: "start" | "stop"): Pr
 
   return payload.data
 }
+
+/**
+ * Subscribe to runtime status changes via Server-Sent Events.
+ * Returns an unsubscribe function. Falls back to polling if SSE is
+ * unavailable (e.g. non-browser environments or network errors).
+ */
+export function subscribeDesktopPluginRuntimeStatus(
+  pluginId: string,
+  onStatus: (status: DesktopPluginRuntimeStatus) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  const url = `/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/runtime/events`
+  let eventSource: EventSource | null = null
+  let fallbackTimer: ReturnType<typeof setInterval> | null = null
+  let closed = false
+
+  function startSSE(): void {
+    if (closed) return
+    try {
+      eventSource = new EventSource(url)
+      eventSource.onmessage = (event) => {
+        try {
+          const status = JSON.parse(event.data) as DesktopPluginRuntimeStatus
+          onStatus(status)
+        } catch {
+          // Malformed event data — ignore.
+        }
+      }
+      eventSource.onerror = () => {
+        // SSE connection failed — fall back to polling.
+        eventSource?.close()
+        eventSource = null
+        if (!closed) {
+          startPollingFallback()
+        }
+      }
+    } catch {
+      // EventSource constructor failed — fall back to polling.
+      startPollingFallback()
+    }
+  }
+
+  function startPollingFallback(): void {
+    if (closed || fallbackTimer) return
+    fallbackTimer = setInterval(async () => {
+      try {
+        const status = await getDesktopPluginRuntimeStatus(pluginId)
+        onStatus(status)
+      } catch (err) {
+        onError?.(err instanceof Error ? err : new Error("运行时状态读取失败"))
+      }
+    }, 3000)
+  }
+
+  startSSE()
+
+  return () => {
+    closed = true
+    eventSource?.close()
+    eventSource = null
+    if (fallbackTimer) {
+      clearInterval(fallbackTimer)
+      fallbackTimer = null
+    }
+  }
+}
