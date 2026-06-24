@@ -338,7 +338,7 @@ export default function DesktopPluginPage() {
         if (requestBytes > 512 * 1024) {
           throw new Error("插件 Host Bridge 请求超过 512 KiB")
         }
-        rateLimiterRef.current.assertAllowedMethod(request.method)
+        rateLimiterRef.current.assertAllowedMethod(request.method, request.params)
         const startedAt = performance.now()
         const dispatched = await dispatchDesktopPluginHostRequest(request, {
           manifest: currentPlugin.manifest as ThunderPluginManifest,
@@ -389,7 +389,10 @@ export default function DesktopPluginPage() {
           },
         })
 
-        if (dispatched.request.method === "worker.invoke") {
+        const workerMethod = typeof dispatched.request.params === "object" && dispatched.request.params !== null
+          ? (dispatched.request.params as { method?: unknown }).method
+          : undefined
+        if (dispatched.request.method === "worker.invoke" && workerMethod !== "speech.session.feed") {
           await refreshWorkerStatus()
         }
         postBridgeResponse(
