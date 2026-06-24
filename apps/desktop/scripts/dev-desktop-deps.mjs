@@ -4,6 +4,7 @@ import net from "node:net"
 import os from "node:os"
 import path from "node:path"
 import fs from "node:fs"
+import { cp, mkdir, rm } from "node:fs/promises"
 
 function getTauriAppDataDir() {
   const home = os.homedir();
@@ -19,6 +20,8 @@ function getTauriAppDataDir() {
 }
 
 const ROOT_DIR = fileURLToPath(new URL("../../..", import.meta.url))
+const DESKTOP_DIR = path.join(ROOT_DIR, "apps", "desktop")
+const WORKSPACE_RUNTIME_DIR = path.join(DESKTOP_DIR, "runtime")
 const PNPM_BIN = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
 
 function wait(ms) {
@@ -79,6 +82,140 @@ function startWorkspaceScript(scriptName, label) {
   return child
 }
 
+function runWorkspaceCommand(args, label, options = {}) {
+  const result = process.platform === "win32"
+    ? spawnSync("cmd.exe", ["/d", "/s", "/c", PNPM_BIN, "--dir", ROOT_DIR, ...args], {
+      stdio: "inherit",
+      shell: false,
+      ...options,
+    })
+    : spawnSync(PNPM_BIN, ["--dir", ROOT_DIR, ...args], {
+      stdio: "inherit",
+      shell: false,
+      ...options,
+    })
+
+  if (result.status !== 0) {
+    console.error(`[desktop] ${label} failed`)
+    process.exit(result.status ?? 1)
+  }
+}
+
+function getInstalledRuntimeCandidates() {
+  if (process.env.THUNDER_DESKTOP_DEV_RUNTIME_TARGET) {
+    return [process.env.THUNDER_DESKTOP_DEV_RUNTIME_TARGET]
+  }
+
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local")
+    return [
+      path.join(localAppData, "Thunder", "_up_", "runtime"),
+      path.join(localAppData, "Thunder", "runtime"),
+    ]
+  }
+
+  return []
+}
+
+async function pathExists(filePath) {
+  try {
+    await fs.promises.stat(filePath)
+    return true
+  } catch (error) {
+    if (error?.code === "ENOENT") return false
+    throw error
+  }
+}
+
+async function copyRuntimeEntry(sourcePath, targetPath) {
+  await rm(targetPath, { recursive: true, force: true })
+  await mkdir(path.dirname(targetPath), { recursive: true })
+  await cp(sourcePath, targetPath, { recursive: true, force: true })
+}
+
+async function copyPluginRuntimeEntry(sourcePath, targetPath) {
+  await rm(targetPath, { recursive: true, force: true })
+  await mkdir(path.dirname(targetPath), { recursive: true })
+  await cp(sourcePath, targetPath, {
+    recursive: true,
+    force: true,
+    filter(source) {
+      // 插件运行时只需要源码元数据和 dist 产物，跳过开发态依赖与缓存。
+      const normalized = source.replaceAll("\\", "/")
+      return !normalized.includes("/node_modules") && !normalized.includes("/.turbo")
+    },
+  })
+}
+
+async function syncDevRuntimeTarget(targetRuntimeDir) {
+  await mkdir(targetRuntimeDir, { recursive: true })
+
+  // 开发态只同步影响 trusted runtime 的最小集合，避免每次启动都复制完整 Web/Node runtime。
+  await copyRuntimeEntry(
+    path.join(WORKSPACE_RUNTIME_DIR, "api"),
+    path.join(targetRuntimeDir, "api"),
+  )
+  await copyPluginRuntimeEntry(
+    path.join(WORKSPACE_RUNTIME_DIR, "plugins", "desktop", "teleprompter"),
+    path.join(targetRuntimeDir, "plugins", "desktop", "teleprompter"),
+  )
+  await cp(
+    path.join(WORKSPACE_RUNTIME_DIR, "manifest.json"),
+    path.join(targetRuntimeDir, "manifest.json"),
+    { force: true },
+  )
+}
+
+async function syncDevRuntime() {
+  if (process.env.THUNDER_SKIP_DEV_RUNTIME_SYNC === "true") {
+    console.log("[desktop] Skipping dev runtime sync")
+    return
+  }
+
+  console.log("[desktop] Building minimal desktop runtime for trusted worker development")
+  if (!(await hasSqliteClientRuntime())) {
+    runWorkspaceCommand(["--filter", "@thunder/database", "db:generate:sqlite"], "SQLite client generation")
+  } else {
+    console.log("[desktop] Reusing existing SQLite client runtime")
+  }
+  if (!(await pathExists(path.join(ROOT_DIR, "apps", "api", "src", "sqlite-migrations.json")))) {
+    runWorkspaceCommand(["--filter", "@thunder/database", "db:compile-sqlite-migrations"], "SQLite migration compilation")
+  } else {
+    console.log("[desktop] Reusing compiled SQLite migrations")
+  }
+  runWorkspaceCommand(["--filter", "@thunder/api", "build:desktop-bundle"], "desktop API runtime bundle", {
+    env: {
+      ...process.env,
+      THUNDER_TARGET_PLATFORM: "desktop",
+      NEXT_PUBLIC_PLATFORM: "desktop",
+    },
+  })
+
+  await copyPluginRuntimeEntry(
+    path.join(ROOT_DIR, "plugins", "desktop", "teleprompter"),
+    path.join(WORKSPACE_RUNTIME_DIR, "plugins", "desktop", "teleprompter"),
+  )
+  console.log(`[desktop] Synced workspace plugin runtime: ${path.join(WORKSPACE_RUNTIME_DIR, "plugins", "desktop", "teleprompter")}`)
+
+  const targets = [
+    ...(await Promise.all(
+      getInstalledRuntimeCandidates().map(async (candidate) => await pathExists(candidate) ? candidate : null),
+    )),
+  ].filter((candidate, index, list) => candidate && list.indexOf(candidate) === index)
+
+  for (const target of targets) {
+    await syncDevRuntimeTarget(target)
+    console.log(`[desktop] Synced dev runtime: ${target}`)
+  }
+}
+
+async function hasSqliteClientRuntime() {
+  const sqliteClientDir = path.join(ROOT_DIR, "packages", "database", "src", "generated", "sqlite-client")
+  if (!(await pathExists(path.join(sqliteClientDir, "schema.prisma")))) return false
+  const entries = await fs.promises.readdir(sqliteClientDir).catch(() => [])
+  return entries.some((entry) => entry.includes("query_engine") && entry.endsWith(".node"))
+}
+
 const children = []
 
 function stopChildren() {
@@ -113,17 +250,12 @@ const webRunning = await isPortOpen(3000)
 const apiRunning = await isPortOpen(3001)
 process.env.THUNDER_DESKTOP_NATIVE_API_URL = process.env.THUNDER_DESKTOP_NATIVE_API_URL || "http://127.0.0.1:43102"
 
-const pluginBuild = process.platform === "win32"
-  ? spawnSync("cmd.exe", ["/d", "/s", "/c", PNPM_BIN, "--dir", ROOT_DIR, "build:plugin:teleprompter"], {
-    stdio: "inherit",
-    shell: false,
-  })
-  : spawnSync(PNPM_BIN, ["--dir", ROOT_DIR, "build:plugin:teleprompter"], {
-  stdio: "inherit",
-    shell: false,
-  })
-if (pluginBuild.status !== 0) {
-  process.exit(pluginBuild.status ?? 1)
+runWorkspaceCommand(["build:plugin:teleprompter"], "teleprompter plugin build")
+await syncDevRuntime()
+
+if (process.env.THUNDER_DESKTOP_DEPS_ONCE === "true") {
+  console.log("[desktop] Dev desktop dependencies are ready")
+  process.exit(0)
 }
 
 if (webRunning) {

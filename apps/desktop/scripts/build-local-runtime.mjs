@@ -125,6 +125,11 @@ await cp(resolve(workspaceRoot, "services", "sherpa-onnx"), resolve(runtimeServi
 })
 await cp(resolve(workspaceRoot, "plugins", "desktop"), resolve(runtimePluginsDir, "desktop"), {
   recursive: true,
+  filter(source) {
+    // 插件运行时只需要 manifest 和 dist 产物，跳过开发态依赖与缓存，避免复制 pnpm symlink。
+    const normalized = source.replaceAll("\\", "/")
+    return !normalized.includes("/node_modules") && !normalized.includes("/.turbo")
+  },
 })
 
 const pruneResult = await pruneRuntimeFiles(runtimeDir)
