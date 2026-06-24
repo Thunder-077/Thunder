@@ -2,8 +2,8 @@ import { thunder } from "@thunder/plugin-sdk/browser"
 import type {
   SpeechModelsActivatePayload,
   SpeechModelsDownloadPayload,
-  SpeechSessionFeedPayload,
-  SpeechSessionFeedResult,
+  SpeechAudioChunkPayload,
+  SpeechAudioChunkResult,
   SpeechRuntimeHealthResult,
   SpeechSessionStartPayload,
   SpeechSessionStartResult,
@@ -35,8 +35,14 @@ export const pluginSpeechRuntime = {
   startSession(payload: SpeechSessionStartPayload) {
     return thunder.worker.invoke<SpeechSessionStartResult, SpeechSessionStartPayload>("speech.session.start", payload)
   },
-  feedSessionAudio(payload: SpeechSessionFeedPayload) {
-    return thunder.worker.invoke<SpeechSessionFeedResult, SpeechSessionFeedPayload>("speech.session.feed", payload)
+  openSessionAudioStream(
+    payload: Omit<SpeechAudioChunkPayload, "samples" | "inputFinished">,
+    handlers: {
+      onResult: (result: SpeechAudioChunkResult) => void
+      onError: (error: Error) => void
+    },
+  ) {
+    return thunder.speech.openAudioStream(payload, handlers)
   },
   submitSessionText(payload: SpeechSessionSubmitPayload) {
     return thunder.worker.invoke<SpeechSessionSubmitResult, SpeechSessionSubmitPayload>("speech.session.submit", payload)

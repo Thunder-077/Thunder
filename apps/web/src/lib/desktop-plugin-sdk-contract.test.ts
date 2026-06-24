@@ -51,6 +51,7 @@ async function main() {
   }
 
   const windowMock = {
+    MessageChannel: globalThis.MessageChannel,
     parent: {
       postMessage(input: unknown) {
         void dispatchDesktopPluginHostRequest(input, {
@@ -78,6 +79,7 @@ async function main() {
           async invokeWorker(method, payload) {
             return { method, payload }
           },
+          openSpeechStream() {},
           async requestNetwork() {
             return { status: 200, headers: { "content-type": "text/plain" }, body: "ok" }
           },
@@ -137,6 +139,13 @@ async function main() {
       payload: { text: "hello" },
     },
   )
+  const speechStream = await thunder.speech.openAudioStream({
+    sessionId: "speech-session-1",
+    sampleRate: 16000,
+    channels: 1,
+    encoding: "pcm_s16le",
+  })
+  speechStream.close()
   await thunder.events.broadcast("draft.updated", { text: "hello" })
 
   await new Promise((resolve) => setTimeout(resolve, 0))

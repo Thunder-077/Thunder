@@ -338,6 +338,117 @@ export async function invokeDesktopPluginWorker<TResult = unknown, TPayload = un
   return data.data.result
 }
 
+export interface DesktopPluginWorkerStream<TResult = unknown> {
+  write(payload?: unknown): void
+  close(): void
+  closed: Promise<void>
+  onResult(handler: (result: TResult) => void): void
+  onError(handler: (message: string) => void): void
+}
+
+function encodeWorkerStreamInput(payload: unknown): Uint8Array {
+  return new TextEncoder().encode(`${JSON.stringify(payload)}\n`)
+}
+
+/**
+ * 打开浏览器 Host 到 API runtime 的长连接流式 worker 通道。
+ * 音频块进入同一个 HTTP request body，识别结果从同一个 response body 回流。
+ */
+export function openDesktopPluginWorkerStream<TResult = unknown>(
+  pluginId: string,
+  method: string,
+  openPayload?: unknown,
+): DesktopPluginWorkerStream<TResult> {
+  const resultHandlers = new Set<(result: TResult) => void>()
+  const errorHandlers = new Set<(message: string) => void>()
+  let closedByCaller = false
+  let controller: ReadableStreamDefaultController<Uint8Array> | null = null
+  const pendingInputs: Uint8Array[] = []
+
+  const body = new ReadableStream<Uint8Array>({
+    start(streamController) {
+      controller = streamController
+      for (const input of pendingInputs.splice(0)) {
+        streamController.enqueue(input)
+      }
+    },
+  })
+
+  const closed = (async () => {
+    const response = await fetch(
+      `/api/v1/desktop/plugins/${encodeURIComponent(pluginId)}/worker/stream?method=${encodeURIComponent(method)}`,
+      {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "content-type": "application/x-ndjson",
+          "x-thunder-worker-stream-open": JSON.stringify(openPayload ?? null),
+        },
+        body,
+        duplex: "half",
+      } as RequestInit & { duplex: "half" },
+    )
+    if (!response.ok || !response.body) {
+      throw new Error("插件 worker stream 打开失败")
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let newlineIndex = buffer.indexOf("\n")
+      while (newlineIndex >= 0) {
+        const line = buffer.slice(0, newlineIndex).trim()
+        buffer = buffer.slice(newlineIndex + 1)
+        if (line) {
+          const event = JSON.parse(line) as { ok: boolean; type: string; result?: TResult; message?: string }
+          if (event.ok && event.type === "result") {
+            for (const handler of resultHandlers) handler(event.result as TResult)
+          } else if (!event.ok) {
+            for (const handler of errorHandlers) handler(event.message ?? "插件 worker stream 失败")
+          }
+        }
+        newlineIndex = buffer.indexOf("\n")
+      }
+    }
+  })().catch((error) => {
+    const message = error instanceof Error ? error.message : "插件 worker stream 失败"
+    for (const handler of errorHandlers) handler(message)
+  })
+
+  const enqueue = (input: unknown): void => {
+    const encoded = encodeWorkerStreamInput(input)
+    if (controller) {
+      controller.enqueue(encoded)
+      return
+    }
+    pendingInputs.push(encoded)
+  }
+
+  return {
+    write(payload?: unknown) {
+      if (closedByCaller) return
+      enqueue({ type: "chunk", payload })
+    },
+    close() {
+      if (closedByCaller) return
+      closedByCaller = true
+      enqueue({ type: "close" })
+      controller?.close()
+    },
+    closed,
+    onResult(handler) {
+      resultHandlers.add(handler)
+    },
+    onError(handler) {
+      errorHandlers.add(handler)
+    },
+  }
+}
+
 export async function requestDesktopPluginNetwork(
   pluginId: string,
   request: import("@thunder/plugin-protocol").PluginNetworkRequestParams,

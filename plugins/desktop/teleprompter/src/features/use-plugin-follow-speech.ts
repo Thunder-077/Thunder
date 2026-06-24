@@ -58,9 +58,12 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
     processorNode: null,
     sourceNode: null,
   })
+  const audioStreamRef = useRef<Awaited<ReturnType<typeof pluginSpeechRuntime.openSessionAudioStream>> | null>(null)
 
   const cleanupMediaResources = useCallback(async () => {
     const resources = mediaResourcesRef.current
+    audioStreamRef.current?.close()
+    audioStreamRef.current = null
     resources.processorNode?.disconnect()
     resources.sourceNode?.disconnect()
     resources.stream?.getTracks().forEach((track) => track.stop())
@@ -73,18 +76,20 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
   }, [])
 
   const stopStreaming = useCallback(async (activeSessionId: string | null, inputFinished: boolean) => {
-    await cleanupMediaResources()
-
     if (activeSessionId && inputFinished) {
-      await pluginSpeechRuntime.feedSessionAudio({
+      const finalPayload = {
         sessionId: activeSessionId,
-        samples: [],
+        samples: [] as number[],
         sampleRate: 16000,
         channels: 1,
         encoding: "pcm_s16le",
         inputFinished: true,
-      }).catch(() => undefined)
+      } as const
+      if (audioStreamRef.current) {
+        audioStreamRef.current.writeAudio(finalPayload)
+      }
     }
+    await cleanupMediaResources()
   }, [cleanupMediaResources])
 
   const feedAudioSamples = useCallback(async (activeSessionId: string, samples: number[]) => {
@@ -92,30 +97,20 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
       return
     }
 
-    try {
-      const result = await pluginSpeechRuntime.feedSessionAudio({
+    if (audioStreamRef.current) {
+      audioStreamRef.current.writeAudio({
         sessionId: activeSessionId,
         samples,
         sampleRate: 16000,
         channels: 1,
         encoding: "pcm_s16le",
       })
-      if (sessionIdRef.current !== activeSessionId) {
-        return
-      }
-
-      setStreamedSamples((current) => current + result.acceptedSamples)
-      if (result.normalized) {
-        setLastResult({
-          text: result.normalized,
-          isFinal: result.isFinal,
-        })
-      }
-    } catch (feedError) {
-      setStatus("error")
-      statusRef.current = "error"
-      setError(feedError instanceof Error ? feedError.message : String(feedError))
+      return
     }
+
+    setStatus("error")
+    statusRef.current = "error"
+    setError("语音流通道尚未建立，请重新开始跟读。")
   }, [])
 
   const startStreaming = useCallback(async (activeSessionId: string) => {
@@ -139,6 +134,36 @@ export function usePluginFollowSpeech(provider: SpeechProvider) {
     const processorNode = audioContext.createScriptProcessor(4096, 1, 1)
     const inputSampleRate = audioContext.sampleRate
     const ratio = inputSampleRate / 16000
+    audioStreamRef.current = await pluginSpeechRuntime.openSessionAudioStream(
+      {
+        sessionId: activeSessionId,
+        sampleRate: 16000,
+        channels: 1,
+        encoding: "pcm_s16le",
+      },
+      {
+        onResult: (result) => {
+          if (sessionIdRef.current !== activeSessionId) {
+            return
+          }
+          setStreamedSamples((current) => current + result.acceptedSamples)
+          if (result.normalized) {
+            setLastResult({
+              text: result.normalized,
+              isFinal: result.isFinal,
+            })
+          }
+        },
+        onError: (streamError) => {
+          if (sessionIdRef.current !== activeSessionId) {
+            return
+          }
+          setStatus("error")
+          statusRef.current = "error"
+          setError(streamError.message)
+        },
+      },
+    )
 
     processorNode.onaudioprocess = (event) => {
       const channelData = event.inputBuffer.getChannelData(0)

@@ -22,7 +22,18 @@ export interface PipeClient {
     payload?: unknown,
     options?: PipeInvokeOptions,
   ): Promise<T>
+  openStream<TResult = unknown>(
+    method: string,
+    payload?: unknown,
+    options?: PipeInvokeOptions,
+  ): Promise<PipeClientStream<TResult>>
   close(): Promise<void>
+}
+
+export interface PipeClientStream<TResult = unknown> {
+  readonly id: string
+  write(payload?: unknown, options?: PipeInvokeOptions): Promise<TResult>
+  close(options?: PipeInvokeOptions): Promise<void>
 }
 
 export interface PipeClientOptions {
@@ -37,6 +48,16 @@ type PendingRequest = {
   timer: NodeJS.Timeout
   resolve(value: unknown): void
   reject(error: PluginRuntimeError): void
+}
+
+function assertPipeWritable(socket: Socket, closed: boolean): void {
+  if (closed || socket.destroyed || !socket.writable) {
+    throw new PluginRuntimeError(
+      "RUNTIME_NOT_READY",
+      "RPC pipe client is not connected",
+      { retryable: true },
+    )
+  }
 }
 
 function clearPendingRequest(
@@ -110,7 +131,7 @@ function attachSocketReader(
       if (line) {
         try {
           const envelope = decodeEnvelope(line)
-          if (envelope.type !== "request") {
+          if (envelope.type === "response" || envelope.type === "error") {
             handleEnvelope(pending, pluginId, envelope)
           }
         } catch (error) {
@@ -217,14 +238,10 @@ export async function createPipeClient(
       payload?: unknown,
       invokeOptions: PipeInvokeOptions = {},
     ): Promise<T> {
-      if (closed || socket.destroyed || !socket.writable) {
-        return Promise.reject(
-          new PluginRuntimeError(
-            "RUNTIME_NOT_READY",
-            "RPC pipe client is not connected",
-            { retryable: true },
-          ),
-        )
+      try {
+        assertPipeWritable(socket, closed)
+      } catch (error) {
+        return Promise.reject(error)
       }
 
       const id = randomUUID()
@@ -297,6 +314,120 @@ export async function createPipeClient(
           )
         }
       })
+    },
+    async openStream<TResult = unknown>(
+      method: string,
+      payload?: unknown,
+      openOptions: PipeInvokeOptions = {},
+    ): Promise<PipeClientStream<TResult>> {
+      assertPipeWritable(socket, closed)
+      const streamId = randomUUID()
+      let streamClosed = false
+
+      const sendStreamFrame = <TResultValue>(
+        type: "stream.open" | "stream.chunk" | "stream.close",
+        framePayload?: unknown,
+        frameOptions: PipeInvokeOptions = {},
+      ): Promise<TResultValue> => {
+        if (streamClosed && type !== "stream.close") {
+          return Promise.reject(
+            new PluginRuntimeError("RUNTIME_NOT_READY", "RPC stream is closed"),
+          )
+        }
+        try {
+          assertPipeWritable(socket, closed)
+        } catch (error) {
+          return Promise.reject(error)
+        }
+
+        const id = randomUUID()
+        const requestEnvelope = type === "stream.open"
+          ? {
+              version: RPC_PROTOCOL_VERSION,
+              type,
+              id,
+              pluginId: resolvedOptions.pluginId,
+              capability: resolvedOptions.capability,
+              streamId,
+              method,
+              payload: framePayload,
+            } as const
+          : type === "stream.chunk"
+            ? {
+                version: RPC_PROTOCOL_VERSION,
+                type,
+                id,
+                pluginId: resolvedOptions.pluginId,
+                capability: resolvedOptions.capability,
+                streamId,
+                payload: framePayload,
+              } as const
+            : {
+                version: RPC_PROTOCOL_VERSION,
+                type,
+                id,
+                pluginId: resolvedOptions.pluginId,
+                capability: resolvedOptions.capability,
+                streamId,
+              } as const
+        const encodedRequest = encodeEnvelope(requestEnvelope)
+        const requestBytes = Buffer.byteLength(encodedRequest, "utf8")
+        if (requestBytes > resolvedOptions.maxRequestBytes) {
+          return Promise.reject(
+            new PluginRuntimeError(
+              "RPC_PAYLOAD_TOO_LARGE",
+              `RPC stream frame exceeded ${resolvedOptions.maxRequestBytes} bytes`,
+            ),
+          )
+        }
+
+        return new Promise<TResultValue>((resolvePromise, rejectPromise) => {
+          const timeoutMs = frameOptions.timeoutMs ?? resolvedOptions.invocationTimeoutMs
+          const timer = setTimeout(() => {
+            clearPendingRequest(pending, id)?.reject(
+              new PluginRuntimeError(
+                "RPC_TIMEOUT",
+                `RPC stream frame timed out after ${timeoutMs}ms`,
+                { retryable: true },
+              ),
+            )
+          }, timeoutMs)
+          pending.set(id, {
+            timer,
+            resolve(value) {
+              resolvePromise(value as TResultValue)
+            },
+            reject(error) {
+              rejectPromise(error)
+            },
+          })
+          socket.write(encodedRequest, (error) => {
+            if (!error) return
+            clearPendingRequest(pending, id)?.reject(
+              new PluginRuntimeError(
+                "RUNTIME_CRASHED",
+                `RPC stream write failed: ${error.message}`,
+                { cause: error, retryable: true },
+              ),
+            )
+          })
+        })
+      }
+
+      // open 帧先得到 worker 确认，避免后续 chunk 写入不存在的流。
+      await sendStreamFrame<void>("stream.open", payload, openOptions)
+
+      return {
+        id: streamId,
+        write(framePayload?: unknown, frameOptions?: PipeInvokeOptions) {
+          return sendStreamFrame<TResult>("stream.chunk", framePayload, frameOptions)
+        },
+        async close(frameOptions?: PipeInvokeOptions) {
+          if (streamClosed) return
+          streamClosed = true
+          await sendStreamFrame<void>("stream.close", undefined, frameOptions)
+        },
+      }
     },
     async close() {
       if (closed) {

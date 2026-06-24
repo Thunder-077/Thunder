@@ -23,6 +23,7 @@ function createBridgeWindow() {
   let nextTimerId = 1
 
   const windowMock = {
+    MessageChannel: globalThis.MessageChannel,
     parent: {
       postMessage: (payload: unknown) => {
         postedRequests.push(payload as Record<string, unknown>)
@@ -137,6 +138,35 @@ async function main() {
   assert.deepEqual(await workerInvokePromise, {
     normalized: "hello",
   })
+
+  const speechStreamPromise = thunder.speech.openAudioStream({
+    sessionId: "speech-session-1",
+    sampleRate: 16000,
+    channels: 1,
+    encoding: "pcm_s16le",
+  })
+  assert.deepEqual(bridge.postedRequests.at(-1), {
+    source: "thunder-plugin",
+    version: 1,
+    id: bridge.postedRequests.at(-1)?.id,
+    method: "speech.stream.open",
+    params: {
+      sessionId: "speech-session-1",
+      sampleRate: 16000,
+      channels: 1,
+      encoding: "pcm_s16le",
+    },
+  })
+  bridge.respond(undefined)
+  const speechStream = await speechStreamPromise
+  speechStream.writeAudio({
+    sessionId: "speech-session-1",
+    samples: [1, 2, 3],
+    sampleRate: 16000,
+    channels: 1,
+    encoding: "pcm_s16le",
+  })
+  speechStream.close()
 
   const storageGetPromise = thunder.storage.get<string>(" theme ")
   assert.deepEqual(bridge.postedRequests.at(-1), {

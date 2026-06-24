@@ -25,6 +25,7 @@ import {
   getDesktopPluginEntryUrl,
   shouldLoadDesktopPlugins,
   invokeDesktopPluginWorker,
+  openDesktopPluginWorkerStream,
   requestDesktopPluginNetwork,
   subscribeDesktopPluginRuntimeStatus,
   type DesktopInstalledPlugin,
@@ -39,6 +40,57 @@ import {
 } from "@thunder/plugin-protocol"
 import type { PluginHmrScope } from "@thunder/plugin-protocol"
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
+
+type SpeechStreamOpenParams = {
+  sessionId: string
+  sampleRate: 16000
+  channels: 1
+  encoding: "pcm_s16le"
+}
+
+type SpeechStreamFeedPayload = SpeechStreamOpenParams & {
+  samples: number[]
+  inputFinished?: boolean
+}
+
+function normalizeSpeechStreamPayload(input: unknown, stream: SpeechStreamOpenParams): SpeechStreamFeedPayload {
+  if (!input || typeof input !== "object") {
+    throw new Error("插件语音流音频包无效")
+  }
+
+  const payload = input as {
+    sessionId?: unknown
+    samples?: unknown
+    sampleRate?: unknown
+    channels?: unknown
+    encoding?: unknown
+    inputFinished?: unknown
+  }
+  if (
+    payload.sessionId !== stream.sessionId ||
+    payload.sampleRate !== stream.sampleRate ||
+    payload.channels !== stream.channels ||
+    payload.encoding !== stream.encoding ||
+    !Array.isArray(payload.samples)
+  ) {
+    throw new Error("插件语音流音频包参数不匹配")
+  }
+  if (payload.samples.length > 64_000) {
+    throw new Error("插件语音流音频包过大")
+  }
+  if (payload.samples.some((sample) => typeof sample !== "number" || !Number.isFinite(sample))) {
+    throw new Error("插件语音流音频样本无效")
+  }
+
+  return {
+    sessionId: stream.sessionId,
+    samples: payload.samples,
+    sampleRate: 16000,
+    channels: 1,
+    encoding: "pcm_s16le",
+    inputFinished: payload.inputFinished === true,
+  }
+}
 
 export default function DesktopPluginPage() {
   const params = useParams<{ pluginId: string }>()
@@ -58,6 +110,7 @@ export default function DesktopPluginPage() {
   const rpcCallsRef = useRef<PluginRpcLogEntry[]>([])
   const devLogsRef = useRef<PluginLogEntry[]>([])
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  const speechStreamPortsRef = useRef(new Set<MessagePort>())
   const previousWorkerStatusRef = useRef<string | null>(null)
   const lastKnownPidRef = useRef<number | undefined>(undefined)
   const rateLimiterRef = useRef(new DesktopPluginRateLimiter())
@@ -120,6 +173,13 @@ export default function DesktopPluginPage() {
     },
     []
   )
+
+  useEffect(() => () => {
+    for (const port of speechStreamPortsRef.current) {
+      port.close()
+    }
+    speechStreamPortsRef.current.clear()
+  }, [])
 
   const refreshWorkerStatus = useCallback(async () => {
     if (!plugin || plugin.manifest.kind === "sandboxed") {
@@ -340,6 +400,13 @@ export default function DesktopPluginPage() {
         }
         rateLimiterRef.current.assertAllowedMethod(request.method, request.params)
         const startedAt = performance.now()
+        const openSpeechStream = (params: { sessionId: string; sampleRate: 16000; channels: 1; encoding: "pcm_s16le" }) => {
+          const port = event.ports[0]
+          if (!port) {
+            throw new Error("插件语音流缺少 MessagePort")
+          }
+          openPluginSpeechStream(port, params)
+        }
         const dispatched = await dispatchDesktopPluginHostRequest(request, {
           manifest: currentPlugin.manifest as ThunderPluginManifest,
           storage: {
@@ -378,6 +445,7 @@ export default function DesktopPluginPage() {
               method,
               payload,
             ),
+          openSpeechStream,
           requestNetwork: (params) =>
             requestDesktopPluginNetwork(currentPlugin.manifest.id, params),
           broadcastEvent: (params) => {
@@ -389,10 +457,7 @@ export default function DesktopPluginPage() {
           },
         })
 
-        const workerMethod = typeof dispatched.request.params === "object" && dispatched.request.params !== null
-          ? (dispatched.request.params as { method?: unknown }).method
-          : undefined
-        if (dispatched.request.method === "worker.invoke" && workerMethod !== "speech.session.feed") {
+        if (dispatched.request.method === "worker.invoke") {
           await refreshWorkerStatus()
         }
         postBridgeResponse(
@@ -425,6 +490,65 @@ export default function DesktopPluginPage() {
           err instanceof Error ? err.message : "插件 Host API 调用失败"
         )
       }
+    }
+
+    function openPluginSpeechStream(
+      port: MessagePort,
+      params: { sessionId: string; sampleRate: 16000; channels: 1; encoding: "pcm_s16le" },
+    ) {
+      const maxQueuedChunks = 30
+      let closed = false
+      let queuedChunks = 0
+      speechStreamPortsRef.current.add(port)
+      const workerStream = openDesktopPluginWorkerStream(
+        currentPlugin.manifest.id,
+        "speech.audio",
+        params,
+      )
+
+      const closePort = () => {
+        closed = true
+        workerStream.close()
+        speechStreamPortsRef.current.delete(port)
+        port.close()
+      }
+
+      const postStreamError = (message: string) => {
+        port.postMessage({ type: "error", error: message })
+      }
+
+      workerStream.onResult((result) => {
+        queuedChunks = Math.max(0, queuedChunks - 1)
+        if (!closed) port.postMessage({ type: "result", result })
+      })
+      workerStream.onError((message) => {
+        queuedChunks = Math.max(0, queuedChunks - 1)
+        if (!closed) postStreamError(message)
+      })
+
+      port.onmessage = (portEvent) => {
+        const message = portEvent.data as { type?: unknown; payload?: unknown }
+        if (message?.type === "close") {
+          closePort()
+          return
+        }
+        if (message?.type !== "audio") {
+          postStreamError("插件语音流消息类型无效")
+          return
+        }
+        if (queuedChunks >= maxQueuedChunks) {
+          postStreamError("插件语音流处理积压过多")
+          return
+        }
+        try {
+          const payload = normalizeSpeechStreamPayload(message.payload, params)
+          queuedChunks += 1
+          workerStream.write(payload)
+        } catch (streamError) {
+          postStreamError(streamError instanceof Error ? streamError.message : "插件语音流处理失败")
+        }
+      }
+      port.start()
     }
 
     window.addEventListener("message", handleBridgeMessage)

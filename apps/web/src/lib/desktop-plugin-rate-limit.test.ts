@@ -21,18 +21,6 @@ assert.throws(() => layoutLimiter.assertAllowedMethod("layout.setFrameHeight", 0
 layoutLimiter.assertAllowedMethod("storage.get", 0)
 assert.throws(() => layoutLimiter.assertAllowedMethod("storage.get", 0), /Bridge 调用过于频繁/)
 
-// ---- Speech stream worker calls have an independent high-frequency quota ----
-const speechLimiter = new DesktopPluginRateLimiter(60_000, 1, 1, 1, 3)
-speechLimiter.assertAllowedMethod("worker.invoke", { method: "speech.session.feed" }, 0)
-speechLimiter.assertAllowedMethod("worker.invoke", { method: "speech.session.feed" }, 0)
-speechLimiter.assertAllowedMethod("worker.invoke", { method: "speech.session.feed" }, 0)
-assert.throws(
-  () => speechLimiter.assertAllowedMethod("worker.invoke", { method: "speech.session.feed" }, 0),
-  /语音流调用过于频繁/,
-)
-speechLimiter.assertAllowedMethod("storage.get", undefined, 0)
-assert.throws(() => speechLimiter.assertAllowedMethod("storage.get", undefined, 0), /Bridge 调用过于频繁/)
-
 // ---- Sliding window: no burst at boundary ----
 // With a fixed-window limiter, calling at 59_999 and 60_001 would both succeed
 // because the window resets. With a sliding window, the first call at 59_999

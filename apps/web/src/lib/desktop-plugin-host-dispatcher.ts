@@ -25,6 +25,7 @@ export interface DesktopPluginHostContext {
   addNotification(params: PluginNotificationParams): void
   trackActivity(params: PluginActivityParams): Promise<void>
   invokeWorker(method: string, payload: unknown): Promise<unknown>
+  openSpeechStream?(params: { sessionId: string; sampleRate: 16000; channels: 1; encoding: "pcm_s16le" }): void
   requestNetwork(params: PluginNetworkRequestParams): Promise<PluginNetworkResponse>
   /** Broadcast an event to all other loaded plugins via the host event bus. */
   broadcastEvent?(params: PluginEventBroadcastParams): void
@@ -99,6 +100,10 @@ export async function dispatchDesktopPluginHostRequest(
       )
       result = { ok: true, result: workerResult }
       diagnosticMethod = `${request.method}:${request.params.method}`
+      break
+    }
+    case "speech.stream.open": {
+      context.openSpeechStream?.(request.params)
       break
     }
     case "events.broadcast": {

@@ -9,24 +9,17 @@ export class DesktopPluginRateLimiter {
   private bridgeTimestamps: number[] = []
   private networkTimestamps: number[] = []
   private layoutTimestamps: number[] = []
-  private speechStreamTimestamps: number[] = []
 
   constructor(
     private readonly windowMs = 60_000,
     private readonly bridgeLimit = 120,
     private readonly networkLimit = 20,
     private readonly layoutLimit = 240,
-    private readonly speechStreamLimit = 1_200,
   ) {}
 
   assertAllowedMethod(method: string, params?: unknown, now = Date.now()): void {
     if (method === "layout.setFrameHeight") {
       this.assertTimestampQuota("layout", now)
-      return
-    }
-
-    if (this.isSpeechStreamMethod(method, params)) {
-      this.assertTimestampQuota("speech-stream", now)
       return
     }
 
@@ -52,7 +45,7 @@ export class DesktopPluginRateLimiter {
     }
   }
 
-  private assertTimestampQuota(kind: "layout" | "speech-stream", now: number): void {
+  private assertTimestampQuota(kind: "layout", now: number): void {
     const windowStart = now - this.windowMs
     if (kind === "layout") {
       this.layoutTimestamps = this.layoutTimestamps.filter((ts) => ts > windowStart)
@@ -62,20 +55,5 @@ export class DesktopPluginRateLimiter {
       this.layoutTimestamps.push(now)
       return
     }
-
-    this.speechStreamTimestamps = this.speechStreamTimestamps.filter((ts) => ts > windowStart)
-    if (this.speechStreamTimestamps.length >= this.speechStreamLimit) {
-      throw new Error("插件语音流调用过于频繁")
-    }
-    this.speechStreamTimestamps.push(now)
-  }
-
-  private isSpeechStreamMethod(method: string, params: unknown): boolean {
-    if (method !== "worker.invoke" || !params || typeof params !== "object") {
-      return false
-    }
-
-    const workerMethod = (params as { method?: unknown }).method
-    return workerMethod === "speech.session.feed"
   }
 }

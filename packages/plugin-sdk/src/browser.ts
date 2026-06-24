@@ -47,6 +47,12 @@ export interface ThunderBrowserPluginClient {
   worker: {
     invoke<TResult = unknown, TPayload = unknown>(method: string, payload?: TPayload): Promise<TResult>
   }
+  speech: {
+    openAudioStream(
+      params: SpeechAudioStreamOpenParams,
+      handlers?: SpeechAudioStreamHandlers,
+    ): Promise<SpeechAudioStream>
+  }
   notification: {
     add(notification: PluginNotificationParams): void
   }
@@ -71,6 +77,36 @@ export interface ThunderBrowserPluginClient {
   }
 }
 
+export type SpeechAudioStreamOpenParams = {
+  sessionId: string
+  sampleRate: 16000
+  channels: 1
+  encoding: "pcm_s16le"
+}
+
+export type SpeechAudioStreamWritePayload = SpeechAudioStreamOpenParams & {
+  samples: number[]
+  inputFinished?: boolean
+}
+
+export type SpeechAudioStreamResult = {
+  sessionId: string
+  accepted: true
+  acceptedSamples: number
+  isFinal: boolean
+  normalized: string | null
+}
+
+export type SpeechAudioStreamHandlers = {
+  onResult?: (result: SpeechAudioStreamResult) => void
+  onError?: (error: Error) => void
+}
+
+export type SpeechAudioStream = {
+  writeAudio(payload: SpeechAudioStreamWritePayload): void
+  close(): void
+}
+
 let nextRequestId = 1
 let lastFrameHeight: number | null = null
 let lastFrameHeightSentAt = 0
@@ -83,7 +119,7 @@ export function normalizeThunderPluginStorageKey(key: string): string {
   return normalizePluginStorageKey(key)
 }
 
-function postHostMessage<T>(method: PluginBridgeMethod, params?: unknown): Promise<T> {
+function postHostMessage<T>(method: PluginBridgeMethod, params?: unknown, transfer?: Transferable[]): Promise<T> {
   if (typeof window === "undefined" || !window.parent || window.parent === window) {
     return Promise.reject(new Error("Thunder plugin host bridge is unavailable"))
   }
@@ -129,7 +165,7 @@ function postHostMessage<T>(method: PluginBridgeMethod, params?: unknown): Promi
     window.addEventListener("message", handleMessage)
     // The host validates event.source, event.origin, message source, version, and request id.
     // Plugin frames can run on an isolated loopback origin, so their own location.origin is not the parent origin.
-    window.parent.postMessage(request, "*")
+    window.parent.postMessage(request, "*", transfer ?? [])
   })
 }
 
@@ -252,6 +288,39 @@ export function createThunderPluginClient(): ThunderBrowserPluginClient {
           throw new Error(`worker.invoke failed: ${String((response as Record<string, unknown>).error ?? "unknown error")}`)
         }
         return response.result
+      },
+    },
+    speech: {
+      async openAudioStream(params, handlers = {}) {
+        if (typeof window === "undefined" || typeof window.MessageChannel !== "function") {
+          throw new Error("Thunder plugin speech stream is unavailable")
+        }
+        const channel = new window.MessageChannel()
+        let closed = false
+        channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+          const message = event.data as { type?: unknown; result?: unknown; error?: unknown }
+          if (message?.type === "result") {
+            handlers.onResult?.(message.result as SpeechAudioStreamResult)
+            return
+          }
+          if (message?.type === "error") {
+            handlers.onError?.(new Error(typeof message.error === "string" ? message.error : "插件语音流处理失败"))
+          }
+        }
+        channel.port1.start()
+        await postHostMessage<void>("speech.stream.open", params, [channel.port2])
+        return {
+          writeAudio(payload) {
+            if (closed) return
+            channel.port1.postMessage({ type: "audio", payload })
+          },
+          close() {
+            if (closed) return
+            closed = true
+            channel.port1.postMessage({ type: "close" })
+            channel.port1.close()
+          },
+        }
       },
     },
     notification: {

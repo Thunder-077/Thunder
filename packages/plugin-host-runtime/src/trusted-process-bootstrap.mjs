@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url"
 
 const VERSION = 1
 const OVERHEAD_BYTES = 64 * 1024
-const REQUEST_KEYS = new Set(["capability", "id", "method", "payload", "pluginId", "type", "version"])
+const REQUEST_KEYS = new Set(["capability", "id", "method", "payload", "pluginId", "streamId", "type", "version"])
 const REQUIRED_REQUEST_KEYS = ["capability", "id", "method", "pluginId", "type", "version"]
 let server
 let endpoint
@@ -66,6 +66,17 @@ function isRequestEnvelope(value) {
     typeof value.method === "string"
 }
 
+function isStreamEnvelope(value) {
+  return hasOnlyRequestKeys(value) &&
+    value.version === VERSION &&
+    (value.type === "stream.open" || value.type === "stream.chunk" || value.type === "stream.close") &&
+    typeof value.id === "string" &&
+    typeof value.pluginId === "string" &&
+    typeof value.capability === "string" &&
+    typeof value.streamId === "string" &&
+    (value.type !== "stream.open" || typeof value.method === "string")
+}
+
 /**
  * Buffer only the unfinished frame. Complete frames are concatenated once,
  * avoiding quadratic copies when a large request arrives in small chunks.
@@ -113,6 +124,9 @@ async function startRuntime(config) {
   if (!definition || typeof definition !== "object" || !definition.handlers || typeof definition.handlers !== "object" || Array.isArray(definition.handlers)) {
     throw new Error(`Trusted plugin ${config.pluginId} runtime must export default worker handlers`)
   }
+  if (definition.streams !== undefined && (!definition.streams || typeof definition.streams !== "object" || Array.isArray(definition.streams))) {
+    throw new Error(`Trusted plugin ${config.pluginId} runtime streams must be an object`)
+  }
 
   endpoint = createEndpoint(config.socketDirectory)
   if (process.platform !== "win32") await mkdir(dirname(endpoint), { recursive: true })
@@ -124,7 +138,7 @@ async function startRuntime(config) {
     socket.on("error", () => socket.destroy())
     const decoder = createFrameDecoder(
       config.maxRequestBytes + OVERHEAD_BYTES,
-      (frame) => void handleFrame(socket, frame, definition.handlers, config),
+      (frame) => void handleFrame(socket, frame, definition, config),
       () => socket.destroy(),
     )
     socket.on("data", (chunk) => decoder.push(chunk))
@@ -145,11 +159,11 @@ async function startRuntime(config) {
   }
 }
 
-async function handleFrame(socket, frame, handlers, config) {
+async function handleFrame(socket, frame, definition, config) {
   let request
   try {
     request = JSON.parse(frame.toString("utf8"))
-    if (frame.length + 1 > config.maxRequestBytes || !isRequestEnvelope(request)) throw new Error("invalid")
+    if (frame.length + 1 > config.maxRequestBytes || (!isRequestEnvelope(request) && !isStreamEnvelope(request))) throw new Error("invalid")
   } catch {
     write(socket, errorEnvelope(config, randomUUID(), "RPC_INVALID_REQUEST", "RPC request is invalid"), config.maxResponseBytes)
     return
@@ -160,7 +174,12 @@ async function handleFrame(socket, frame, handlers, config) {
     return
   }
 
-  const handler = handlers[request.method]
+  if (request.type !== "request") {
+    await handleStreamFrame(socket, request, definition.streams ?? {}, config)
+    return
+  }
+
+  const handler = definition.handlers[request.method]
   if (typeof handler !== "function") {
     write(socket, errorEnvelope(config, request.id, "RPC_METHOD_NOT_FOUND", "Trusted runtime method was not found"), config.maxResponseBytes)
     return
@@ -183,6 +202,64 @@ async function handleFrame(socket, frame, handlers, config) {
     socket.write(encoded)
   } catch {
     write(socket, errorEnvelope(config, request.id, "RPC_HANDLER_FAILED", "Trusted runtime handler failed"), config.maxResponseBytes)
+  }
+}
+
+const activeStreams = new Map()
+
+async function handleStreamFrame(socket, request, streams, config) {
+  try {
+    if (request.type === "stream.open") {
+      const handler = streams[request.method]
+      if (typeof handler !== "function") {
+        write(socket, errorEnvelope(config, request.id, "RPC_METHOD_NOT_FOUND", "Trusted runtime stream was not found"), config.maxResponseBytes)
+        return
+      }
+      const controller = await handler(request.payload)
+      if (!controller || typeof controller !== "object" || typeof controller.onChunk !== "function") {
+        throw new Error("stream controller invalid")
+      }
+      activeStreams.set(request.streamId, controller)
+      write(socket, {
+        version: VERSION,
+        type: "response",
+        id: request.id,
+        pluginId: config.pluginId,
+        payload: { opened: true, streamId: request.streamId },
+      }, config.maxResponseBytes)
+      return
+    }
+
+    const controller = activeStreams.get(request.streamId)
+    if (!controller) {
+      write(socket, errorEnvelope(config, request.id, "RPC_METHOD_NOT_FOUND", "Trusted runtime stream was not found"), config.maxResponseBytes)
+      return
+    }
+
+    if (request.type === "stream.close") {
+      activeStreams.delete(request.streamId)
+      if (typeof controller.onClose === "function") await controller.onClose()
+      write(socket, {
+        version: VERSION,
+        type: "response",
+        id: request.id,
+        pluginId: config.pluginId,
+        payload: { closed: true, streamId: request.streamId },
+      }, config.maxResponseBytes)
+      return
+    }
+
+    const payload = await controller.onChunk(request.payload)
+    write(socket, {
+      version: VERSION,
+      type: "response",
+      id: request.id,
+      pluginId: config.pluginId,
+      payload,
+    }, config.maxResponseBytes)
+  } catch {
+    activeStreams.delete(request.streamId)
+    write(socket, errorEnvelope(config, request.id, "RPC_HANDLER_FAILED", "Trusted runtime stream failed"), config.maxResponseBytes)
   }
 }
 

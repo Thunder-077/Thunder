@@ -23,10 +23,13 @@ assert.deepEqual(pluginBridgeMethods, [
   "activity.track",
   "network.request",
   "worker.invoke",
+  "speech.stream.open",
+  "events.broadcast",
 ])
 assert.equal(getRequiredPluginPermission("plugin.getManifest"), null)
 assert.equal(getRequiredPluginPermission("storage.get"), "storage")
 assert.equal(getRequiredPluginPermission("worker.invoke"), "native-runtime")
+assert.equal(getRequiredPluginPermission("speech.stream.open"), "native-runtime")
 
 assert.deepEqual(
   parsePluginBridgeRequest({
@@ -53,7 +56,7 @@ assert.deepEqual(
     method: "network.request",
     params: { url: "https://example.com/api", method: "GET" },
   }).params,
-  { url: "https://example.com/api", method: "GET", headers: undefined, body: undefined },
+  { url: "https://example.com/api", method: "GET", headers: undefined, body: undefined, responseType: "text" },
 )
 
 assert.throws(
@@ -68,6 +71,27 @@ assert.throws(
   (error) =>
     error instanceof PluginProtocolError &&
     error.code === "INVALID_PARAMS",
+)
+
+assert.deepEqual(
+  parsePluginBridgeRequest({
+    source: PLUGIN_BRIDGE_REQUEST_SOURCE,
+    version: PLUGIN_BRIDGE_VERSION,
+    id: "request-4",
+    method: "speech.stream.open",
+    params: {
+      sessionId: "speech-session-1",
+      sampleRate: 16000,
+      channels: 1,
+      encoding: "pcm_s16le",
+    },
+  }).params,
+  {
+    sessionId: "speech-session-1",
+    sampleRate: 16000,
+    channels: 1,
+    encoding: "pcm_s16le",
+  },
 )
 
 // PluginUpdatedEvent type check — verify the event shape is correctly typed

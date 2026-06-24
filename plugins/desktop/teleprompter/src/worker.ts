@@ -3,8 +3,8 @@ import { nativeSpeechBridge } from "./adapters/native-speech-bridge"
 import type {
   SpeechModelsActivatePayload,
   SpeechModelsDownloadPayload,
-  SpeechSessionFeedPayload,
-  SpeechSessionFeedResult,
+  SpeechAudioChunkPayload,
+  SpeechAudioChunkResult,
   SpeechRuntimeHealthResult,
   SpeechSessionStartPayload,
   SpeechSessionStartResult,
@@ -85,28 +85,28 @@ function parseSpeechSessionStopPayload(payload: unknown): SpeechSessionStopPaylo
   }
 }
 
-function parseSpeechSessionFeedPayload(payload: unknown): SpeechSessionFeedPayload {
+function parseSpeechAudioChunkPayload(payload: unknown): SpeechAudioChunkPayload {
   if (
     !payload ||
     typeof payload !== "object" ||
     typeof (payload as { sessionId?: unknown }).sessionId !== "string" ||
     !Array.isArray((payload as { samples?: unknown }).samples)
   ) {
-    throw new Error("speech.session.feed requires payload.sessionId and payload.samples")
+    throw new Error("speech.audio requires payload.sessionId and payload.samples")
   }
 
   const samples = (payload as { samples: unknown[] }).samples
   if (samples.some((sample) => typeof sample !== "number" || !Number.isFinite(sample))) {
-    throw new Error("speech.session.feed payload.samples must be numeric")
+    throw new Error("speech.audio payload.samples must be numeric")
   }
   if ((payload as { sampleRate?: unknown }).sampleRate !== 16000) {
-    throw new Error("speech.session.feed payload.sampleRate must be 16000")
+    throw new Error("speech.audio payload.sampleRate must be 16000")
   }
   if ((payload as { channels?: unknown }).channels !== 1) {
-    throw new Error("speech.session.feed payload.channels must be 1")
+    throw new Error("speech.audio payload.channels must be 1")
   }
   if ((payload as { encoding?: unknown }).encoding !== "pcm_s16le") {
-    throw new Error("speech.session.feed payload.encoding must be pcm_s16le")
+    throw new Error("speech.audio payload.encoding must be pcm_s16le")
   }
 
   return {
@@ -199,6 +199,26 @@ function getActiveSpeechSession(sessionId: string): WorkerSpeechSession {
   return session
 }
 
+async function feedSpeechSessionAudio(parsedPayload: SpeechAudioChunkPayload): Promise<SpeechAudioChunkResult> {
+  const session = getActiveSpeechSession(parsedPayload.sessionId)
+  session.samplesReceived += parsedPayload.samples.length
+  session.chunksReceived += 1
+  session.sampleRate = parsedPayload.sampleRate
+  speechSessions.set(session.sessionId, session)
+
+  const sherpaUpdate = session.provider === "sherpa-onnx"
+    ? await nativeSpeechBridge.feedSherpaAudio(parsedPayload.samples, parsedPayload.inputFinished ?? false)
+    : null
+
+  return {
+    sessionId: session.sessionId,
+    accepted: true,
+    acceptedSamples: parsedPayload.samples.length,
+    isFinal: sherpaUpdate?.isFinal ?? Boolean(parsedPayload.inputFinished),
+    normalized: sherpaUpdate?.text ? normalizeSpeechText(sherpaUpdate.text) : null,
+  }
+}
+
 export default defineWorker({
   handlers: {
     async "speech.health.check"(): Promise<SpeechRuntimeHealthResult> {
@@ -224,26 +244,6 @@ export default defineWorker({
         accepted: true,
         normalized: normalizeSpeechText(parsedPayload.text),
         isFinal: parsedPayload.isFinal ?? true,
-      }
-    },
-    async "speech.session.feed"(payload: unknown): Promise<SpeechSessionFeedResult> {
-      const parsedPayload = parseSpeechSessionFeedPayload(payload)
-      const session = getActiveSpeechSession(parsedPayload.sessionId)
-      session.samplesReceived += parsedPayload.samples.length
-      session.chunksReceived += 1
-      session.sampleRate = parsedPayload.sampleRate
-      speechSessions.set(session.sessionId, session)
-
-      const sherpaUpdate = session.provider === "sherpa-onnx"
-        ? await nativeSpeechBridge.feedSherpaAudio(parsedPayload.samples, parsedPayload.inputFinished ?? false)
-        : null
-
-      return {
-        sessionId: session.sessionId,
-        accepted: true,
-        acceptedSamples: parsedPayload.samples.length,
-        isFinal: sherpaUpdate?.isFinal ?? Boolean(parsedPayload.inputFinished),
-        normalized: sherpaUpdate?.text ? normalizeSpeechText(sherpaUpdate.text) : null,
       }
     },
     async "speech.session.stop"(payload: unknown): Promise<SpeechSessionStopResult> {
@@ -275,6 +275,27 @@ export default defineWorker({
     async "speech.models.activate"(payload: unknown): Promise<SpeechWorkerModelRecord[]> {
       const parsedPayload = parseSpeechModelsActivatePayload(payload)
       return nativeSpeechBridge.activateSherpaModel(parsedPayload.modelId)
+    },
+  },
+  streams: {
+    "speech.audio"(payload: unknown) {
+      if (!payload || typeof payload !== "object") {
+        throw new Error("speech.audio stream config is invalid")
+      }
+      const streamConfig = parseSpeechAudioChunkPayload({
+        ...(payload as Record<string, unknown>),
+        samples: [],
+      })
+      getActiveSpeechSession(streamConfig.sessionId)
+      return {
+        async onChunk(chunk: unknown): Promise<SpeechAudioChunkResult> {
+          const parsedChunk = parseSpeechAudioChunkPayload(chunk)
+          if (parsedChunk.sessionId !== streamConfig.sessionId) {
+            throw new Error("speech.audio stream sessionId mismatch")
+          }
+          return feedSpeechSessionAudio(parsedChunk)
+        },
+      }
     },
   },
 })

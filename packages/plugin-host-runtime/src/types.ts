@@ -1,4 +1,5 @@
 import type { ThunderPluginManifest } from "@thunder/plugin-schema"
+import type { PipeClientStream } from "./rpc/pipe-client"
 
 export interface LoadedPluginManifest {
   manifest: ThunderPluginManifest
@@ -75,6 +76,11 @@ export interface TrustedPluginRuntimeSupervisor {
     method: string,
     payload?: unknown,
   ): Promise<unknown>
+  openStream(
+    plugin: RegisteredPlugin,
+    method: string,
+    payload?: unknown,
+  ): Promise<PipeClientStream>
   stop(pluginId: string): Promise<PluginRuntimeStatus>
   /** Stop all running plugin runtimes. Used for graceful shutdown. */
   stopAll(): Promise<void>

@@ -20,6 +20,27 @@ export interface RpcRequestEnvelope extends RpcEnvelopeBase {
   payload?: unknown
 }
 
+export interface RpcStreamOpenEnvelope extends RpcEnvelopeBase {
+  type: "stream.open"
+  capability: string
+  streamId: string
+  method: string
+  payload?: unknown
+}
+
+export interface RpcStreamChunkEnvelope extends RpcEnvelopeBase {
+  type: "stream.chunk"
+  capability: string
+  streamId: string
+  payload?: unknown
+}
+
+export interface RpcStreamCloseEnvelope extends RpcEnvelopeBase {
+  type: "stream.close"
+  capability: string
+  streamId: string
+}
+
 export interface RpcResponseEnvelope extends RpcEnvelopeBase {
   type: "response"
   payload?: unknown
@@ -36,6 +57,9 @@ export interface RpcErrorEnvelope extends RpcEnvelopeBase {
 
 export type RpcEnvelope =
   | RpcRequestEnvelope
+  | RpcStreamOpenEnvelope
+  | RpcStreamChunkEnvelope
+  | RpcStreamCloseEnvelope
   | RpcResponseEnvelope
   | RpcErrorEnvelope
 
@@ -174,12 +198,15 @@ export function decodeEnvelope(line: string): RpcEnvelope {
   assertNonEmptyString(parsed.pluginId, "RPC envelope pluginId")
   assert(
     parsed.type === "request" ||
+      parsed.type === "stream.open" ||
+      parsed.type === "stream.chunk" ||
+      parsed.type === "stream.close" ||
       parsed.type === "response" ||
       parsed.type === "error",
     "RPC envelope type is invalid",
   )
 
-  if (parsed.type === "request") {
+  if (parsed.type === "request" || parsed.type === "stream.open") {
     assertExactKeys(
       parsed,
       [
@@ -188,6 +215,7 @@ export function decodeEnvelope(line: string): RpcEnvelope {
         "id",
         "pluginId",
         "capability",
+        ...(parsed.type === "stream.open" ? ["streamId"] : []),
         "method",
         "payload",
       ],
@@ -195,6 +223,19 @@ export function decodeEnvelope(line: string): RpcEnvelope {
     )
     assertNonEmptyString(parsed.capability, "RPC request capability")
     assertNonEmptyString(parsed.method, "RPC request method")
+    if (parsed.type === "stream.open") {
+      assertNonEmptyString(parsed.streamId, "RPC stream id")
+      return {
+        version: RPC_PROTOCOL_VERSION,
+        type: "stream.open",
+        id: parsed.id,
+        pluginId: parsed.pluginId,
+        capability: parsed.capability,
+        streamId: parsed.streamId,
+        method: parsed.method,
+        ...("payload" in parsed ? { payload: parsed.payload } : {}),
+      }
+    }
     return {
       version: RPC_PROTOCOL_VERSION,
       type: "request",
@@ -204,6 +245,42 @@ export function decodeEnvelope(line: string): RpcEnvelope {
       method: parsed.method,
       ...("payload" in parsed ? { payload: parsed.payload } : {}),
     }
+  }
+
+  if (parsed.type === "stream.chunk" || parsed.type === "stream.close") {
+    assertExactKeys(
+      parsed,
+      [
+        "version",
+        "type",
+        "id",
+        "pluginId",
+        "capability",
+        "streamId",
+        ...(parsed.type === "stream.chunk" ? ["payload"] : []),
+      ],
+      "RPC stream envelope",
+    )
+    assertNonEmptyString(parsed.capability, "RPC stream capability")
+    assertNonEmptyString(parsed.streamId, "RPC stream id")
+    return parsed.type === "stream.chunk"
+      ? {
+          version: RPC_PROTOCOL_VERSION,
+          type: "stream.chunk",
+          id: parsed.id,
+          pluginId: parsed.pluginId,
+          capability: parsed.capability,
+          streamId: parsed.streamId,
+          ...("payload" in parsed ? { payload: parsed.payload } : {}),
+        }
+      : {
+          version: RPC_PROTOCOL_VERSION,
+          type: "stream.close",
+          id: parsed.id,
+          pluginId: parsed.pluginId,
+          capability: parsed.capability,
+          streamId: parsed.streamId,
+        }
   }
 
   if (parsed.type === "response") {
