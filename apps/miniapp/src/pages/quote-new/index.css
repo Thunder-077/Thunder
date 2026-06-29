@@ -1,0 +1,78 @@
+.new-page {
+  padding: 42px 38px 0;
+}
+
+.new-form-card {
+  min-height: 140px;
+  margin-bottom: 24px;
+  padding: 24px 28px;
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.new-form-card--textarea {
+  min-height: 300px;
+}
+
+.new-form-card__icon {
+  width: 62px;
+  height: 62px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #f2f3eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.new-form-card__icon .cq-icon-symbol {
+  width: 38px;
+  height: 38px;
+}
+
+.new-form-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.new-form-card__label {
+  color: #111111;
+  display: block;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 42px;
+}
+
+.new-form-card__input {
+  margin-top: 18px;
+  color: #222222;
+  font-size: 28px;
+  line-height: 40px;
+}
+
+.new-form-card__textarea {
+  width: 100%;
+  height: 174px;
+  margin-top: 18px;
+  color: #222222;
+  font-size: 28px;
+  line-height: 40px;
+}
+
+.new-form-card__count {
+  float: right;
+  color: #9a9a9a;
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.new-footer {
+  position: fixed;
+  left: 38px;
+  right: 38px;
+  bottom: 54px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+}

@@ -1,0 +1,72 @@
+.mode-page {
+  padding: 22px 38px 0;
+}
+
+.mode-customer {
+  height: 128px;
+  margin-bottom: 50px;
+  padding: 22px 34px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.mode-customer__avatar {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #7b8b5b 0%, #607246 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mode-customer__avatar .cq-icon-symbol {
+  width: 52px;
+  height: 52px;
+}
+
+.mode-customer__line {
+  display: block;
+  color: #111111;
+  font-size: 28px;
+  line-height: 42px;
+}
+
+.mode-customer__phone {
+  color: #666666;
+}
+
+.mode-card {
+  margin-bottom: 42px;
+  padding: 56px 44px 42px;
+}
+
+.mode-card__content {
+  min-height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mode-card__title {
+  display: block;
+  color: #202917;
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 48px;
+  font-weight: 800;
+  line-height: 70px;
+}
+
+.mode-card__desc {
+  display: block;
+  margin-top: 14px;
+  color: #5f5f5f;
+  font-size: 27px;
+  line-height: 42px;
+}
+
+.mode-card__image {
+  width: 208px;
+  height: 210px;
+}

@@ -4,3 +4,36 @@ packages:
   - "modules/*"
   - "plugins-v2/*"
   - "plugins/desktop/*"
+onlyBuiltDependencies:
+  - "@parcel/watcher"
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "@swc/core"
+  - "@tarojs/binding"
+  - "@tarojs/cli"
+  - "core-js"
+  - "core-js-pure"
+  - "esbuild"
+  - "msw"
+  - "prisma"
+  - "sharp"
+  - "unrs-resolver"
+  - "workerd"
+ignoredBuiltDependencies:
+  - "skia-canvas"
+allowBuilds:
+  "@parcel/watcher": true
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@swc/core": true
+  "@tarojs/binding": true
+  "@tarojs/cli": true
+  "core-js": true
+  "core-js-pure": true
+  "esbuild": true
+  "msw": true
+  "prisma": true
+  "sharp": true
+  "skia-canvas": false
+  "unrs-resolver": true
+  "workerd": true

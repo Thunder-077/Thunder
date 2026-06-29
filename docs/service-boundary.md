@@ -10,11 +10,12 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 ┌──────────────────────────────────────────────────────────────┐
 │                        前端边界                               │
 │                                                              │
-│  apps/web                                                    │
+│  apps/web / apps/miniapp                                     │
 │  ├── 页面、路由、UI 组件                                      │
 │  ├── API Client（@thunder/api-client）                       │
 │  ├── 客户端状态管理                                           │
-│  └── 客户端加密（VaultCryptoWeb）                             │
+│  ├── 客户端加密（VaultCryptoWeb）                             │
+│  └── 小程序本地存储（仅限明确本地优先的模块）                   │
 │                                                              │
 │  禁止：直接访问数据库、直接调用多语言服务                       │
 └──────────────────────┬───────────────────────────────────────┘
@@ -47,7 +48,7 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 └─────────────────────┘    └──────────────────────────────────┘
 ```
 
-## 前端边界（apps/web）
+## 前端边界（apps/web / apps/miniapp）
 
 ### 允许
 
@@ -56,6 +57,8 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 - 客户端状态管理（React Context + useState）
 - 客户端加密（如 VaultCryptoWeb）
 - 使用 @thunder/vault 等共享类型
+- 小程序端可通过 Taro Storage 保存明确声明为本地优先的数据
+- 小程序端如需云端能力，必须通过小程序 request service 调用 `apps/api`
 
 ### 禁止
 
@@ -65,14 +68,18 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 - 直接调用多语言服务
 - 直接拼接 SQL 语句
 - 在客户端代码中导入任何服务端专用模块
+- 小程序端接入 `apps/web` 的 AppShell、Sidebar 或 ModuleRegistry
 
 ### 数据访问路径
 
 ```
 前端组件 → API Client → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
+小程序页面 → Taro request service → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
+小程序本地模块 → Taro Storage
 ```
 
 前端组件不得跳过 API Client 直接访问数据库。
+小程序端不得跳过 `apps/api` 直接访问数据库；当前“本地清单”模块仅使用 Taro Storage，不访问后端。
 
 ## 主后端边界（apps/api）
 
@@ -115,6 +122,7 @@ Thunder 采用严格的服务边界设计，确保前端、主后端、多语言
 | 层级 | 能否访问数据库 |
 |------|--------------|
 | apps/web（前端） | ❌ 不能 |
+| apps/miniapp（小程序端） | ❌ 不能 |
 | packages/api-client | ❌ 不能 |
 | packages/contracts | ❌ 不能 |
 | modules/*（共享类型） | ❌ 不能 |

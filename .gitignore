@@ -1,5 +1,6 @@
 node_modules
 .turbo
+.swc
 .next
 out
 build

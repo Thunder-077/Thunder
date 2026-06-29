@@ -1,0 +1,130 @@
+.detail-page {
+  padding: 20px 38px 46px;
+}
+
+.detail-status {
+  height: 58px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.detail-status__pill {
+  min-width: 152px;
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 24px;
+  line-height: 48px;
+}
+
+.detail-status__pill--confirmed {
+  background: #e2f2d4;
+  color: #3f7a28;
+}
+
+.detail-status__pill--draft {
+  background: #fff0dc;
+  color: #e16b0c;
+}
+
+.detail-status__pill--voided {
+  background: #f4e5e0;
+  color: #b84d2a;
+}
+
+.detail-section {
+  margin-bottom: 24px;
+  padding: 28px 30px 30px;
+}
+
+.detail-section .cq-section-title {
+  margin: 0 0 20px;
+  font-size: 30px;
+}
+
+.detail-name {
+  color: #111111;
+  display: block;
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 52px;
+}
+
+.detail-line {
+  display: block;
+  margin-top: 14px;
+  color: #666666;
+  font-size: 28px;
+  line-height: 40px;
+}
+
+.detail-info-line,
+.detail-item {
+  min-height: 58px;
+  border-bottom: 1px dashed #ded9cf;
+  color: #666666;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 28px;
+  line-height: 40px;
+}
+
+.detail-info-line:last-child,
+.detail-item:last-child {
+  border-bottom: 0;
+}
+
+.detail-info-line--amount {
+  min-height: 72px;
+  color: #111111;
+  font-weight: 700;
+}
+
+.detail-info-line--amount .cq-price {
+  font-size: 42px;
+  font-weight: 900;
+}
+
+.detail-item {
+  color: #111111;
+  font-weight: 700;
+}
+
+.detail-item text:last-child {
+  color: #40522e;
+  font-size: 32px;
+}
+
+.detail-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin-top: 6px;
+}
+
+.detail-action-secondary,
+.detail-action-danger {
+  height: 88px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 88px;
+}
+
+.detail-action-secondary::after,
+.detail-action-danger::after {
+  border: 0;
+}
+
+.detail-action-secondary {
+  border: 2px solid #d8d8bd;
+  color: #53653d;
+}
+
+.detail-action-danger {
+  border: 2px solid #f0d5ca;
+  color: #dc5a2e;
+}

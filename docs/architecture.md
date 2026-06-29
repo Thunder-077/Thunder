@@ -23,6 +23,11 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first（业务层�
 │  │   Tauri Shell       │─────┘          │                   │ │
 │  │ Window / Native API │                │                   │ │
 │  └─────────────────────┘                │                   │ │
+│  ┌─────────────────────┐                │                   │ │
+│  │   apps/miniapp      │                │                   │ │
+│  │   Taro Miniapp      │───(future)────▶│                   │ │
+│  │ Local Storage First │                │                   │ │
+│  └─────────────────────┘                │                   │ │
 │                              │  ┌───────▼───────────────┐  │ │
 │                              │  │  Prisma + PostgreSQL  │  │ │
 │                              │  └───────────────────────┘  │ │
@@ -53,7 +58,8 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first（业务层�
 
 ### 前后端分离
 
-- apps/web 只负责前端页面、路由、UI 和 API Client
+- apps/web 只负责 Web 前端页面、路由、UI 和 API Client
+- apps/miniapp 只负责多端小程序页面、模块 UI、本地存储和小程序 request service
 - apps/api 负责后端 API 服务、数据库访问、业务编排
 - 前端通过 packages/api-client 调用 apps/api
 - 前端不得直接访问数据库、ORM、Repository
@@ -79,6 +85,8 @@ Thunder 采用 **前后端分离 + 契约优先 + TypeScript-first（业务层�
 
 ```
 浏览器 → @thunder/api-client → /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
+小程序 → Taro request service（未来）→ /api/v1/* → apps/api → Repository → Prisma → PostgreSQL
+小程序本地模块 → Taro Storage
 ```
 
 ### Vault 安全数据流
@@ -121,6 +129,9 @@ thunder/
 │   ├── desktop/                     # Tauri 桌面壳
 │   │   ├── src-tauri/               # Rust 入口、窗口配置、能力声明
 │   │   └── package.json             # Tauri CLI 脚本和依赖
+│   ├── miniapp/                     # Taro 多端小程序应用
+│   │   ├── config/                  # Taro 构建配置
+│   │   └── src/                     # 小程序页面、模块、本地服务
 │   └── api/                         # Hono 后端 API 服务
 │       ├── src/
 │       │   ├── modules/             # 后端业务模块
@@ -184,6 +195,14 @@ thunder/
 - 在开发态加载 `apps/web`（localhost:3000）
 - 为后续托盘、快捷键、文件系统、通知等原生能力预留入口
 - 不直接承载业务模块规则
+
+### apps/miniapp — 小程序端
+
+- 使用 Taro + React + TypeScript 构建微信、支付宝、抖音等多端小程序
+- 作为独立前端应用存在，不复用 `apps/web` 的 AppShell、Sidebar、ModuleRegistry 和动态模块路由
+- 首个“本地清单”模块只使用小程序本地存储，不访问后端 API
+- 后续需要云端能力时，通过小程序 request service 调用 `apps/api` 的 `/api/v1/*`
+- 不直接访问数据库、Repository 或 `packages/database`
 
 ### packages/platform — 平台能力抽象
 

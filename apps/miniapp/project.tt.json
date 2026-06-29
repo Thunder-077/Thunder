@@ -1,0 +1,13 @@
+{
+  "miniprogramRoot": "dist/",
+  "projectname": "thunder-miniapp",
+  "description": "Thunder 多端小程序",
+  "appid": "testappid",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "postcss": true,
+    "minified": true
+  },
+  "compileType": "miniprogram"
+}

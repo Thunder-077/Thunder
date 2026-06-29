@@ -6,8 +6,16 @@
     "dev:api": "pnpm --filter @thunder/api dev",
     "dev:web": "pnpm --filter @thunder/web dev",
     "dev:desktop": "pnpm --filter @thunder/desktop exec tauri dev",
+    "dev:miniapp": "pnpm --filter @thunder/miniapp dev",
+    "dev:miniapp:weapp": "pnpm --filter @thunder/miniapp dev:weapp",
+    "dev:miniapp:alipay": "pnpm --filter @thunder/miniapp dev:alipay",
+    "dev:miniapp:tt": "pnpm --filter @thunder/miniapp dev:tt",
     "build:web": "pnpm --filter @thunder/web build",
     "build:desktop": "pnpm --filter @thunder/desktop build:release",
+    "build:miniapp": "pnpm --filter @thunder/miniapp build",
+    "build:miniapp:weapp": "pnpm --filter @thunder/miniapp build:weapp",
+    "build:miniapp:alipay": "pnpm --filter @thunder/miniapp build:alipay",
+    "build:miniapp:tt": "pnpm --filter @thunder/miniapp build:tt",
     "dev:api:cf": "pnpm --filter @thunder/api dev:cf",
     "preview:web:cf": "pnpm --filter @thunder/web preview:cf",
     "deploy:api:cf": "pnpm --filter @thunder/api deploy:cf",
@@ -38,16 +46,5 @@
   "packageManager": "pnpm@10.33.2",
   "devDependencies": {
     "turbo": "^2.9.6"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "prisma",
-      "esbuild"
-    ],
-    "ignoredBuiltDependencies": [
-      "skia-canvas"
-    ]
   }
 }

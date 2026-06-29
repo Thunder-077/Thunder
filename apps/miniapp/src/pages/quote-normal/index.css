@@ -1,0 +1,158 @@
+.calc-page {
+  padding: 26px 38px 0;
+}
+
+.calc-customer {
+  height: 68px;
+  padding: 0 34px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f3f4ec 0%, #eeeee4 100%);
+  color: #2c351f;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 28px;
+  line-height: 68px;
+}
+
+.calc-customer__icon {
+  width: 38px;
+  height: 38px;
+}
+
+.normal-list {
+  margin-top: 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.normal-card {
+  padding: 32px 34px 28px;
+}
+
+.normal-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.normal-card__icon {
+  width: 48px;
+  height: 48px;
+}
+
+.normal-card__title {
+  color: #111111;
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 52px;
+}
+
+.normal-card__line {
+  color: #5d5d5d;
+  display: flex;
+  gap: 24px;
+  font-size: 30px;
+  line-height: 56px;
+}
+
+.normal-card__dash {
+  height: 1px;
+  border-top: 1px dashed #ded9cf;
+}
+
+.normal-card__budget {
+  margin-top: 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  color: #111111;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 64px;
+}
+
+.normal-card__budget .cq-price {
+  font-size: 44px;
+}
+
+.normal-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 24px;
+  margin-top: 8px;
+}
+
+.normal-card__action {
+  min-width: 142px;
+  height: 58px;
+  padding: 0 20px;
+  border-radius: 14px;
+  background: #f8f8f2;
+  font-size: 24px;
+  line-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.normal-card__action-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.normal-card__action::after,
+.normal-add::after {
+  border: 0;
+}
+
+.normal-card__action--edit {
+  border: 1px solid #dddfcf;
+  color: #53653d;
+}
+
+.normal-card__action--delete {
+  border: 1px solid #f0d5ca;
+  background: #fff8f4;
+  color: #dc5a2e;
+}
+
+.normal-add {
+  width: 100%;
+  height: 116px;
+  margin-top: 34px;
+  border: 2px dashed #d8d8bd;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.42);
+  color: #708154;
+  font-size: 30px;
+  line-height: 116px;
+}
+
+.calc-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 156px;
+  padding: 26px 38px 34px;
+  background: rgba(255, 253, 248, 0.96);
+  display: grid;
+  grid-template-columns: 1fr 310px;
+  gap: 22px;
+  align-items: center;
+}
+
+.calc-total {
+  color: #5d5d5d;
+  font-size: 26px;
+  line-height: 42px;
+}
+
+.calc-total .cq-price {
+  margin-left: 8px;
+  font-size: 42px;
+}

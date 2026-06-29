@@ -1,0 +1,137 @@
+.package-page {
+  padding: 22px 38px 46px;
+}
+
+.package-card {
+  margin-top: 26px;
+  padding: 26px;
+}
+
+.package-picker {
+  height: 76px;
+  padding: 0 12px;
+  border: 1px solid #e2ded6;
+  border-radius: 12px;
+  color: #111111;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 30px;
+}
+
+.package-picker__arrow {
+  color: #696969;
+  font-size: 38px;
+}
+
+.package-base {
+  margin-top: 26px;
+  color: #666666;
+  display: flex;
+  justify-content: space-between;
+  font-size: 28px;
+  line-height: 40px;
+}
+
+.package-width-card {
+  margin-top: 24px;
+  padding: 26px;
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: 32px;
+  align-items: center;
+}
+
+.package-width {
+  min-width: 0;
+}
+
+.package-width__label {
+  color: #777777;
+  display: block;
+  font-size: 26px;
+  line-height: 36px;
+}
+
+.package-width__input-row {
+  margin-top: 22px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  color: #777777;
+  font-size: 28px;
+}
+
+.package-width__input {
+  width: 124px;
+  color: #111111;
+  font-size: 42px;
+  line-height: 54px;
+}
+
+.package-width__divider {
+  width: 1px;
+  height: 78px;
+  background: #e5e0d7;
+}
+
+.package-detail {
+  margin-top: 24px;
+  padding: 26px;
+}
+
+.package-section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: #111111;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.package-section-title__bar {
+  width: 8px;
+  height: 32px;
+  border-radius: 6px;
+  background: #708154;
+}
+
+.package-detail__line {
+  min-height: 58px;
+  border-bottom: 1px solid #ebe7df;
+  color: #747474;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 27px;
+}
+
+.package-detail__line:last-child {
+  border-bottom: 0;
+}
+
+.package-detail__line text:last-child {
+  color: #111111;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.package-detail__line .cq-price {
+  color: #40522e;
+}
+
+.package-budget {
+  margin: 36px 24px 28px;
+  color: #111111;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.package-budget .cq-price {
+  font-size: 48px;
+}
+
