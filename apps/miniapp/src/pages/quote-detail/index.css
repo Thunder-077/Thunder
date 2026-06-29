@@ -28,11 +28,6 @@
   color: #e16b0c;
 }
 
-.detail-status__pill--voided {
-  background: #f4e5e0;
-  color: #b84d2a;
-}
-
 .detail-section {
   margin-bottom: 24px;
   padding: 28px 30px 30px;

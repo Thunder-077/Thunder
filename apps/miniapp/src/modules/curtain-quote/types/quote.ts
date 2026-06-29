@@ -2,7 +2,7 @@
 export type CurtainQuoteMode = "normal" | "package"
 
 /** 报价状态：草稿用于未确认报价，已确认用于可分享报价。 */
-export type CurtainQuoteStatus = "draft" | "confirmed" | "voided"
+export type CurtainQuoteStatus = "draft" | "confirmed"
 
 /** 报价客户信息，P0 阶段仅保存到小程序本地存储。 */
 export interface CurtainCustomer {

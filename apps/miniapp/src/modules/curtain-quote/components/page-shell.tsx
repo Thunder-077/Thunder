@@ -26,11 +26,6 @@ export function PageShell({ title, showBack = false, paddedBottom = false, child
           ‹
         </Button>
         <Text className="cq-nav__title">{title}</Text>
-        <View className="cq-capsule" aria-label="小程序胶囊按钮">
-          <Text className="cq-capsule__dots">•••</Text>
-          <Text className="cq-capsule__divider" />
-          <Text className="cq-capsule__circle">◎</Text>
-        </View>
       </View>
       {children}
     </View>
@@ -70,16 +65,17 @@ interface BottomTabProps {
   active: "home" | "quotes" | "mine"
 }
 
-/** 首页底部 Tab，P0 只实现首页可用，其余入口保留视觉占位。 */
+/** 首页底部 Tab，首页与报价记录页可用，我的入口保留视觉占位。 */
 export function BottomTab({ active }: BottomTabProps) {
   const goHome = () => Taro.reLaunch({ url: "/pages/home/index" })
+  const goQuotes = () => Taro.reLaunch({ url: "/pages/quotes/index" })
   return (
     <View className="cq-tabbar">
       <Button className={`cq-tabbar__item ${active === "home" ? "is-active" : ""}`} onClick={goHome}>
         <IconSymbol className="cq-tabbar__icon" name="home" />
         <Text>首页</Text>
       </Button>
-      <Button className={`cq-tabbar__item ${active === "quotes" ? "is-active" : ""}`}>
+      <Button className={`cq-tabbar__item ${active === "quotes" ? "is-active" : ""}`} onClick={goQuotes}>
         <IconSymbol className="cq-tabbar__icon" name="quote" />
         <Text>报价</Text>
       </Button>

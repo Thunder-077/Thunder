@@ -53,40 +53,6 @@
   pointer-events: none;
 }
 
-.cq-capsule {
-  position: absolute;
-  right: 30px;
-  bottom: 24px;
-  width: 144px;
-  height: 62px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 34px;
-  background: rgba(255, 255, 255, 0.88);
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  box-shadow: 0 6px 18px rgba(55, 48, 38, 0.04);
-}
-
-.cq-capsule__dots {
-  color: #111111;
-  font-size: 28px;
-  letter-spacing: 2px;
-  line-height: 1;
-}
-
-.cq-capsule__divider {
-  width: 1px;
-  height: 30px;
-  background: #d8d2c8;
-}
-
-.cq-capsule__circle {
-  color: #111111;
-  font-size: 38px;
-  line-height: 1;
-}
-
 .cq-button {
   height: 96px;
   border-radius: 16px;

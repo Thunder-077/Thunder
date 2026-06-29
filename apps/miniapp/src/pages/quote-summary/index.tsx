@@ -10,6 +10,8 @@ import { getQuote, saveQuote, updateQuoteStatus } from "@/modules/curtain-quote/
 import type { CurtainQuote } from "@/modules/curtain-quote/types/quote"
 import thumbBedroom from "@/assets/curtain/thumb-bedroom.jpg"
 import thumbLiving from "@/assets/curtain/thumb-living.jpg"
+import thumbSecondBedroom from "@/assets/curtain/thumb-second-bedroom.jpg"
+import thumbStudy from "@/assets/curtain/thumb-study.jpg"
 import thumbRoom from "@/assets/curtain/thumb-room.jpg"
 import "./index.css"
 
@@ -19,8 +21,20 @@ function getRoomThumb(position: string): string {
     return thumbLiving
   }
 
+  if (position.includes("主卧")) {
+    return thumbBedroom
+  }
+
+  if (position.includes("次卧") || position.includes("儿童房") || position.includes("客房")) {
+    return thumbSecondBedroom
+  }
+
   if (position.includes("卧")) {
     return thumbBedroom
+  }
+
+  if (position.includes("书房") || position.includes("办公")) {
+    return thumbStudy
   }
 
   return thumbRoom

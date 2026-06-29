@@ -1,6 +1,7 @@
 export default defineAppConfig({
   pages: [
     "pages/home/index",
+    "pages/quotes/index",
     "pages/quote-new/index",
     "pages/quote-mode/index",
     "pages/quote-normal/index",
@@ -18,4 +19,5 @@ export default defineAppConfig({
     backgroundColor: "#fffdf9",
     navigationStyle: "custom",
   },
+  lazyCodeLoading: "requiredComponents",
 })
