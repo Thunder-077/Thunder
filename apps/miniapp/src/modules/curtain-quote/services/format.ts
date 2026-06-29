@@ -44,5 +44,9 @@ export function formatDiscount(discount: number): string {
     return "85折"
   }
 
+  if (discount === 0.8) {
+    return "8折"
+  }
+
   return `${Math.round(discount * 100)}折`
 }

@@ -8,11 +8,11 @@ import { calculateQuoteTotals } from "@/modules/curtain-quote/services/quote-cal
 import { formatMoney, maskPhone } from "@/modules/curtain-quote/services/format"
 import { getQuote, saveQuote, updateQuoteStatus } from "@/modules/curtain-quote/services/quote-storage"
 import type { CurtainQuote } from "@/modules/curtain-quote/types/quote"
-import thumbBedroom from "@/assets/curtain/thumb-bedroom.jpg"
-import thumbLiving from "@/assets/curtain/thumb-living.jpg"
-import thumbSecondBedroom from "@/assets/curtain/thumb-second-bedroom.jpg"
-import thumbStudy from "@/assets/curtain/thumb-study.jpg"
-import thumbRoom from "@/assets/curtain/thumb-room.jpg"
+import thumbBedroom from "@/assets/curtain/主卧.png"
+import thumbLiving from "@/assets/curtain/客厅.png"
+import thumbSecondBedroom from "@/assets/curtain/次卧.png"
+import thumbStudy from "@/assets/curtain/书房.png"
+import thumbRoom from "@/assets/curtain/默认房间.png"
 import "./index.css"
 
 /** 根据房间名称选择对应素材，未知房间使用通用房间图。 */

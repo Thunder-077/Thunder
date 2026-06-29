@@ -13,6 +13,8 @@ target
 !.dev.vars.example
 .DS_Store
 data/
+!apps/miniapp/src/modules/curtain-quote/data/
+!apps/miniapp/src/modules/curtain-quote/data/*.ts
 .trae
 apps/desktop/runtime/
 apps/desktop/.downloads/
