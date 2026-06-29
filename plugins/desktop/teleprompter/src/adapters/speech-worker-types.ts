@@ -29,7 +29,7 @@ export interface SpeechSessionSubmitResult {
   isFinal: boolean
 }
 
-export interface SpeechSessionFeedPayload {
+export interface SpeechAudioChunkPayload {
   sessionId: string
   samples: number[]
   sampleRate: 16000
@@ -38,7 +38,7 @@ export interface SpeechSessionFeedPayload {
   inputFinished?: boolean
 }
 
-export interface SpeechSessionFeedResult {
+export interface SpeechAudioChunkResult {
   sessionId: string
   accepted: true
   acceptedSamples: number

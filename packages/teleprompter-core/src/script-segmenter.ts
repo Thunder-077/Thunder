@@ -2,12 +2,19 @@ import { normalizeSpeechText } from "./text-normalizer"
 import { toPinyinTokens } from "./pinyin"
 
 export type ScriptSegment = {
+  /** 视觉片段 ID，使用原文偏移保证重新切分后稳定定位。 */
   id: string
+  /** 当前提词屏展示的原始文本片段。 */
   raw: string
   normalized: string
   startOffset: number
   endOffset: number
+  /** 用户真实段落索引，只由换行推进。 */
   paragraphIndex: number
+  /** 当前片段结尾相对跟读引擎的边界强度：换行为强边界，标点和长度切分为弱边界。 */
+  boundaryStrength: "weak" | "strong"
+  /** 当前视觉片段的切分来源，用于调试跨段跟读行为。 */
+  boundaryReason: "punctuation" | "newline" | "length" | "end"
 }
 
 const SEGMENT_END_PATTERN = /[。！？.!?]+|[，、；：,;:]+|\n+/g
@@ -24,7 +31,10 @@ export function segmentScript(script: string): ScriptSegment[] {
     const endOffset = matchIndex + punctuation.length
     const raw = script.slice(segmentStart, endOffset)
 
-    pushSegmentChunks(segments, raw, segmentStart, endOffset, paragraphIndex)
+    const boundaryReason = punctuation.includes("\n") || /^\s*\n/.test(script.slice(endOffset))
+      ? "newline"
+      : "punctuation"
+    pushSegmentChunks(segments, raw, segmentStart, endOffset, paragraphIndex, boundaryReason)
 
     if (punctuation.includes("\n")) {
       paragraphIndex += punctuation.split("\n").length - 1
@@ -34,7 +44,7 @@ export function segmentScript(script: string): ScriptSegment[] {
   }
 
   if (segmentStart < script.length) {
-    pushSegmentChunks(segments, script.slice(segmentStart), segmentStart, script.length, paragraphIndex)
+    pushSegmentChunks(segments, script.slice(segmentStart), segmentStart, script.length, paragraphIndex, "end")
   }
 
   return segments
@@ -45,11 +55,12 @@ function pushSegmentChunks(
   raw: string,
   startOffset: number,
   endOffset: number,
-  paragraphIndex: number
+  paragraphIndex: number,
+  boundaryReason: ScriptSegment["boundaryReason"]
 ) {
   const visibleChars = Array.from(raw.trim()).length
   if (visibleChars <= MAX_SEGMENT_CHARS) {
-    pushSegment(segments, raw, startOffset, endOffset, paragraphIndex)
+    pushSegment(segments, raw, startOffset, endOffset, paragraphIndex, boundaryReason)
     return
   }
 
@@ -66,14 +77,14 @@ function pushSegmentChunks(
     }
 
     if (chunkVisibleChars >= MAX_SEGMENT_CHARS) {
-      pushSegment(segments, raw.slice(chunkStart - startOffset, offset + 1 - startOffset), chunkStart, offset + 1, paragraphIndex)
+      pushSegment(segments, raw.slice(chunkStart - startOffset, offset + 1 - startOffset), chunkStart, offset + 1, paragraphIndex, "length")
       chunkStart = offset + 1
       chunkVisibleChars = 0
     }
   }
 
   if (chunkStart < endOffset) {
-    pushSegment(segments, raw.slice(chunkStart - startOffset), chunkStart, endOffset, paragraphIndex)
+    pushSegment(segments, raw.slice(chunkStart - startOffset), chunkStart, endOffset, paragraphIndex, boundaryReason)
   }
 }
 
@@ -82,7 +93,8 @@ function pushSegment(
   raw: string,
   startOffset: number,
   endOffset: number,
-  paragraphIndex: number
+  paragraphIndex: number,
+  boundaryReason: ScriptSegment["boundaryReason"]
 ) {
   const trimmed = raw.trim()
   if (!trimmed) {
@@ -96,6 +108,8 @@ function pushSegment(
     startOffset,
     endOffset,
     paragraphIndex,
+    boundaryStrength: boundaryReason === "newline" ? "strong" : "weak",
+    boundaryReason,
   })
 }
 

@@ -3,6 +3,7 @@ import { join, resolve } from "node:path"
 import {
   createTrustedRuntimeSupervisor,
   PluginRuntimeError,
+  type PipeClientStream,
 } from "@thunder/plugin-host-runtime"
 import type {
   DesktopPluginRuntimeStatus,
@@ -156,6 +157,41 @@ export async function invokeDesktopPluginWorker(
               ? 503
               : 502
       throw new DesktopPluginError(error.message, status)
+    }
+    throw error
+  }
+}
+
+/**
+ * 打开 trusted runtime 的原生流式 worker 通道。
+ * 该通道用于连续音频等高频数据，不占用普通 worker.invoke RPC 路径。
+ */
+export async function openDesktopPluginWorkerStream(
+  id: string,
+  method: string,
+  payload: unknown,
+): Promise<PipeClientStream> {
+  const plugin = await getInstalledPlugin(id)
+  if (plugin.manifest.kind !== "trusted") {
+    throw new DesktopPluginError("当前仅支持 trusted worker stream", 501)
+  }
+  if (!plugin.manifest.permissions.includes("native-runtime")) {
+    throw new DesktopPluginError("插件未声明 native-runtime 权限", 403)
+  }
+
+  try {
+    return await trustedRuntimeSupervisor.openStream(
+      {
+        manifest: plugin.manifest,
+        pluginRoot: plugin.pluginRoot,
+        dataDirectory: await getTrustedPluginDataDirectory(plugin),
+      },
+      method,
+      payload,
+    )
+  } catch (error) {
+    if (error instanceof PluginRuntimeError) {
+      throw new DesktopPluginError(error.message, 502)
     }
     throw error
   }

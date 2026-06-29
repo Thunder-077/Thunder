@@ -56,6 +56,7 @@ runSpeakerGateCase()
 runLowConfidenceHoldCase()
 runLocalCursorLookAheadCase()
 runLocalCursorRejectsSingleTokenJumpCase()
+runWeakBoundaryContinuityCase()
 runLocalRankingKeepsRepeatedTailAtConfirmedPosition()
 
 function loadFixtures(): ReplayFixture[] {
@@ -206,7 +207,13 @@ function formatUpdate(update: FollowUpdate): string {
 function runSegmenterCases() {
   const weakBreakSegments = segmentScript("第一点，第二点、第三点；最后一句。")
   assert.deepEqual(weakBreakSegments.map((segment) => segment.raw), ["第一点，", "第二点、", "第三点；", "最后一句。"])
+  assert.deepEqual(weakBreakSegments.map((segment) => segment.boundaryStrength), ["weak", "weak", "weak", "weak"])
   console.log("PASS 逗号顿号分号会作为弱断点切分")
+
+  const paragraphSegments = segmentScript("第一段。\n第二段。")
+  assert.equal(paragraphSegments[0]?.boundaryStrength, "strong")
+  assert.equal(paragraphSegments[1]?.paragraphIndex, 1)
+  console.log("PASS 换行会作为真实段落强边界")
 
   const longScript = "这是一个没有任何标点的长段落用来模拟演讲稿直接粘贴进来的情况系统应该把它切成多个较小的匹配片段"
   const longSegments = segmentScript(longScript)
@@ -287,6 +294,20 @@ function runLocalCursorRejectsSingleTokenJumpCase() {
   assert.equal(held.confirmedReadOffset, first.confirmedReadOffset, `single token jump should be held: ${formatUpdate(held)}`)
   assert.equal(held.displayReadOffset, first.displayReadOffset, `single token jump should not move display: ${formatUpdate(held)}`)
   console.log("PASS 孤立单字不会触发远距离跳转")
+}
+
+function runWeakBoundaryContinuityCase() {
+  const script = "事例和理论来晓喻听众，打动听众，征服群众。"
+  const segments = segmentScript(script)
+  const engine = createFollowEngine(script, segments, { enablePrediction: false })
+
+  engine.push("事例和理论来", true)
+  const crossed = engine.push("打动", true)
+
+  assert.ok(crossed.segmentIndex >= 1, `weak boundary crossing should enter next visual segment: ${formatUpdate(crossed)}`)
+  assert.equal(crossed.status, "following")
+  assert.equal(crossed.candidates[0]?.boundaryContinuityBonus, 0.1)
+  console.log("PASS 同一真实段落内跨视觉弱边界会降低重定位迟滞")
 }
 
 function runLocalRankingKeepsRepeatedTailAtConfirmedPosition() {

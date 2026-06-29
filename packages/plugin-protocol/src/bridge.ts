@@ -105,6 +105,10 @@ export interface PluginBridgeMethodMap {
     params: { method: string; payload?: unknown }
     result: { ok: true; result: unknown }
   }
+  "speech.stream.open": {
+    params: { sessionId: string; sampleRate: 16000; channels: 1; encoding: "pcm_s16le" }
+    result: undefined
+  }
   "events.broadcast": {
     params: PluginEventBroadcastParams
     result: undefined
@@ -179,6 +183,7 @@ export const pluginBridgeMethods = [
   "activity.track",
   "network.request",
   "worker.invoke",
+  "speech.stream.open",
   "events.broadcast",
 ] as const satisfies readonly PluginBridgeMethod[]
 
@@ -193,6 +198,7 @@ const METHOD_PERMISSIONS: Partial<
   "notification.add": "notifications",
   "activity.track": "activity",
   "worker.invoke": "native-runtime",
+  "speech.stream.open": "native-runtime",
 }
 
 function invalidParams(method: PluginBridgeMethod, message: string): never {
@@ -401,6 +407,27 @@ export function parsePluginBridgeParams(
     return {
       method: normalizePluginWorkerMethod(input.method),
       ...(input.payload === undefined ? {} : { payload: input.payload }),
+    }
+  }
+
+  if (method === "speech.stream.open") {
+    if (typeof input.sessionId !== "string" || !input.sessionId.trim()) {
+      invalidParams(method, "sessionId must be a string")
+    }
+    if (input.sampleRate !== 16000) {
+      invalidParams(method, "sampleRate must be 16000")
+    }
+    if (input.channels !== 1) {
+      invalidParams(method, "channels must be 1")
+    }
+    if (input.encoding !== "pcm_s16le") {
+      invalidParams(method, "encoding must be pcm_s16le")
+    }
+    return {
+      sessionId: input.sessionId.trim(),
+      sampleRate: 16000,
+      channels: 1,
+      encoding: "pcm_s16le",
     }
   }
 

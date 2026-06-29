@@ -46,6 +46,10 @@ export type FollowCandidate = {
   source: "dtw" | "local" | "recovery" | "timestamp"
   matchedTokens: number
   totalTokens: number
+  /** 同一真实段落内跨视觉弱边界的连续性加分，用于降低逗号/短行造成的重定位迟滞。 */
+  boundaryContinuityBonus?: number
+  /** 临时识别跨弱边界时需要最终结果确认，避免 ASR interim 假设提前翻到下一行。 */
+  requiresConfirmation?: boolean
 }
 
 export type CandidateTrack = {
@@ -146,6 +150,8 @@ const TRACK_TTL_MS = 6000
 const MIN_CONFIRMED_ADVANCE_CONFIDENCE = 0.55
 const MAX_PREDICTION_ADVANCE_CHARS = 4
 const PREDICTION_ASR_SILENCE_MS = 800
+const WEAK_BOUNDARY_CONTINUITY_BONUS = 0.1
+const WEAK_BOUNDARY_THRESHOLD_RELIEF = 0.1
 
 export function createFollowEngine(
   script: string,
@@ -254,7 +260,13 @@ export function createFollowEngine(
       state = dtw.push(token)
     }
 
-    const dtwCandidate = toDtwCandidate(state, index, tokens.length)
+    const dtwCandidate = markInterimBoundaryDtwCandidate({
+      candidate: toDtwCandidate(state, index, tokens.length),
+      index,
+      anchorOffset: lastUpdate.confirmedReadOffset,
+      params,
+      isFinal,
+    })
     const searchMode = state.isOnScript ? "local" : "recovery"
     const cursorCandidate = searchMode === "local"
       ? findLocalCursorCandidate({
@@ -292,14 +304,13 @@ export function createFollowEngine(
       tracks: candidateTracks,
     })
 
-    if (bestCandidate.source !== "dtw") {
-      dtw.jump(findTokenIndexByOffset(index, bestCandidate.readOffset))
-    }
-
     const decision = toDecision(bestCandidate, state.isOnScript)
     const isOnScript = bestCandidate.source === "dtw"
-      ? state.isOnScript
+      ? state.isOnScript && !bestCandidate.requiresConfirmation
       : isCandidateAccepted(bestCandidate, params, candidateTracks, state.isOnScript)
+    if (bestCandidate.source !== "dtw" && isOnScript) {
+      dtw.jump(findTokenIndexByOffset(index, bestCandidate.readOffset))
+    }
     const candidateUpdate = toUpdate({
       scriptPosition: findTokenIndexByOffset(index, bestCandidate.readOffset),
       confidence: bestCandidate.confidence,
@@ -319,6 +330,16 @@ export function createFollowEngine(
     })
     const nextUpdate = shouldHoldLowConfidenceAdvance(lastUpdate, candidateUpdate)
       ? createLowConfidenceHoldUpdate({
+          previousUpdate: lastUpdate,
+          candidateUpdate,
+          stateMachine,
+          candidates,
+          candidateTracks,
+          stats,
+          params,
+        })
+      : shouldHoldUnconfirmedAdvance(lastUpdate, candidateUpdate)
+      ? createUnconfirmedAdvanceHoldUpdate({
           previousUpdate: lastUpdate,
           candidateUpdate,
           stateMachine,
@@ -472,6 +493,10 @@ function shouldHoldLowConfidenceAdvance(previousUpdate: FollowUpdate, candidateU
   return candidateUpdate.decision === "dtw" || candidateUpdate.decision === "hold"
 }
 
+function shouldHoldUnconfirmedAdvance(previousUpdate: FollowUpdate, candidateUpdate: FollowUpdate): boolean {
+  return !candidateUpdate.isOnScript && candidateUpdate.confirmedReadOffset > previousUpdate.confirmedReadOffset
+}
+
 function createLowConfidenceHoldUpdate(input: {
   previousUpdate: FollowUpdate
   candidateUpdate: FollowUpdate
@@ -501,6 +526,38 @@ function createLowConfidenceHoldUpdate(input: {
     matchedText: input.candidateUpdate.matchedText,
     isFinal: input.candidateUpdate.isFinal,
     message: "识别结果置信度偏低，暂不推进提词位置",
+  })
+}
+
+function createUnconfirmedAdvanceHoldUpdate(input: {
+  previousUpdate: FollowUpdate
+  candidateUpdate: FollowUpdate
+  stateMachine: FollowStateMachine
+  candidates: FollowCandidate[]
+  candidateTracks: CandidateTrack[]
+  stats: FollowRuntimeStats
+  params: AdaptiveFollowParams
+}): FollowUpdate {
+  const status = input.stateMachine.transition({
+    type: "alignment",
+    isOnScript: false,
+    confidence: input.candidateUpdate.confidence,
+  })
+
+  return createUpdate({
+    ...input.previousUpdate,
+    status,
+    confidence: input.candidateUpdate.confidence,
+    isOnScript: false,
+    candidates: input.candidates,
+    candidateTracks: input.candidateTracks,
+    statsSnapshot: snapshotStats(input.stats),
+    paramsSnapshot: { ...input.params },
+    decision: "hold",
+    reason: `unconfirmed-advance-hold:${input.candidateUpdate.reason}`,
+    matchedText: input.candidateUpdate.matchedText,
+    isFinal: input.candidateUpdate.isFinal,
+    message: "识别结果尚未确认，暂不推进提词位置",
   })
 }
 
@@ -576,6 +633,39 @@ function toDtwCandidate(
     matchedTokens: Math.round(state.confidence * totalTokens),
     totalTokens,
   }
+}
+
+function markInterimBoundaryDtwCandidate(input: {
+  candidate: FollowCandidate
+  index: ScriptIndex
+  anchorOffset: number
+  params: AdaptiveFollowParams
+  isFinal: boolean
+}): FollowCandidate {
+  if (input.isFinal) return input.candidate
+
+  const anchorIndex = findTokenIndexByOffset(input.index, input.anchorOffset)
+  const weakBoundaryCrossing = isWeakBoundaryTransition({
+    index: input.index,
+    anchorIndex,
+    candidateStartIndex: input.candidate.startTokenIndex,
+    candidateEndIndex: input.candidate.endTokenIndex,
+    params: input.params,
+  })
+  if (!weakBoundaryCrossing) return input.candidate
+
+  const targetSegmentIndex = input.index.segmentIndices[input.candidate.endTokenIndex]
+  const targetRange = targetSegmentIndex === undefined
+    ? undefined
+    : input.index.segmentTokenRanges[targetSegmentIndex]
+  const startsAtTargetSegmentPrefix = targetRange
+    ? input.candidate.startTokenIndex <= targetRange.startTokenIndex + 1
+    : false
+
+  // interim 可以自然进入下一视觉段开头，但不能直接落到下一段中后部，避免 ASR 临时假设提前翻行。
+  return startsAtTargetSegmentPrefix
+    ? input.candidate
+    : { ...input.candidate, requiresConfirmation: true }
 }
 
 function findLexicalCandidates(options: {
@@ -682,12 +772,20 @@ function findLocalCursorCandidate(options: {
   const readOffset = index.offsets[endTokenIndex] ?? 0
   if (readOffset <= anchorOffset) return null
 
+  const boundaryContinuityBonus = getWeakBoundaryContinuityBonus({
+    index,
+    anchorIndex,
+    candidateStartIndex: firstMatchedIndex ?? endTokenIndex,
+    candidateEndIndex: endTokenIndex,
+    params,
+  })
+  const requiresConfirmation = boundaryContinuityBonus > 0 && !isFinal
   const matchRatio = matchedTokens / speechTokens.length
   if (matchRatio < 0.45) return null
 
   const continuityBonus = consumedScriptTokens <= speechTokens.length + DEFAULT_CURSOR_CONFIRM_JUMP_TOKENS ? 0.08 : 0
   const finalBonus = isFinal ? 0.03 : 0
-  const score = clamp(matchRatio + continuityBonus + finalBonus + CURSOR_CANDIDATE_BONUS, 0, 1)
+  const score = clamp(matchRatio + continuityBonus + finalBonus + CURSOR_CANDIDATE_BONUS + boundaryContinuityBonus, 0, 1)
 
   return {
     scriptOffset: readOffset,
@@ -700,6 +798,8 @@ function findLocalCursorCandidate(options: {
     source: "local",
     matchedTokens,
     totalTokens: speechTokens.length,
+    boundaryContinuityBonus,
+    requiresConfirmation,
   }
 }
 
@@ -719,10 +819,18 @@ function scoreCandidateEndingAt(options: {
     return null
   }
   // 单字识别很容易来自噪声或 ASR 修订，远距离跳转必须交给本地游标的双 token 确认。
+  const weakBoundaryCrossing = isWeakBoundaryTransition({
+    index,
+    anchorIndex,
+    candidateStartIndex: startIndex,
+    candidateEndIndex: endIndex,
+    params,
+  })
   if (
     mode === "local"
     && speechTokens.length === 1
     && startIndex > anchorIndex + DEFAULT_CURSOR_CONFIRM_JUMP_TOKENS + 1
+    && !weakBoundaryCrossing
   ) {
     return null
   }
@@ -744,11 +852,23 @@ function scoreCandidateEndingAt(options: {
 
   const forwardDistance = endIndex - anchorIndex
   const continuityBonus = forwardDistance >= 0 && forwardDistance <= 45 ? 0.12 : 0
+  const boundaryContinuityBonus = weakBoundaryCrossing ? WEAK_BOUNDARY_CONTINUITY_BONUS : 0
+  const requiresConfirmation = weakBoundaryCrossing && !isFinal
   const backwardPenalty = forwardDistance < -4 ? params.backwardPenalty : 0
   const jumpPenalty = mode === "local" && forwardDistance > 120 ? params.jumpPenalty : 0
   const singleTokenAmbiguityPenalty = mode === "local" && speechTokens.length === 1 && startIndex > anchorIndex + 1 ? 0.18 : 0
   const finalBonus = isFinal ? 0.03 : 0
-  const score = clamp(matchRatio + continuityBonus + finalBonus - backwardPenalty - jumpPenalty - singleTokenAmbiguityPenalty, 0, 1)
+  const score = clamp(
+    matchRatio
+      + continuityBonus
+      + boundaryContinuityBonus
+      + finalBonus
+      - backwardPenalty
+      - jumpPenalty
+      - singleTokenAmbiguityPenalty,
+    0,
+    1,
+  )
 
   if (score < 0.35) return null
 
@@ -764,6 +884,8 @@ function scoreCandidateEndingAt(options: {
     source: mode,
     matchedTokens,
     totalTokens: speechTokens.length,
+    boundaryContinuityBonus,
+    requiresConfirmation,
   }
 }
 
@@ -1089,13 +1211,64 @@ function isCandidateAccepted(
     return candidate.confidence >= params.timestampCorrectionThreshold
   }
   if (candidate.source === "local") {
-    return candidate.confidence >= params.localCandidateThreshold
+    if (candidate.requiresConfirmation) {
+      return false
+    }
+    const threshold = candidate.boundaryContinuityBonus
+      ? Math.max(0.58, params.localCandidateThreshold - WEAK_BOUNDARY_THRESHOLD_RELIEF)
+      : params.localCandidateThreshold
+    return candidate.confidence >= threshold
   }
 
   const track = tracks.find((item) => item.id === createTrackId(candidate))
   const strongSingleHit = candidate.matchedTokens >= Math.max(6, Math.ceil(candidate.totalTokens * 0.75))
   return candidate.confidence >= params.recoveryCandidateThreshold
     && (strongSingleHit || (track?.consecutiveHits ?? 0) >= params.minRecoveryHits)
+}
+
+function getWeakBoundaryContinuityBonus(input: {
+  index: ScriptIndex
+  anchorIndex: number
+  candidateStartIndex: number
+  candidateEndIndex: number
+  params: AdaptiveFollowParams
+}): number {
+  return isWeakBoundaryTransition(input) ? WEAK_BOUNDARY_CONTINUITY_BONUS : 0
+}
+
+function isWeakBoundaryTransition(input: {
+  index: ScriptIndex
+  anchorIndex: number
+  candidateStartIndex: number
+  candidateEndIndex: number
+  params: AdaptiveFollowParams
+}): boolean {
+  const { index, anchorIndex, candidateStartIndex, candidateEndIndex, params } = input
+  const anchorSegmentIndex = index.segmentIndices[anchorIndex]
+  const candidateSegmentIndex = index.segmentIndices[candidateEndIndex]
+  if (anchorSegmentIndex === undefined || candidateSegmentIndex === undefined) return false
+  if (candidateSegmentIndex <= anchorSegmentIndex) return false
+  if (candidateSegmentIndex > anchorSegmentIndex + 2) return false
+
+  const anchorToken = index.scriptTokens[anchorIndex]
+  const candidateToken = index.scriptTokens[candidateEndIndex]
+  const boundarySegment = index.scriptTokens.find((token) => token.segmentIndex === anchorSegmentIndex)
+  const boundary = index.segmentTokenRanges[anchorSegmentIndex]
+  const segmentEndTokenIndex = boundary ? Math.max(boundary.startTokenIndex, boundary.endTokenIndex - 1) : anchorIndex
+  const leadTokens = candidateStartIndex - anchorIndex
+  const candidateTokenLength = candidateEndIndex - candidateStartIndex + 1
+
+  // 只有同一真实段落内、靠近当前读点的短候选跨越才视为自然连续，避免影响整句跳读恢复。
+  return Boolean(
+    anchorToken
+      && candidateToken
+      && boundarySegment
+      && anchorToken.paragraphIndex === candidateToken.paragraphIndex
+      && candidateTokenLength <= 3
+      && leadTokens >= 0
+      && leadTokens <= params.maxLocalLeadTokens + DEFAULT_CURSOR_LOOK_AHEAD_TOKENS
+      && segmentEndTokenIndex - anchorIndex <= params.maxLocalLeadTokens,
+  )
 }
 
 function toDecision(candidate: FollowCandidate, dtwIsOnScript: boolean): FollowDecision {

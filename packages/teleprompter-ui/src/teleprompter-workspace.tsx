@@ -4,8 +4,10 @@ import { Mic, Play } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type ReactNode } from "react"
 import {
   createFollowEngine,
+  getSegmentTextStartOffset,
   segmentScript,
   type FollowStatus,
+  type ScriptSegment,
   type SpeechProvider,
   type TeleprompterStoragePayload,
 } from "../../teleprompter-core/src/index"
@@ -80,6 +82,31 @@ function getReadPositionScrollTarget(viewport: HTMLElement, targetEl: HTMLElemen
   const targetMiddle = targetTop + targetEl.offsetHeight / 2
   const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
   return Math.max(0, Math.min(maxScrollTop, targetMiddle - stableAnchorTop))
+}
+
+function getSegmentTextEndOffset(script: string, segment: ScriptSegment) {
+  return getSegmentTextStartOffset(script, segment) + Array.from(segment.raw).length
+}
+
+function findVisualSegmentIndexByOffset(
+  segments: ScriptSegment[],
+  script: string,
+  offset: number,
+  fallbackIndex: number,
+) {
+  if (segments.length === 0) return 0
+
+  const exactIndex = segments.findIndex((segment) => {
+    const segmentStartOffset = getSegmentTextStartOffset(script, segment)
+    const segmentEndOffset = getSegmentTextEndOffset(script, segment)
+    return offset >= segmentStartOffset && offset <= segmentEndOffset
+  })
+  if (exactIndex >= 0) return exactIndex
+
+  // 偏移落在标点/换行空隙时，优先贴近后一个视觉片段，避免跨行滚动滞后。
+  const nextIndex = segments.findIndex((segment) => getSegmentTextStartOffset(script, segment) > offset)
+  if (nextIndex >= 0) return nextIndex
+  return Math.max(0, Math.min(fallbackIndex, segments.length - 1))
 }
 
 function createDownloadProgressView(downloaded: number, total: number) {
@@ -209,6 +236,12 @@ export function TeleprompterWorkspace({
   const animatedReadOffset = useAnimatedReadOffset(readOffset, isFollowAnimationActive, readOffsetSnapKey)
   const visibleReadOffset = Math.max(0, Math.min(animatedReadOffset, script.length))
   const scrollReadOffset = Math.max(0, Math.min(readOffset, script.length))
+  const scrollSegmentIndex = findVisualSegmentIndexByOffset(
+    scriptSegments,
+    script,
+    scrollReadOffset,
+    visibleCurrentIndex,
+  )
   const visibleStatus: FollowStatus = speech.error ? "failed" : followStatus
   const visibleMessage = message ?? speech.error
 
@@ -453,8 +486,8 @@ export function TeleprompterWorkspace({
   useEffect(() => {
     if (followStatus === "paused" || followStatus === "idle") return
     if (userScrollingRef.current) return
-    scrollToReadPosition(scrollReadOffset, visibleCurrentIndex)
-  }, [followStatus, scrollReadOffset, scrollToReadPosition, visibleCurrentIndex])
+    scrollToReadPosition(scrollReadOffset, scrollSegmentIndex)
+  }, [followStatus, scrollReadOffset, scrollSegmentIndex, scrollToReadPosition])
 
   useEffect(() => {
     const viewport = prompterViewportRef.current

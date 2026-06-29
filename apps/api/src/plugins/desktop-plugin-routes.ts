@@ -19,6 +19,7 @@ import {
 import {
   getDesktopPluginRuntimeStatus,
   invokeDesktopPluginWorker,
+  openDesktopPluginWorkerStream,
   restartDesktopPluginRuntime,
   startDesktopPluginRuntime,
   stopDesktopPluginRuntime,
@@ -98,6 +99,43 @@ function jsonError(error: unknown): Response {
       "content-type": "application/json; charset=utf-8",
     },
   })
+}
+
+type WorkerStreamInput =
+  | { type: "chunk"; payload?: unknown }
+  | { type: "close" }
+
+async function* readWorkerStreamInput(body: ReadableStream<Uint8Array> | null): AsyncGenerator<WorkerStreamInput> {
+  if (!body) return
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let newlineIndex = buffer.indexOf("\n")
+    while (newlineIndex >= 0) {
+      const line = buffer.slice(0, newlineIndex).trim()
+      buffer = buffer.slice(newlineIndex + 1)
+      if (line) yield parseWorkerStreamLine(line)
+      newlineIndex = buffer.indexOf("\n")
+    }
+  }
+  const tail = buffer.trim()
+  if (tail) yield parseWorkerStreamLine(tail)
+}
+
+function parseWorkerStreamLine(line: string): WorkerStreamInput {
+  const parsed = JSON.parse(line) as WorkerStreamInput
+  if (!parsed || typeof parsed !== "object" || (parsed.type !== "chunk" && parsed.type !== "close")) {
+    throw new DesktopPluginError("worker stream 输入无效", 400)
+  }
+  return parsed
+}
+
+function encodeWorkerStreamLine(payload: unknown): Uint8Array {
+  return new TextEncoder().encode(`${JSON.stringify(payload)}\n`)
 }
 
 desktopPlugins.get("/", async (c) => {
@@ -189,6 +227,54 @@ desktopPlugins.post("/:id/worker/invoke", async (c) => {
 
     const result = await invokeDesktopPluginWorker(c.req.param("id"), body.method, body.payload)
     return c.json({ ok: true, data: { ok: true, result } })
+  } catch (error) {
+    return jsonError(error)
+  }
+})
+
+desktopPlugins.post("/:id/worker/stream", async (c) => {
+  try {
+    const method = c.req.query("method")
+    if (!method) {
+      return c.json({ ok: false, message: "method 不能为空" }, 400)
+    }
+    const openPayloadHeader = c.req.header("x-thunder-worker-stream-open")
+    const openPayload = openPayloadHeader ? JSON.parse(openPayloadHeader) : undefined
+    const stream = await openDesktopPluginWorkerStream(c.req.param("id"), method, openPayload)
+
+    const responseBody = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const input of readWorkerStreamInput(c.req.raw.body)) {
+            if (input.type === "close") {
+              await stream.close()
+              controller.enqueue(encodeWorkerStreamLine({ ok: true, type: "closed" }))
+              controller.close()
+              return
+            }
+            const result = await stream.write(input.payload)
+            controller.enqueue(encodeWorkerStreamLine({ ok: true, type: "result", result }))
+          }
+          await stream.close().catch(() => undefined)
+          controller.close()
+        } catch (error) {
+          await stream.close().catch(() => undefined)
+          controller.enqueue(encodeWorkerStreamLine({
+            ok: false,
+            type: "error",
+            message: error instanceof Error ? error.message : "worker stream 处理失败",
+          }))
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(responseBody, {
+      headers: {
+        "content-type": "application/x-ndjson; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    })
   } catch (error) {
     return jsonError(error)
   }

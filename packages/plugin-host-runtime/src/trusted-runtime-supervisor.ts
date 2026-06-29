@@ -462,6 +462,16 @@ export function createTrustedRuntimeSupervisor(
         record.activeInvocations -= 1
       }
     },
+    async openStream(plugin, method, payload) {
+      const record = getRecord(plugin)
+      await start(plugin)
+      if (!record.client) {
+        throw new PluginRuntimeError("RUNTIME_NOT_READY", "Trusted runtime is not ready", {
+          retryable: true,
+        })
+      }
+      return record.client.openStream(method, payload)
+    },
     stop,
     async stopAll() {
       const pluginIds = [...records.keys()]

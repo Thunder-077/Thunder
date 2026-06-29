@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { createBrowserSpeechController, isBrowserSpeechRecognitionSupported } from "./adapters/browser-speech-controller"
 import type {
   SpeechRuntimeHealthResult,
-  SpeechSessionFeedResult,
+  SpeechAudioChunkResult,
   SpeechSessionStartResult,
   SpeechSessionStopResult,
   SpeechSessionSubmitResult,
@@ -72,13 +72,13 @@ function createJsonResponse<T>(data: T): Response {
 
 assert.equal(typeof worker.handlers["speech.health.check"], "function")
 assert.equal(typeof worker.handlers["speech.session.start"], "function")
-assert.equal(typeof worker.handlers["speech.session.feed"], "function")
 assert.equal(typeof worker.handlers["speech.session.submit"], "function")
 assert.equal(typeof worker.handlers["speech.session.stop"], "function")
 assert.equal(typeof worker.handlers["speech.transcribe"], "function")
 assert.equal(typeof worker.handlers["speech.models.list"], "function")
 assert.equal(typeof worker.handlers["speech.models.download"], "function")
 assert.equal(typeof worker.handlers["speech.models.activate"], "function")
+assert.equal(typeof worker.streams?.["speech.audio"], "function")
 
 const originalBridgeUrl = process.env.THUNDER_DESKTOP_NATIVE_API_URL
 const originalFetch = globalThis.fetch
@@ -208,13 +208,21 @@ try {
   }) as SpeechSessionStartResult
   assert.equal(session.status, "listening")
 
-  const feedResult = await worker.handlers["speech.session.feed"]({
+  const audioStream = await worker.streams?.["speech.audio"]({
+    sessionId: session.sessionId,
+    sampleRate: 16000,
+    channels: 1,
+    encoding: "pcm_s16le",
+  })
+  assert.ok(audioStream)
+  assert.equal(typeof audioStream.onChunk, "function")
+  const feedResult = await audioStream.onChunk({
     sessionId: session.sessionId,
     samples: [0, 128, -256, 512],
     sampleRate: 16000,
     channels: 1,
     encoding: "pcm_s16le",
-  }) as SpeechSessionFeedResult
+  }) as SpeechAudioChunkResult
   assert.equal(feedResult.accepted, true)
   assert.equal(feedResult.acceptedSamples, 4)
   assert.equal(feedResult.normalized, "大家好")

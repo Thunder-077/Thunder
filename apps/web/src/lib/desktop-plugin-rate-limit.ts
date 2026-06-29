@@ -8,12 +8,23 @@
 export class DesktopPluginRateLimiter {
   private bridgeTimestamps: number[] = []
   private networkTimestamps: number[] = []
+  private layoutTimestamps: number[] = []
 
   constructor(
     private readonly windowMs = 60_000,
     private readonly bridgeLimit = 120,
     private readonly networkLimit = 20,
+    private readonly layoutLimit = 240,
   ) {}
+
+  assertAllowedMethod(method: string, params?: unknown, now = Date.now()): void {
+    if (method === "layout.setFrameHeight") {
+      this.assertTimestampQuota("layout", now)
+      return
+    }
+
+    this.assertAllowed(method === "network.request", now)
+  }
 
   assertAllowed(isNetwork: boolean, now = Date.now()): void {
     // Evict expired timestamps from the sliding window.
@@ -31,6 +42,18 @@ export class DesktopPluginRateLimiter {
         throw new Error("插件网络请求过于频繁")
       }
       this.networkTimestamps.push(now)
+    }
+  }
+
+  private assertTimestampQuota(kind: "layout", now: number): void {
+    const windowStart = now - this.windowMs
+    if (kind === "layout") {
+      this.layoutTimestamps = this.layoutTimestamps.filter((ts) => ts > windowStart)
+      if (this.layoutTimestamps.length >= this.layoutLimit) {
+        throw new Error("插件布局更新过于频繁")
+      }
+      this.layoutTimestamps.push(now)
+      return
     }
   }
 }

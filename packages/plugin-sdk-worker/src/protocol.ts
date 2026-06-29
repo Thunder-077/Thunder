@@ -54,6 +54,30 @@ export type ThunderPluginWorkerHandler<
   payload: TPayload
 ) => Promise<TResult> | TResult
 
+export interface ThunderPluginWorkerStreamController<
+  TChunk = unknown,
+  TResult = unknown,
+> {
+  /** 处理流内单个数据块，返回值会按块回传给 Host。 */
+  onChunk(chunk: TChunk): Promise<TResult> | TResult
+  /** 流关闭时释放会话资源，Host 主动关闭或连接断开都会触发。 */
+  onClose?(): Promise<void> | void
+}
+
+export type ThunderPluginWorkerStreamHandler<
+  TPayload = unknown,
+  TChunk = unknown,
+  TResult = unknown,
+> = (
+  payload: TPayload
+) => Promise<ThunderPluginWorkerStreamController<TChunk, TResult>> |
+  ThunderPluginWorkerStreamController<TChunk, TResult>
+
+export type ThunderPluginWorkerStreams = Record<
+  string,
+  ThunderPluginWorkerStreamHandler
+>
+
 export type ThunderPluginWorkerHandlers<
   TMethods extends ThunderPluginWorkerMethodMap,
 > = {

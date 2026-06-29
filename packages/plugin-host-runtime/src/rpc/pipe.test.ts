@@ -167,6 +167,74 @@ async function testRoundtripAndConcurrentRequests(): Promise<void> {
 }
 
 function testStrictProtocolDecoding(): void {
+  assert.deepEqual(
+    decodeEnvelope(JSON.stringify({
+      version: 1,
+      type: "stream.open",
+      id: "stream-open-1",
+      pluginId: PLUGIN_ID,
+      capability: CAPABILITY,
+      streamId: "speech-stream-1",
+      method: "speech.audio",
+      payload: { sessionId: "speech-session-1" },
+    })),
+    {
+      version: 1,
+      type: "stream.open",
+      id: "stream-open-1",
+      pluginId: PLUGIN_ID,
+      capability: CAPABILITY,
+      streamId: "speech-stream-1",
+      method: "speech.audio",
+      payload: { sessionId: "speech-session-1" },
+    },
+  )
+  assert.deepEqual(
+    decodeEnvelope(JSON.stringify({
+      version: 1,
+      type: "stream.chunk",
+      id: "stream-chunk-1",
+      pluginId: PLUGIN_ID,
+      capability: CAPABILITY,
+      streamId: "speech-stream-1",
+      payload: { samples: [1, 2, 3] },
+    })),
+    {
+      version: 1,
+      type: "stream.chunk",
+      id: "stream-chunk-1",
+      pluginId: PLUGIN_ID,
+      capability: CAPABILITY,
+      streamId: "speech-stream-1",
+      payload: { samples: [1, 2, 3] },
+    },
+  )
+  assert.deepEqual(
+    decodeEnvelope(JSON.stringify({
+      version: 1,
+      type: "stream.close",
+      id: "stream-close-1",
+      pluginId: PLUGIN_ID,
+      capability: CAPABILITY,
+      streamId: "speech-stream-1",
+    })),
+    {
+      version: 1,
+      type: "stream.close",
+      id: "stream-close-1",
+      pluginId: PLUGIN_ID,
+      capability: CAPABILITY,
+      streamId: "speech-stream-1",
+    },
+  )
+  assertInvalidEnvelope({
+    version: 1,
+    type: "stream.open",
+    id: "stream-open-2",
+    pluginId: PLUGIN_ID,
+    capability: CAPABILITY,
+    streamId: "speech-stream-1",
+  })
   assertInvalidEnvelope({
     version: 2,
     type: "request",

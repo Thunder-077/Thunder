@@ -101,6 +101,12 @@ const inputs: Record<PluginBridgeMethod, unknown> = {
   "activity.track": { action: "save", title: "Saved draft" },
   "network.request": { url: "https://example.com", method: "GET" },
   "worker.invoke": { method: "draft.normalize", payload: { text: "hello" } },
+  "speech.stream.open": {
+    sessionId: "speech-session-1",
+    sampleRate: 16000,
+    channels: 1,
+    encoding: "pcm_s16le",
+  },
   "events.broadcast": { event: "draft.updated", data: { text: "hello" } },
 }
 
