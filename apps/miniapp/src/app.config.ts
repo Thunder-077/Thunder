@@ -19,5 +19,4 @@ export default defineAppConfig({
     backgroundColor: "#fffdf9",
     navigationStyle: "custom",
   },
-  lazyCodeLoading: "requiredComponents",
 })

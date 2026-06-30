@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>织梦人家纺窗帘报价单</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #e9e1d4;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      color: #1f2819;
+    }
+
+    .poster {
+      position: relative;
+      width: 750px;
+      min-height: 1334px;
+      margin: 0 auto;
+      padding: 54px 48px 36px;
+      overflow: hidden;
+      background-image: url("./图片背景.png");
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      background-position: center top;
+      background-color: #fff8ea;
+    }
+
+    .content {
+      position: relative;
+      z-index: 2;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 26px;
+      margin-bottom: 28px;
+    }
+
+    .logo {
+      width: 112px;
+      height: 112px;
+      border-radius: 50%;
+      box-shadow: 0 10px 28px rgba(70, 72, 48, 0.14);
+      flex-shrink: 0;
+      object-fit: cover;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 64px;
+      line-height: 1;
+      letter-spacing: 4px;
+      color: #314324;
+      font-weight: 800;
+      font-family: "STSong", "SimSun", "Songti SC", serif;
+    }
+
+    .title p {
+      margin: 16px 0 0;
+      font-size: 26px;
+      letter-spacing: 8px;
+      color: #65784a;
+      font-weight: 600;
+    }
+
+    .card {
+      background: rgba(255, 250, 240, 0.94);
+      border: 1px solid rgba(191, 181, 151, 0.5);
+      border-radius: 22px;
+      box-shadow: 0 10px 28px rgba(70, 72, 48, 0.14);
+    }
+
+    .customer-card {
+      display: grid;
+      grid-template-columns: 165px 1px 1fr;
+      gap: 24px;
+      padding: 26px 30px;
+      margin-bottom: 22px;
+      align-items: center;
+    }
+
+    .avatar {
+      width: 118px;
+      height: 118px;
+      border-radius: 50%;
+      margin: 0 auto;
+      background: #e7ebd5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #65784a;
+      font-size: 64px;
+      font-weight: 700;
+    }
+
+    .vertical-line {
+      width: 1px;
+      height: 132px;
+      border-left: 1px solid #c9c6a5;
+    }
+
+    .info-row {
+      display: grid;
+      grid-template-columns: 32px 128px 1fr;
+      gap: 10px;
+      align-items: center;
+      min-height: 36px;
+      font-size: 24px;
+      border-bottom: 1px dashed #c6c9aa;
+      padding: 7px 0;
+    }
+
+    .info-row:last-child {
+      border-bottom: 0;
+    }
+
+    .info-row .icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #65784a;
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+    }
+
+    .info-row .label {
+      font-weight: 700;
+    }
+
+    .room-list {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .room-card {
+      display: grid;
+      grid-template-columns: 330px 1px 1fr;
+      gap: 20px;
+      padding: 14px;
+      min-height: 154px;
+      align-items: stretch;
+    }
+
+    .room-art {
+      border-radius: 14px;
+      overflow: hidden;
+      background: #fbefd9;
+    }
+
+    .room-art img {
+      width: 100%;
+      height: 100%;
+      min-height: 142px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .dashed-v {
+      border-left: 1px dashed #c6c9aa;
+      margin: 8px 0;
+    }
+
+    .room-info {
+      height: 100%;
+      padding: 10px 8px 10px 0;
+      display: grid;
+      grid-template-rows: 48px 1fr 1fr;
+      align-items: center;
+    }
+
+    .room-name {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      justify-self: start;
+      min-width: 84px;
+      height: 38px;
+      padding: 0 18px;
+      border-radius: 11px;
+      background: linear-gradient(180deg, #74885b, #52693e);
+      color: white;
+      font-size: 25px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      margin-bottom: 0;
+      white-space: nowrap;
+    }
+
+    .room-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 24px;
+      padding: 0;
+      height: 100%;
+      border-bottom: 1px dashed #c6c9aa;
+    }
+
+    .room-row:last-child {
+      border-bottom: 0;
+    }
+
+    .room-row .value {
+      color: #65784a;
+      font-weight: 800;
+      font-size: 28px;
+      white-space: nowrap;
+    }
+
+    .room-row.amount .value {
+      font-size: 38px;
+      letter-spacing: 1px;
+    }
+
+    .summary-card {
+      margin-top: 20px;
+      padding: 24px 32px 30px;
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      grid-template-areas:
+        "badge lines"
+        "final final";
+      gap: 18px 28px;
+      align-items: center;
+      overflow: visible;
+    }
+
+    .discount-badge {
+      grid-area: badge;
+      width: 155px;
+      height: 155px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .summary-lines {
+      grid-area: lines;
+      min-width: 0;
+      padding-top: 0;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 25px;
+      padding: 12px 0;
+      border-bottom: 1px dashed #c6c9aa;
+      white-space: nowrap;
+    }
+
+    .summary-row span:first-child {
+      font-weight: 700;
+    }
+
+    .summary-row span:last-child {
+      font-weight: 800;
+      color: #314324;
+    }
+
+    .final-row {
+      grid-area: final;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 4px;
+      color: #314324;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .final-label {
+      flex-shrink: 0;
+      font-size: 40px;
+      letter-spacing: 2px;
+      white-space: nowrap;
+    }
+
+    .final-price {
+      flex-shrink: 0;
+      font-size: 72px;
+      line-height: 1;
+      letter-spacing: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      white-space: nowrap;
+    }
+
+    .note {
+      margin: 18px 36px 18px;
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 22px;
+      border-radius: 16px;
+    }
+
+    .note-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: #65784a;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .footer {
+      text-align: center;
+      padding-top: 6px;
+      color: #314324;
+    }
+
+    .footer h2 {
+      margin: 0;
+      font-size: 42px;
+      font-family: "STSong", "SimSun", "Songti SC", serif;
+      letter-spacing: 5px;
+    }
+
+    .footer p {
+      margin: 10px 0 0;
+      font-size: 18px;
+      color: #3e442f;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="poster">
+    <div class="content">
+      <header class="header">
+        <img class="logo" src="./图标.png" alt="窗帘图标" />
+
+        <div class="title">
+          <h1>织梦人家纺窗帘</h1>
+        </div>
+      </header>
+
+      <section class="card customer-card">
+        <div class="avatar">●</div>
+        <div class="vertical-line"></div>
+
+        <div>
+          <div class="info-row">
+            <span class="icon">人</span>
+            <span class="label">客户姓名：</span>
+            <span>张三</span>
+          </div>
+          <div class="info-row">
+            <span class="icon">☎</span>
+            <span class="label">联系电话：</span>
+            <span>138****8888</span>
+          </div>
+          <div class="info-row">
+            <span class="icon">⌖</span>
+            <span class="label">安装地址：</span>
+            <span>北京市朝阳区望京SOHO</span>
+          </div>
+          <div class="info-row">
+            <span class="icon">日</span>
+            <span class="label">报价日期：</span>
+            <span>2026-06-29</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="room-list">
+        <article class="card room-card">
+          <div class="room-art">
+            <img src="./客厅.png" alt="客厅" />
+          </div>
+          <div class="dashed-v"></div>
+          <div class="room-info">
+            <span class="room-name">客厅</span>
+            <div class="room-row">
+              <span>宽度</span>
+              <span class="value">3.00m</span>
+            </div>
+            <div class="room-row amount">
+              <span>金额</span>
+              <span class="value">¥386.00</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="card room-card">
+          <div class="room-art">
+            <img src="./主卧.png" alt="主卧" />
+          </div>
+          <div class="dashed-v"></div>
+          <div class="room-info">
+            <span class="room-name">主卧</span>
+            <div class="room-row">
+              <span>宽度</span>
+              <span class="value">3.20m</span>
+            </div>
+            <div class="room-row amount">
+              <span>金额</span>
+              <span class="value">¥420.00</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="card room-card">
+          <div class="room-art">
+            <img src="./次卧.png" alt="次卧" />
+          </div>
+          <div class="dashed-v"></div>
+          <div class="room-info">
+            <span class="room-name">次卧</span>
+            <div class="room-row">
+              <span>宽度</span>
+              <span class="value">2.80m</span>
+            </div>
+            <div class="room-row amount">
+              <span>金额</span>
+              <span class="value">¥354.00</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="card room-card">
+          <div class="room-art">
+            <img src="./书房.png" alt="书房" />
+          </div>
+          <div class="dashed-v"></div>
+          <div class="room-info">
+            <span class="room-name">书房</span>
+            <div class="room-row">
+              <span>宽度</span>
+              <span class="value">2.40m</span>
+            </div>
+            <div class="room-row amount">
+              <span>金额</span>
+              <span class="value">¥306.00</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="card room-card">
+          <div class="room-art">
+            <img src="./默认房间.png" alt="通用房间" />
+          </div>
+          <div class="dashed-v"></div>
+          <div class="room-info">
+            <span class="room-name">通用房间</span>
+            <div class="room-row">
+              <span>宽度</span>
+              <span class="value">2.60m</span>
+            </div>
+            <div class="room-row amount">
+              <span>金额</span>
+              <span class="value">¥332.00</span>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="card summary-card">
+        <img class="discount-badge" src="./9折.png" alt="9折" />
+
+        <div class="summary-lines">
+          <div class="summary-row">
+            <span>原价合计：</span>
+            <span>¥1,798.00</span>
+          </div>
+          <div class="summary-row">
+            <span>折扣：</span>
+            <span>9折</span>
+          </div>
+        </div>
+
+        <div class="final-row">
+          <span class="final-label">最终报价：</span>
+          <span class="final-price">¥1,618.20</span>
+        </div>
+      </section>
+
+      <section class="card note">
+        <div class="note-icon">✓</div>
+        <div>备注：报价以实际测量及最终确认为准</div>
+      </section>
+
+      <footer class="footer">
+        <h2>感谢您的咨询</h2>
+        <p>如需修改方案，请联系门店顾问</p>
+      </footer>
+    </div>
+  </main>
+</body>
+</html>
