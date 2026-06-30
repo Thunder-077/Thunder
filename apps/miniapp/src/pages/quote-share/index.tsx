@@ -15,11 +15,11 @@ import {
   drawPoster,
   createMockPosterData,
 } from "@/modules/curtain-quote/poster/builder"
-import thumbBedroom from "@/assets/curtain/主卧.png"
-import thumbLiving from "@/assets/curtain/客厅.png"
-import thumbSecondBedroom from "@/assets/curtain/次卧.png"
-import thumbStudy from "@/assets/curtain/书房.png"
-import thumbRoom from "@/assets/curtain/默认房间.png"
+import thumbBedroom from "@/assets/curtain/主卧.jpg"
+import thumbLiving from "@/assets/curtain/客厅.jpg"
+import thumbSecondBedroom from "@/assets/curtain/次卧.jpg"
+import thumbStudy from "@/assets/curtain/书房.jpg"
+import thumbRoom from "@/assets/curtain/默认房间.jpg"
 import "./index.css"
 
 /** 根据房间名称选择对应素材，未知房间使用通用房间图。 */
