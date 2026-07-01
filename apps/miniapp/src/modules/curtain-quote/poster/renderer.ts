@@ -228,6 +228,7 @@ export function drawPrice(
   const bodyW = ctx.measureText(body).width
   const totalW = symW + bodyW
 
+  // 分段绘制时先计算整组左起点，再统一按 left 绘制，避免小程序真机 canvas 对 right 对齐二次偏移。
   let symX = x
   let bodyX = x + symW
   if (align === "center") {
@@ -238,6 +239,7 @@ export function drawPrice(
     bodyX = symX + symW
   }
 
+  ctx.textAlign = "left"
   ctx.font = fontStr(sym)
   ctx.fillText(symText, symX, y)
   ctx.font = fontStr(key)
@@ -442,7 +444,7 @@ export function drawSummaryCard(
   const rx = x + w - padX
 
   let cy = y + padY
-  drawText(ctx, "最终报价", ix, cy, "summaryMeta", T.color.summaryDim)
+  drawText(ctx, "折扣价", ix, cy, "summaryMeta", T.color.summaryDim)
   drawText(ctx, summary.discountLabel, rx, cy, "summaryMeta", T.color.brandSoft, "right")
   cy += T.font.summaryMeta.size + 14
 
@@ -463,7 +465,7 @@ export function drawSummaryCard(
     ? `已优惠 ¥${summary.discountAmount.toFixed(2)}`
     : "当前无优惠"
   drawText(ctx, saved, ix, cy, "summaryMeta", T.color.summaryDim)
-  drawText(ctx, `总价 ¥${summary.originalAmount.toFixed(2)}`, rx, cy, "summaryMeta", T.color.summaryDim, "right")
+  drawText(ctx, `原价 ¥${summary.originalAmount.toFixed(2)}`, rx, cy, "summaryMeta", T.color.summaryDim, "right")
 
   return cardH
 }
