@@ -6,6 +6,7 @@ import { IconSymbol } from "@/modules/curtain-quote/components/icon-symbol"
 import { DISCOUNT_OPTIONS } from "@/modules/curtain-quote/data/discounts"
 import { calculateQuoteTotals } from "@/modules/curtain-quote/services/quote-calculator"
 import { formatDate, formatMoney, maskPhone } from "@/modules/curtain-quote/services/format"
+import { getRoomThumb } from "@/modules/curtain-quote/services/room-thumb"
 import { getQuote } from "@/modules/curtain-quote/services/quote-storage"
 import type { CurtainQuote } from "@/modules/curtain-quote/types/quote"
 import { theme } from "@/modules/curtain-quote/poster/theme"
@@ -15,37 +16,8 @@ import {
   drawPoster,
   createMockPosterData,
 } from "@/modules/curtain-quote/poster/builder"
-import thumbBedroom from "@/assets/curtain/主卧.jpg"
 import thumbLiving from "@/assets/curtain/客厅.jpg"
-import thumbSecondBedroom from "@/assets/curtain/次卧.jpg"
-import thumbStudy from "@/assets/curtain/书房.jpg"
-import thumbRoom from "@/assets/curtain/默认房间.jpg"
 import "./index.css"
-
-/** 根据房间名称选择对应素材，未知房间使用通用房间图。 */
-function getRoomThumb(position: string): string {
-  if (position.includes("客厅")) {
-    return thumbLiving
-  }
-
-  if (position.includes("主卧")) {
-    return thumbBedroom
-  }
-
-  if (position.includes("次卧") || position.includes("儿童房") || position.includes("客房")) {
-    return thumbSecondBedroom
-  }
-
-  if (position.includes("卧")) {
-    return thumbBedroom
-  }
-
-  if (position.includes("书房") || position.includes("办公")) {
-    return thumbStudy
-  }
-
-  return thumbRoom
-}
 
 /** 生成报价海报图片并返回临时文件路径。 */
 async function generatePosterImage(
@@ -124,7 +96,7 @@ export default function QuoteSharePage() {
   const handleSave = async () => {
     if (busy) return
     setBusy(true)
-    await Taro.showLoading({ title: "生成中", mask: true })
+    await Taro.showLoading({ title: "保存中", mask: true })
     try {
       const tempPath = await generatePosterImage(posterHeight, (ctx) =>
         drawPoster(ctx, posterData),
@@ -144,7 +116,7 @@ export default function QuoteSharePage() {
           await Taro.openSetting()
         }
       } else {
-        await Taro.showToast({ title: "生成图片失败", icon: "none" })
+        await Taro.showToast({ title: "保存图片失败", icon: "none" })
       }
     } finally {
       await Taro.hideLoading()
@@ -189,7 +161,7 @@ export default function QuoteSharePage() {
                   <Image className="summary-item__image" mode="aspectFill" src={getRoomThumb(item.position)} />
                   <View className="summary-item__content">
                     <Text className="summary-item__title">{item.position}</Text>
-                    <Text className="summary-item__line">宽度： {item.width.toFixed(2)}m</Text>
+                    <Text className="summary-item__line">宽度： {item.width.toFixed(2)}米</Text>
                     <Text className="summary-item__line">预算： ¥{formatMoney(item.amount)}</Text>
                   </View>
                 </View>
@@ -200,7 +172,7 @@ export default function QuoteSharePage() {
                   <Image className="summary-item__image" mode="aspectFill" src={thumbLiving} />
                   <View className="summary-item__content">
                     <Text className="summary-item__title">{item.packageName}</Text>
-                    <Text className="summary-item__line">布宽： {item.fabricWidth.toFixed(2)}m</Text>
+                    <Text className="summary-item__line">布宽： {item.fabricWidth.toFixed(2)}米</Text>
                     <Text className="summary-item__line">预算： ¥{formatMoney(item.amount)}</Text>
                   </View>
                 </View>

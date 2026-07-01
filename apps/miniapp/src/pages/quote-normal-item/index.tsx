@@ -129,7 +129,7 @@ export default function QuoteNormalItemPage() {
               <Text className="item-field__label">宽度</Text>
               <View className="item-field__unit-row">
                 <Input className="item-field__input" type="digit" placeholder="0.00" value={rawInputs.width ?? (draft.width ? String(draft.width) : "")} onInput={updateNumber("width")} />
-                <Text className="item-field__unit">m</Text>
+                <Text className="item-field__unit">米</Text>
               </View>
             </View>
             <View className="item-field__divider" />
@@ -137,7 +137,7 @@ export default function QuoteNormalItemPage() {
               <Text className="item-field__label">高度</Text>
               <View className="item-field__unit-row">
                 <Input className="item-field__input" type="digit" placeholder="0.00" value={rawInputs.height ?? (draft.height ? String(draft.height) : "")} onInput={updateNumber("height")} />
-                <Text className="item-field__unit">m</Text>
+                <Text className="item-field__unit">米</Text>
               </View>
             </View>
           </View>
@@ -160,7 +160,7 @@ export default function QuoteNormalItemPage() {
             <View className="item-field__divider" />
             <View className="item-field__half">
               <Text className="item-field__label">布单价</Text>
-              <Input className="item-field__input" type="digit" placeholder="0" value={rawInputs.fabricUnitPrice ?? (draft.fabricUnitPrice ? String(draft.fabricUnitPrice) : "")} onInput={updateNumber("fabricUnitPrice")} />
+              <Input className="item-field__input" type="digit" placeholder="选填，无布可不填" value={rawInputs.fabricUnitPrice ?? (draft.fabricUnitPrice ? String(draft.fabricUnitPrice) : "")} onInput={updateNumber("fabricUnitPrice")} />
             </View>
           </View>
           <View className="item-field item-field--split">

@@ -74,13 +74,13 @@ export function buildPosterData(quote: CurtainQuote): PosterData {
   if (quote.mode === "normal") {
     rooms = quote.normalItems.map((item) => ({
       name: item.position || "未命名房间",
-      widthLabel: `${item.width.toFixed(2)}m`,
+      widthLabel: `${item.width.toFixed(2)}米`,
       subtotal: item.amount,
     }))
   } else {
     rooms = quote.packageItems.map((item) => ({
       name: item.packageName,
-      widthLabel: `布 ${item.fabricWidth.toFixed(2)}m / 纱 ${item.sheerWidth.toFixed(2)}m`,
+      widthLabel: `布 ${item.fabricWidth.toFixed(2)}米 / 纱 ${item.sheerWidth.toFixed(2)}米`,
       subtotal: item.amount,
     }))
   }

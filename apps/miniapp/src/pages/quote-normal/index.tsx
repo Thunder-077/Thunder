@@ -82,20 +82,24 @@ export default function QuoteNormalPage() {
               </View>
               <View className="normal-card__line">
                 <Text>宽度：</Text>
-                <Text>{item.width.toFixed(2)}m</Text>
+                <Text>{item.width.toFixed(2)}米</Text>
               </View>
-              <View className="normal-card__dash" />
-              <View className="normal-card__line">
-                <Text>布单价：</Text>
-                <Text>{item.fabricUnitPrice}元/m</Text>
-              </View>
-              {item.sheerUnitPrice > 0 ? (
+              {item.fabricUnitPrice > 0 || item.sheerUnitPrice > 0 ? (
                 <>
                   <View className="normal-card__dash" />
-                  <View className="normal-card__line">
-                    <Text>纱单价：</Text>
-                    <Text>{item.sheerUnitPrice}元/m</Text>
-                  </View>
+                  {item.fabricUnitPrice > 0 ? (
+                    <View className="normal-card__line">
+                      <Text>布单价：</Text>
+                      <Text>{item.fabricUnitPrice}元/米</Text>
+                    </View>
+                  ) : null}
+                  {item.fabricUnitPrice > 0 && item.sheerUnitPrice > 0 ? <View className="normal-card__dash" /> : null}
+                  {item.sheerUnitPrice > 0 ? (
+                    <View className="normal-card__line">
+                      <Text>纱单价：</Text>
+                      <Text>{item.sheerUnitPrice}元/米</Text>
+                    </View>
+                  ) : null}
                 </>
               ) : null}
               <View className="normal-card__dash" />

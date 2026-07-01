@@ -118,7 +118,7 @@ export default function QuotePackagePage() {
                 <Text className="package-width__label">布宽</Text>
                 <View className="package-width__input-row">
                   <Input className="package-width__input" type="digit" placeholder="0.00" value={getWidthInputValue("fabricWidth")} onInput={updateWidth("fabricWidth")} />
-                  <Text>m</Text>
+                  <Text>米</Text>
                 </View>
               </View>
               <View className="package-width__divider" />
@@ -126,7 +126,7 @@ export default function QuotePackagePage() {
                 <Text className="package-width__label">纱宽</Text>
                 <View className="package-width__input-row">
                   <Input className="package-width__input" type="digit" placeholder="0.00" value={getWidthInputValue("sheerWidth")} onInput={updateWidth("sheerWidth")} />
-                  <Text>m</Text>
+                  <Text>米</Text>
                 </View>
               </View>
             </View>
@@ -137,15 +137,15 @@ export default function QuotePackagePage() {
               </View>
               <View className="package-detail__line">
                 <Text>布实际用量：</Text>
-                <Text>{item.fabricUsage.toFixed(2)} m</Text>
+                <Text>{item.fabricUsage.toFixed(2)}米</Text>
               </View>
               <View className="package-detail__line">
                 <Text>纱实际用量：</Text>
-                <Text>{item.sheerUsage.toFixed(2)} m</Text>
+                <Text>{item.sheerUsage.toFixed(2)}米</Text>
               </View>
               <View className="package-detail__line">
                 <Text>轨道长度：</Text>
-                <Text>{item.trackLength.toFixed(2)} m</Text>
+                <Text>{item.trackLength.toFixed(2)}米</Text>
               </View>
             </View>
             <View className="package-detail cq-card">
