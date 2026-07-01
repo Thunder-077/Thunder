@@ -175,7 +175,7 @@ export function getPosterHeight(data: PosterData): number {
 
 /** 门店信息高度。 */
 export function measureStoreHeight(): number {
-  return (T.font.footerCaption.size + 14) * 2
+  return T.font.footerCaption.size
 }
 
 /* ================================================================

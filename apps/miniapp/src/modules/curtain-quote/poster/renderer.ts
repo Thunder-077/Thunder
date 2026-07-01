@@ -524,8 +524,7 @@ export function drawStoreFooter(
   y: number,
   w: number,
 ): number {
-  const lineH = T.font.footerCaption.size + 14
-  drawText(ctx, `门店地址：${store.address}`, x, y, "footerCaption", T.color.muted)
-  drawText(ctx, `联系电话：${store.phone}`, x, y + lineH, "footerCaption", T.color.muted)
-  return lineH * 2
+  const footerText = `门店地址：${store.address}  联系电话：${store.phone}`
+  drawText(ctx, truncate(ctx, footerText, w, "footerCaption"), x, y, "footerCaption", T.color.muted)
+  return T.font.footerCaption.size
 }
