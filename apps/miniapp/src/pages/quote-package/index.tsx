@@ -69,6 +69,20 @@ export default function QuotePackagePage() {
     )
   }
 
+  /** 宽度输入展示值：与普通报价宽高一致，真实 0 交给 placeholder 展示。 */
+  const getWidthInputValue = (field: "fabricWidth" | "sheerWidth") => {
+    if (!item) {
+      return ""
+    }
+
+    const raw = rawInputs[field]
+    if (raw !== undefined) {
+      return raw
+    }
+
+    return item[field] === 0 ? "" : String(item[field])
+  }
+
   const goSummary = () => {
     if (quote) {
       void Taro.navigateTo({ url: `/pages/quote-summary/index?id=${quote.id}` })
@@ -91,7 +105,7 @@ export default function QuotePackagePage() {
               <Picker mode="selector" range={packageNames} value={packageNames.indexOf(item.packageName)} onChange={updatePackageName}>
                 <View className="package-picker">
                   <Text>{item.packageName}</Text>
-                  <Text className="package-picker__arrow">⌄</Text>
+                  <View className="package-picker__arrow" />
                 </View>
               </Picker>
               <View className="package-base">
@@ -103,7 +117,7 @@ export default function QuotePackagePage() {
               <View className="package-width">
                 <Text className="package-width__label">布宽</Text>
                 <View className="package-width__input-row">
-                  <Input className="package-width__input" type="digit" value={rawInputs.fabricWidth ?? String(item.fabricWidth)} onInput={updateWidth("fabricWidth")} />
+                  <Input className="package-width__input" type="digit" placeholder="0.00" value={getWidthInputValue("fabricWidth")} onInput={updateWidth("fabricWidth")} />
                   <Text>m</Text>
                 </View>
               </View>
@@ -111,7 +125,7 @@ export default function QuotePackagePage() {
               <View className="package-width">
                 <Text className="package-width__label">纱宽</Text>
                 <View className="package-width__input-row">
-                  <Input className="package-width__input" type="digit" value={rawInputs.sheerWidth ?? String(item.sheerWidth)} onInput={updateWidth("sheerWidth")} />
+                  <Input className="package-width__input" type="digit" placeholder="0.00" value={getWidthInputValue("sheerWidth")} onInput={updateWidth("sheerWidth")} />
                   <Text>m</Text>
                 </View>
               </View>

@@ -1,14 +1,48 @@
 import Taro from "@tarojs/taro"
 import { calculateQuoteTotals } from "./quote-calculator"
 import { createCurtainQuote } from "./quote-factory"
-import type { CurtainQuote, CurtainQuoteMode, CurtainQuoteStatus } from "../types/quote"
+import type { CurtainQuote, CurtainQuoteMode, CurtainQuoteStatus, NormalQuoteItem } from "../types/quote"
 
 const STORAGE_KEY = "thunder:miniapp:curtain-quotes:v1"
+
+type LegacyNormalQuoteItem = Omit<Partial<NormalQuoteItem>, "sheerUnitPrice"> & {
+  /** 兼容历史本地数据：旧版本没有独立纱单价字段。 */
+  sheerUnitPrice?: number
+}
+
+/** 兼容旧版本普通报价明细：历史合并单价回填到布单价，纱单价默认留空。 */
+function normalizeNormalItem(item: LegacyNormalQuoteItem): NormalQuoteItem {
+  return {
+    id: item.id ?? "",
+    position: item.position ?? "",
+    width: item.width ?? 0,
+    height: item.height ?? 0,
+    modelColor: item.modelColor ?? "",
+    installRequirement: item.installRequirement ?? "",
+    pleatRatio: item.pleatRatio ?? 2,
+    fabricUnitPrice: item.fabricUnitPrice ?? 0,
+    sheerUnitPrice: item.sheerUnitPrice ?? 0,
+    trackUnitPrice: item.trackUnitPrice ?? 0,
+    linerUnitPrice: item.linerUnitPrice ?? 0,
+    ringUnitPrice: item.ringUnitPrice ?? 0,
+    ringQuantity: item.ringQuantity ?? 0,
+    installFee: item.installFee ?? 0,
+    amount: item.amount ?? 0,
+  }
+}
+
+/** 统一修正本地存储结构，避免页面层散落旧数据兼容分支。 */
+function normalizeQuote(quote: CurtainQuote): CurtainQuote {
+  return {
+    ...quote,
+    normalItems: Array.isArray(quote.normalItems) ? quote.normalItems.map((item) => normalizeNormalItem(item as LegacyNormalQuoteItem)) : [],
+  }
+}
 
 /** 读取报价数组，兼容首次进入时没有本地数据的情况。 */
 async function readQuoteList(): Promise<CurtainQuote[]> {
   const result = await Taro.getStorage<CurtainQuote[]>({ key: STORAGE_KEY }).catch(() => ({ data: [] as CurtainQuote[] }))
-  return Array.isArray(result.data) ? result.data : []
+  return Array.isArray(result.data) ? result.data.map((quote) => normalizeQuote(quote)) : []
 }
 
 /** 写入完整报价数组，小程序多端均使用 Taro Storage 抽象。 */

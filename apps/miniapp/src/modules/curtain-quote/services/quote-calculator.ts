@@ -6,11 +6,12 @@ export function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
-/** 普通报价公式：宽度相关材料费 + 环/勾费 + 安装费。 */
+/** 普通报价公式：布/纱材料费 + 轨道/辅料费 + 安装费。 */
 export function calculateNormalItem(item: Omit<NormalQuoteItem, "amount">): NormalQuoteItem {
   const pleatedWidth = item.width * item.pleatRatio
   const amount =
     pleatedWidth * item.fabricUnitPrice +
+    pleatedWidth * item.sheerUnitPrice +
     item.width * item.trackUnitPrice +
     pleatedWidth * item.linerUnitPrice +
     item.ringUnitPrice * item.ringQuantity +

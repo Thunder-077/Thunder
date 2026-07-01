@@ -32,8 +32,10 @@ export interface NormalQuoteItem {
   installRequirement: string
   /** 褶皱倍数，默认 2。 */
   pleatRatio: number
-  /** 布/纱单价，单位 元/m。 */
+  /** 布单价，单位 元/m。 */
   fabricUnitPrice: number
+  /** 纱单价，单位 元/m；不需要纱帘时可为 0。 */
+  sheerUnitPrice: number
   /** 轨道单价，单位 元/m。 */
   trackUnitPrice: number
   /** 衬带单价，单位 元/m。 */

@@ -23,6 +23,7 @@ const emptyItem = (): EditableNormalItem => ({
   installRequirement: "",
   pleatRatio: 2,
   fabricUnitPrice: 0,
+  sheerUnitPrice: 0,
   trackUnitPrice: 0,
   linerUnitPrice: 0,
   ringUnitPrice: 0,
@@ -158,35 +159,42 @@ export default function QuoteNormalItemPage() {
             </View>
             <View className="item-field__divider" />
             <View className="item-field__half">
-              <Text className="item-field__label">布/纱单价</Text>
+              <Text className="item-field__label">布单价</Text>
               <Input className="item-field__input" type="digit" placeholder="0" value={rawInputs.fabricUnitPrice ?? (draft.fabricUnitPrice ? String(draft.fabricUnitPrice) : "")} onInput={updateNumber("fabricUnitPrice")} />
             </View>
           </View>
           <View className="item-field item-field--split">
             <View className="item-field__half">
-              <Text className="item-field__label">轨道单价</Text>
-              <Input className="item-field__input" type="digit" placeholder="0" value={rawInputs.trackUnitPrice ?? (draft.trackUnitPrice ? String(draft.trackUnitPrice) : "")} onInput={updateNumber("trackUnitPrice")} />
+              <Text className="item-field__label">纱单价</Text>
+              <Input className="item-field__input" type="digit" placeholder="选填，无纱可不填" value={rawInputs.sheerUnitPrice ?? (draft.sheerUnitPrice ? String(draft.sheerUnitPrice) : "")} onInput={updateNumber("sheerUnitPrice")} />
             </View>
             <View className="item-field__divider" />
             <View className="item-field__half">
-              <Text className="item-field__label">衬带单价</Text>
-              <Input className="item-field__input" type="digit" placeholder="0" value={rawInputs.linerUnitPrice ?? (draft.linerUnitPrice ? String(draft.linerUnitPrice) : "")} onInput={updateNumber("linerUnitPrice")} />
+              <Text className="item-field__label">轨道单价</Text>
+              <Input className="item-field__input" type="digit" placeholder="0" value={rawInputs.trackUnitPrice ?? (draft.trackUnitPrice ? String(draft.trackUnitPrice) : "")} onInput={updateNumber("trackUnitPrice")} />
             </View>
           </View>
           <View className="item-field item-field--split">
             <View className="item-field__half">
+              <Text className="item-field__label">衬带单价</Text>
+              <Input className="item-field__input" type="digit" placeholder="0" value={rawInputs.linerUnitPrice ?? (draft.linerUnitPrice ? String(draft.linerUnitPrice) : "")} onInput={updateNumber("linerUnitPrice")} />
+            </View>
+            <View className="item-field__divider" />
+            <View className="item-field__half">
               <Text className="item-field__label">环/勾单价</Text>
               <Input className="item-field__input" type="digit" placeholder="0" value={rawInputs.ringUnitPrice ?? (draft.ringUnitPrice ? String(draft.ringUnitPrice) : "")} onInput={updateNumber("ringUnitPrice")} />
             </View>
-            <View className="item-field__divider" />
+          </View>
+          <View className="item-field item-field--split">
             <View className="item-field__half">
               <Text className="item-field__label">环/勾数量</Text>
               <Input className="item-field__input" type="number" placeholder="0" value={rawInputs.ringQuantity ?? (draft.ringQuantity ? String(draft.ringQuantity) : "")} onInput={updateNumber("ringQuantity")} />
             </View>
-          </View>
-          <View className="item-field">
-            <Text className="item-field__label">安装费</Text>
-            <Input className="item-field__input" type="digit" placeholder="0" value={rawInputs.installFee ?? (draft.installFee ? String(draft.installFee) : "")} onInput={updateNumber("installFee")} />
+            <View className="item-field__divider" />
+            <View className="item-field__half">
+              <Text className="item-field__label">安装费</Text>
+              <Input className="item-field__input" type="digit" placeholder="0" value={rawInputs.installFee ?? (draft.installFee ? String(draft.installFee) : "")} onInput={updateNumber("installFee")} />
+            </View>
           </View>
         </View>
 
