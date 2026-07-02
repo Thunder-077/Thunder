@@ -16,7 +16,7 @@ export function createDefaultPackageItems() {
   return [
     calculatePackageItem({
       id: createLocalId("package"),
-      packageName: "1280套餐",
+      packageName: "别丽美特1280套餐",
       fabricWidth: 0,
       sheerWidth: 0,
     }),

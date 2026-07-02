@@ -20,10 +20,10 @@ export interface PackagePreset {
   }
 }
 
-/** 套餐报价规则，1280 套餐保持为默认项。 */
+/** 套餐报价规则，别丽美特1280套餐保持为默认项。 */
 export const PACKAGE_PRESETS: PackagePreset[] = [
   {
-    name: "980套餐",
+    name: "别丽美特980套餐",
     basePrice: 980,
     includedFabric: 10,
     includedSheer: 8,
@@ -38,7 +38,7 @@ export const PACKAGE_PRESETS: PackagePreset[] = [
     },
   },
   {
-    name: "1280套餐",
+    name: "别丽美特1280套餐",
     basePrice: 1280,
     includedFabric: 12,
     includedSheer: 10,
@@ -53,7 +53,7 @@ export const PACKAGE_PRESETS: PackagePreset[] = [
     },
   },
   {
-    name: "1680套餐",
+    name: "别丽美特1680套餐",
     basePrice: 1680,
     includedFabric: 16,
     includedSheer: 12,

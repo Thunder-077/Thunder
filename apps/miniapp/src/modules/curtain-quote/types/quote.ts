@@ -54,7 +54,7 @@ export interface NormalQuoteItem {
 export interface PackageQuoteItem {
   /** 本地生成的套餐明细 ID。 */
   id: string
-  /** 套餐名称，例如 1280套餐。 */
+  /** 套餐名称，例如 别丽美特1280套餐。 */
   packageName: string
   /** 套餐基础价。 */
   basePrice: number
