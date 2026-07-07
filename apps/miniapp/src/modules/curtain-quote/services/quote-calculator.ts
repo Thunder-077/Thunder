@@ -1,5 +1,4 @@
-import { PACKAGE_PRESETS, type PackagePreset } from "../data/package-presets"
-import type { CurtainQuote, NormalQuoteItem, PackageQuoteItem } from "../types/quote"
+import type { CurtainMode, CurtainQuote, NormalQuoteItem, PackageConfig, PackageQuoteItem } from "../types/quote"
 
 /** 金额计算采用四舍五入到分，避免浮点数展示抖动。 */
 export function roundMoney(value: number): number {
@@ -23,11 +22,6 @@ export function calculateNormalItem(item: Omit<NormalQuoteItem, "amount">): Norm
   }
 }
 
-/** 根据套餐名称查找套餐规则，找不到时回落到 1280 套餐。 */
-export function findPackagePreset(name: string): PackagePreset {
-  return PACKAGE_PRESETS.find((preset) => preset.name === name) ?? PACKAGE_PRESETS[1]
-}
-
 /** 套餐差额费用，正差额按加价单价，负差额按减价单价抵扣。 */
 function calculateAdjustment(diff: number, addPrice: number, reducePrice: number): number {
   if (diff >= 0) {
@@ -37,25 +31,44 @@ function calculateAdjustment(diff: number, addPrice: number, reducePrice: number
   return roundMoney(diff * reducePrice)
 }
 
-/** 套餐报价公式：基础价 + 布/纱/轨道差额调整。 */
-export function calculatePackageItem(input: Pick<PackageQuoteItem, "id" | "packageName" | "fabricWidth" | "sheerWidth">): PackageQuoteItem {
-  const preset = findPackagePreset(input.packageName)
-  const fabricUsage = roundMoney(input.fabricWidth * 2)
-  const sheerUsage = roundMoney(input.sheerWidth * 2)
-  const trackLength = roundMoney(input.fabricWidth + input.sheerWidth)
-  // 用户尚未录入宽度时不套用示例差额，避免新报价自动出现 UI 示例数据。
-  const hasInput = input.fabricWidth > 0 || input.sheerWidth > 0
-  const fabricDiff = hasInput ? roundMoney(fabricUsage - preset.includedFabric) : 0
-  const sheerDiff = hasInput ? roundMoney(sheerUsage - preset.includedSheer) : 0
-  const trackDiff = hasInput ? roundMoney(trackLength - preset.includedTrack) : 0
-  const fabricAdjustment = hasInput ? calculateAdjustment(fabricDiff, preset.rule.fabricAdd, preset.rule.fabricReduce) : 0
-  const sheerAdjustment = hasInput ? calculateAdjustment(sheerDiff, preset.rule.sheerAdd, preset.rule.sheerReduce) : 0
-  const trackAdjustment = hasInput ? calculateAdjustment(trackDiff, preset.rule.trackAdd, preset.rule.trackReduce) : 0
-  const amount = roundMoney(preset.basePrice + fabricAdjustment + sheerAdjustment + trackAdjustment)
+/** 根据窗帘类型计算布/纱实际用量，默认褶皱倍数固定为 2。 */
+function calculateUsageByMode(width: number, mode: CurtainMode) {
+  const trackLength = roundMoney(width)
+  const fabricUsage = mode === "sheer_only" ? 0 : roundMoney(width * 2)
+  const sheerUsage = mode === "fabric_only" ? 0 : roundMoney(width * 2)
 
   return {
-    ...input,
-    basePrice: preset.basePrice,
+    fabricUsage,
+    sheerUsage,
+    trackLength,
+  }
+}
+
+/** 套餐报价公式：基础价 + 布/纱/轨道差额调整。 */
+export function calculatePackageItem(input: {
+  id: string
+  packageConfig: PackageConfig
+  width: number
+  curtainMode: CurtainMode
+}): PackageQuoteItem {
+  const { packageConfig, width, curtainMode } = input
+  const { fabricUsage, sheerUsage, trackLength } = calculateUsageByMode(width, curtainMode)
+  const hasInput = width > 0
+  const fabricDiff = hasInput ? roundMoney(fabricUsage - packageConfig.includedFabric) : 0
+  const sheerDiff = hasInput ? roundMoney(sheerUsage - packageConfig.includedSheer) : 0
+  const trackDiff = hasInput ? roundMoney(trackLength - packageConfig.includedTrack) : 0
+  const fabricAdjustment = hasInput ? calculateAdjustment(fabricDiff, packageConfig.fabricAddPrice, packageConfig.fabricReducePrice) : 0
+  const sheerAdjustment = hasInput ? calculateAdjustment(sheerDiff, packageConfig.sheerAddPrice, packageConfig.sheerReducePrice) : 0
+  const trackAdjustment = hasInput ? calculateAdjustment(trackDiff, packageConfig.trackAddPrice, packageConfig.trackReducePrice) : 0
+  const amount = roundMoney(packageConfig.basePrice + fabricAdjustment + sheerAdjustment + trackAdjustment)
+
+  return {
+    id: input.id,
+    packageConfigId: packageConfig.id,
+    packageNameSnapshot: packageConfig.name,
+    basePrice: packageConfig.basePrice,
+    width,
+    curtainMode,
     fabricUsage,
     sheerUsage,
     trackLength,

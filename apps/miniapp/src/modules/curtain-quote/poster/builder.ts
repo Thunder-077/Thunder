@@ -6,7 +6,6 @@
  *  2. 把 CurtainQuote 业务数据归一成 PosterData（客户视角房间行）
  *  3. 预估海报总高度（与 renderer 各分区返回高度保持一致）
  *  4. drawPoster：游标式顺序绘制所有分区
- *  5. createMockPosterData：本地无报价时的预览 mock
  */
 
 import { theme } from "./theme"
@@ -18,7 +17,7 @@ import {
   drawRoomTable,
   type Ctx,
 } from "./renderer"
-import { formatDate, formatDiscount, maskPhone } from "../services/format"
+import { formatCurtainMode, formatDate, formatDiscount, maskPhone } from "../services/format"
 import { roundMoney } from "../services/quote-calculator"
 import type { CurtainQuote } from "../types/quote"
 
@@ -30,6 +29,7 @@ const T = theme
 
 export interface PosterRoom {
   name: string
+  /** 宽度列支持多行文本，套餐报价可分别展示布/纱。 */
   widthLabel: string
   subtotal: number
 }
@@ -79,8 +79,9 @@ export function buildPosterData(quote: CurtainQuote): PosterData {
     }))
   } else {
     rooms = quote.packageItems.map((item) => ({
-      name: item.packageName,
-      widthLabel: `布 ${item.fabricWidth.toFixed(2)}米 / 纱 ${item.sheerWidth.toFixed(2)}米`,
+      name: item.packageNameSnapshot || "未命名套餐",
+      // 套餐报价展示实际宽度和窗帘类型，避免与套餐包含米数混淆。
+      widthLabel: buildPackageWidthLabel(item.width, item.curtainMode),
       subtotal: item.amount,
     }))
   }
@@ -121,6 +122,15 @@ export function buildPosterData(quote: CurtainQuote): PosterData {
   }
 }
 
+/** 套餐宽度文案：展示实际宽度与窗帘类型，避免与套餐包含米数混淆。 */
+function buildPackageWidthLabel(width: number, curtainMode: "fabric_and_sheer" | "fabric_only" | "sheer_only"): string {
+  if (width <= 0) {
+    return "—"
+  }
+
+  return [`宽 ${width.toFixed(2)}米`, `类型 ${formatCurtainMode(curtainMode)}`].join("\n")
+}
+
 /* ================================================================
  *  高度预估 — 与 renderer 各分区返回值保持一致
  * ================================================================ */
@@ -151,9 +161,10 @@ export function measureSummaryHeight(): number {
   )
 }
 
-/** 房间表格高度：一个表格承载全部房间，房间多时只线性增加紧凑行高。 */
-export function measureRoomTableHeight(roomCount: number): number {
-  return T.spacing.innerPadY + T.font.section.size + 16 + 30 + roomCount * 52 + T.spacing.innerPadY
+/** 房间表格高度：按每行宽度文本行数动态增高，避免套餐布/纱两行被遮挡。 */
+export function measureRoomTableHeight(rooms: PosterRoom[]): number {
+  const rowsHeight = rooms.reduce((sum, room) => sum + measureRoomRowHeight(room), 0)
+  return T.spacing.innerPadY + T.font.section.size + 16 + 30 + rowsHeight + T.spacing.innerPadY
 }
 
 /** 海报总高度。 */
@@ -164,7 +175,7 @@ export function getPosterHeight(data: PosterData): number {
     T.spacing.sectionGap +
     measureSummaryHeight() +
     T.spacing.cardGap +
-    measureRoomTableHeight(data.rooms.length) +
+    measureRoomTableHeight(data.rooms) +
     T.spacing.cardGap +
     measureCustomerHeight() +
     T.spacing.cardGap +
@@ -176,6 +187,12 @@ export function getPosterHeight(data: PosterData): number {
 /** 门店信息高度。 */
 export function measureStoreHeight(): number {
   return T.font.footerCaption.size
+}
+
+/** 单行房间高度：宽度列每多一行，额外增加一行文本高度。 */
+function measureRoomRowHeight(room: PosterRoom): number {
+  const widthLineCount = Math.max(1, room.widthLabel.split("\n").length)
+  return 52 + (widthLineCount - 1) * 26
 }
 
 /* ================================================================
@@ -212,49 +229,4 @@ export function drawPoster(ctx: Ctx, data: PosterData): void {
 
   // 5. 门店信息展示固定联系方式。
   drawStoreFooter(ctx, data.store, ix, y, cw)
-}
-
-/* ================================================================
- *  Mock 数据 — 本地无报价时预览
- * ================================================================ */
-
-export function createMockPosterData(): PosterData {
-  return {
-    brandName: "窗帘报价单",
-    brandSubtitle: "为您定制的专属窗帘方案",
-    customer: {
-      name: "张先生",
-      phone: "138****6688",
-      address: "杭州市西湖区文三路 88 号",
-      date: "2026-06-30",
-    },
-    summary: {
-      finalAmount: 8680,
-      originalAmount: 9800,
-      discountAmount: 1120,
-      discountLabel: "9折",
-      spaceCount: 3,
-    },
-    rooms: [
-      {
-        name: "客厅",
-        widthLabel: "3.00m",
-        subtotal: 3280,
-      },
-      {
-        name: "主卧",
-        widthLabel: "2.80m",
-        subtotal: 2600,
-      },
-      {
-        name: "次卧",
-        widthLabel: "2.40m",
-        subtotal: 2800,
-      },
-    ],
-    store: {
-      address: "成武县织梦人家纺窗帘",
-      phone: "13655401508",
-    },
-  }
 }

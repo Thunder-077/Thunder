@@ -203,3 +203,19 @@
   grid-template-columns: 1fr 1fr;
   gap: 28px;
 }
+
+.summary-home-button {
+  grid-column: 1 / -1;
+  height: 96px;
+  border: 2px solid #d8d8bd;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #53653d;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 96px;
+}
+
+.summary-home-button::after {
+  border: 0;
+}

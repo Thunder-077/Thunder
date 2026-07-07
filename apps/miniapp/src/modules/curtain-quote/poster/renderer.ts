@@ -480,9 +480,8 @@ export function drawRoomTable(
 ): number {
   const padX = T.spacing.innerPadX
   const padY = T.spacing.innerPadY
-  const rowH = 52
   const headerH = 30
-  const cardH = padY + T.font.section.size + 18 + headerH + rooms.length * rowH + padY
+  const cardH = padY + T.font.section.size + 18 + headerH + rooms.reduce((sum, room) => sum + measureRoomRowHeight(room), 0) + padY
 
   drawCard(ctx, x, y, w, cardH)
 
@@ -500,20 +499,32 @@ export function drawRoomTable(
   cy += headerH
 
   rooms.forEach((room, index) => {
+    const rowH = measureRoomRowHeight(room)
     if (index > 0) {
       drawDivider(ctx, ix, rx, cy - 9)
     }
     const rowTextY = cy + 9
     const roomName = truncate(ctx, room.name, w * 0.38, "roomName")
-    const widthText = truncate(ctx, room.widthLabel, w * 0.26, "roomMeta")
+    const widthLines = room.widthLabel
+      .split("\n")
+      .map((line) => truncate(ctx, line, w * 0.26, "roomMeta"))
 
     drawText(ctx, roomName, ix, rowTextY, "roomName", T.color.ink)
-    drawText(ctx, widthText, x + w * 0.58, rowTextY + 3, "roomMeta", T.color.muted, "center")
+    // 宽度列允许多行，套餐报价可分别展示实际宽度与窗帘类型。
+    widthLines.forEach((line, lineIndex) => {
+      drawText(ctx, line, x + w * 0.58, rowTextY + 3 + lineIndex * 26, "roomMeta", T.color.muted, "center")
+    })
     drawPrice(ctx, room.subtotal, rx, rowTextY - 2, "right", "priceMedium", T.color.ink)
     cy += rowH
   })
 
   return cardH
+}
+
+/** 房间表单行高度：宽度列每多一行，额外增加一行文本高度。 */
+function measureRoomRowHeight(room: PosterRoom): number {
+  const widthLineCount = Math.max(1, room.widthLabel.split("\n").length)
+  return 52 + (widthLineCount - 1) * 26
 }
 
 /** 门店固定信息：用于客户保存图片后联系门店。 */

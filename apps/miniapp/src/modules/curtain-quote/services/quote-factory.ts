@@ -1,5 +1,5 @@
-import { calculateNormalItem, calculatePackageItem, calculateQuoteTotals } from "./quote-calculator"
-import type { CurtainCustomer, CurtainQuote, NormalQuoteItem } from "../types/quote"
+import { calculateQuoteTotals } from "./quote-calculator"
+import type { CurtainCustomer, CurtainQuote, NormalQuoteItem, PackageQuoteItem } from "../types/quote"
 
 /** 小程序本地 ID 生成器，避免依赖云端服务。 */
 export function createLocalId(prefix: string): string {
@@ -12,14 +12,26 @@ export function createDefaultNormalItems(): NormalQuoteItem[] {
 }
 
 /** 创建套餐报价默认明细；只保留套餐选项，不预置 UI 示例宽度。 */
-export function createDefaultPackageItems() {
+export function createDefaultPackageItems(): PackageQuoteItem[] {
   return [
-    calculatePackageItem({
+    {
       id: createLocalId("package"),
-      packageName: "别丽美特1280套餐",
-      fabricWidth: 0,
-      sheerWidth: 0,
-    }),
+      packageConfigId: "",
+      packageNameSnapshot: "",
+      basePrice: 0,
+      width: 0,
+      curtainMode: "fabric_and_sheer",
+      fabricUsage: 0,
+      sheerUsage: 0,
+      trackLength: 0,
+      fabricDiff: 0,
+      sheerDiff: 0,
+      trackDiff: 0,
+      fabricAdjustment: 0,
+      sheerAdjustment: 0,
+      trackAdjustment: 0,
+      amount: 0,
+    },
   ]
 }
 

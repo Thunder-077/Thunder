@@ -5,6 +5,8 @@ export default defineAppConfig({
     "pages/quotes/index",
     "pages/quote-new/index",
     "pages/quote-mode/index",
+    "pages/package-configs/index",
+    "pages/package-config-item/index",
     "pages/quote-normal/index",
     "pages/quote-normal-item/index",
     "pages/quote-package/index",

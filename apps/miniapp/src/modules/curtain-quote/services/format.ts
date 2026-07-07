@@ -50,3 +50,16 @@ export function formatDiscount(discount: number): string {
 
   return `${Math.round(discount * 100)}折`
 }
+
+/** 套餐窗帘类型展示文案。 */
+export function formatCurtainMode(mode: "fabric_and_sheer" | "fabric_only" | "sheer_only"): string {
+  if (mode === "fabric_only") {
+    return "只有布"
+  }
+
+  if (mode === "sheer_only") {
+    return "只有纱"
+  }
+
+  return "布和纱"
+}
