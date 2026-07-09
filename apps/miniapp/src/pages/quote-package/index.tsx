@@ -4,35 +4,67 @@ import { Input, Picker, Text, View } from "@tarojs/components"
 import type { BaseEventOrig, InputProps } from "@tarojs/components"
 import { CurtainButton, PageShell } from "@/modules/curtain-quote/components/page-shell"
 import { IconSymbol } from "@/modules/curtain-quote/components/icon-symbol"
-import { PACKAGE_PRESETS } from "@/modules/curtain-quote/data/package-presets"
 import { calculatePackageItem, calculateQuoteTotals } from "@/modules/curtain-quote/services/quote-calculator"
-import { formatAdjustment, formatMoney, maskPhone } from "@/modules/curtain-quote/services/format"
+import { formatAdjustment, formatCurtainMode, formatMoney, maskPhone } from "@/modules/curtain-quote/services/format"
+import { listPackageConfigs } from "@/modules/curtain-quote/services/package-config-storage"
 import { getQuote, saveQuote } from "@/modules/curtain-quote/services/quote-storage"
 import { parseNonNegativeNumber, sanitizeNumberInput } from "@/modules/curtain-quote/services/validation"
-import type { CurtainQuote, PackageQuoteItem } from "@/modules/curtain-quote/types/quote"
+import type { CurtainMode, CurtainQuote, PackageConfig, PackageQuoteItem } from "@/modules/curtain-quote/types/quote"
 import "./index.css"
+
+const CURTAIN_MODE_OPTIONS = [
+  { label: "布和纱", value: "fabric_and_sheer" as const },
+  { label: "只有布", value: "fabric_only" as const },
+  { label: "只有纱", value: "sheer_only" as const },
+]
 
 export default function QuotePackagePage() {
   const router = useRouter()
   const quoteId = String(router.params.id ?? "")
   const [quote, setQuote] = useState<CurtainQuote | null>(null)
+  const [configs, setConfigs] = useState<PackageConfig[]>([])
   const [rawInputs, setRawInputs] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    if (quoteId) {
-      void getQuote(quoteId).then(setQuote)
+  const loadPageData = async () => {
+    if (!quoteId) {
+      return
     }
+
+    const [currentQuote, currentConfigs] = await Promise.all([getQuote(quoteId), listPackageConfigs()])
+    setQuote(currentQuote)
+    setConfigs(currentConfigs)
+  }
+
+  useEffect(() => {
+    void loadPageData()
   }, [quoteId])
 
   useDidShow(() => {
-    if (quoteId) {
-      void getQuote(quoteId).then(setQuote)
-    }
+    void loadPageData()
   })
 
   const item = quote?.packageItems[0] ?? null
   const previewQuote = useMemo(() => (quote ? calculateQuoteTotals({ ...quote, mode: "package" }) : null), [quote])
-  const packageNames = PACKAGE_PRESETS.map((preset) => preset.name)
+  const packageNames = configs.map((config) => config.name)
+  const selectedConfig = useMemo(() => {
+    if (!item) {
+      return configs[0] ?? null
+    }
+
+    return configs.find((config) => config.id === item.packageConfigId) ?? configs[0] ?? null
+  }, [configs, item])
+
+  useEffect(() => {
+    if (!item || !selectedConfig) {
+      return
+    }
+
+    if (item.packageConfigId) {
+      return
+    }
+
+    void persistItem(rebuildItem(selectedConfig, item.width, item.curtainMode))
+  }, [item, selectedConfig])
 
   const persistItem = async (nextItem: PackageQuoteItem) => {
     if (!quote) {
@@ -43,44 +75,63 @@ export default function QuotePackagePage() {
     setQuote(updated)
   }
 
+  const rebuildItem = (packageConfig: PackageConfig, width: number, curtainMode: CurtainMode) => (
+    calculatePackageItem({
+      id: item?.id ?? "",
+      packageConfig,
+      width,
+      curtainMode,
+    })
+  )
+
   const updatePackageName = (event: BaseEventOrig<{ value: string | number | string[] }>) => {
-    if (!item) {
+    if (!item || configs.length === 0) {
       return
     }
 
-    const index = Number(event.detail.value)
-    const packageName = packageNames[index] ?? item.packageName
-    void persistItem(calculatePackageItem({ ...item, packageName }))
+    const nextConfig = configs[Number(event.detail.value)] ?? selectedConfig
+    if (!nextConfig) {
+      return
+    }
+
+    void persistItem(rebuildItem(nextConfig, item.width, item.curtainMode))
   }
 
-  const updateWidth = (field: "fabricWidth" | "sheerWidth") => (event: BaseEventOrig<InputProps.inputEventDetail>) => {
-    if (!item) {
+  const updateWidth = (event: BaseEventOrig<InputProps.inputEventDetail>) => {
+    if (!item || !selectedConfig) {
       return
     }
 
     const raw = sanitizeNumberInput(event.detail.value)
-    setRawInputs((prev) => ({ ...prev, [field]: raw }))
+    setRawInputs((prev) => ({ ...prev, width: raw }))
+    void persistItem(rebuildItem(selectedConfig, parseNonNegativeNumber(raw), item.curtainMode))
+  }
 
-    void persistItem(
-      calculatePackageItem({
-        ...item,
-        [field]: parseNonNegativeNumber(raw),
-      }),
-    )
+  const updateCurtainMode = (event: BaseEventOrig<{ value: string | number | string[] }>) => {
+    if (!item || !selectedConfig) {
+      return
+    }
+
+    const nextMode = CURTAIN_MODE_OPTIONS[Number(event.detail.value)]?.value ?? item.curtainMode
+    void persistItem(rebuildItem(selectedConfig, item.width, nextMode))
   }
 
   /** 宽度输入展示值：与普通报价宽高一致，真实 0 交给 placeholder 展示。 */
-  const getWidthInputValue = (field: "fabricWidth" | "sheerWidth") => {
+  const getWidthInputValue = () => {
     if (!item) {
       return ""
     }
 
-    const raw = rawInputs[field]
+    const raw = rawInputs.width
     if (raw !== undefined) {
       return raw
     }
 
-    return item[field] === 0 ? "" : String(item[field])
+    return item.width === 0 ? "" : String(item.width)
+  }
+
+  const goPackageConfigs = () => {
+    void Taro.navigateTo({ url: "/pages/package-configs/index" })
   }
 
   const goSummary = () => {
@@ -88,6 +139,8 @@ export default function QuotePackagePage() {
       void Taro.navigateTo({ url: `/pages/quote-summary/index?id=${quote.id}` })
     }
   }
+
+  const currentCurtainModeIndex = item ? CURTAIN_MODE_OPTIONS.findIndex((option) => option.value === item.curtainMode) : 0
 
   return (
     <PageShell title="套餐报价" showBack paddedBottom>
@@ -99,12 +152,19 @@ export default function QuotePackagePage() {
             <Text>{maskPhone(quote.customer.phone)}</Text>
           </View>
         )}
-        {item && (
+
+        {configs.length === 0 ? (
+          <View className="package-empty cq-card">
+            <Text className="package-empty__title">暂无套餐配置</Text>
+            <Text className="package-empty__desc">请先新增套餐配置，再进行套餐报价。</Text>
+            <CurtainButton onClick={goPackageConfigs}>去配置套餐</CurtainButton>
+          </View>
+        ) : item && selectedConfig ? (
           <>
             <View className="package-card cq-card">
-              <Picker mode="selector" range={packageNames} value={packageNames.indexOf(item.packageName)} onChange={updatePackageName}>
+              <Picker mode="selector" range={packageNames} value={packageNames.indexOf(selectedConfig.name)} onChange={updatePackageName}>
                 <View className="package-picker">
-                  <Text>{item.packageName}</Text>
+                  <Text>{selectedConfig.name}</Text>
                   <View className="package-picker__arrow" />
                 </View>
               </Picker>
@@ -115,19 +175,21 @@ export default function QuotePackagePage() {
             </View>
             <View className="package-width-card cq-card">
               <View className="package-width">
-                <Text className="package-width__label">布宽</Text>
+                <Text className="package-width__label">宽度</Text>
                 <View className="package-width__input-row">
-                  <Input className="package-width__input" type="digit" placeholder="0.00" value={getWidthInputValue("fabricWidth")} onInput={updateWidth("fabricWidth")} />
+                  <Input className="package-width__input" type="digit" placeholder="0.00" value={getWidthInputValue()} onInput={updateWidth} />
                   <Text>米</Text>
                 </View>
               </View>
               <View className="package-width__divider" />
               <View className="package-width">
-                <Text className="package-width__label">纱宽</Text>
-                <View className="package-width__input-row">
-                  <Input className="package-width__input" type="digit" placeholder="0.00" value={getWidthInputValue("sheerWidth")} onInput={updateWidth("sheerWidth")} />
-                  <Text>米</Text>
-                </View>
+                <Text className="package-width__label">窗帘类型</Text>
+                <Picker mode="selector" range={CURTAIN_MODE_OPTIONS.map((option) => option.label)} value={currentCurtainModeIndex < 0 ? 0 : currentCurtainModeIndex} onChange={updateCurtainMode}>
+                  <View className="package-picker package-picker--inline">
+                    <Text>{formatCurtainMode(item.curtainMode)}</Text>
+                    <View className="package-picker__arrow" />
+                  </View>
+                </Picker>
               </View>
             </View>
             <View className="package-detail cq-card">
@@ -167,12 +229,13 @@ export default function QuotePackagePage() {
               </View>
             </View>
           </>
-        )}
+        ) : null}
+
         <View className="package-budget">
           <Text>预算金额：</Text>
           <Text className="cq-price">¥ {formatMoney(previewQuote?.originalTotal ?? 0)}</Text>
         </View>
-        <CurtainButton onClick={goSummary}>下一步：查看汇总</CurtainButton>
+        {configs.length > 0 ? <CurtainButton onClick={goSummary}>下一步：查看汇总</CurtainButton> : null}
       </View>
     </PageShell>
   )

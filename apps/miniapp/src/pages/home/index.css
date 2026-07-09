@@ -46,6 +46,20 @@
   padding: 28px 38px 0;
 }
 
+.home-actions {
+  display: flex;
+  gap: 18px;
+}
+
+.home-actions__primary {
+  flex: 1;
+}
+
+.home-actions__secondary {
+  width: 220px;
+  flex-shrink: 0;
+}
+
 .home-search {
   height: 88px;
   margin-top: 30px;

@@ -1,13 +1,19 @@
 import Taro from "@tarojs/taro"
 import { calculateQuoteTotals } from "./quote-calculator"
 import { createCurtainQuote } from "./quote-factory"
-import type { CurtainQuote, CurtainQuoteMode, CurtainQuoteStatus, NormalQuoteItem } from "../types/quote"
+import type { CurtainMode, CurtainQuote, CurtainQuoteMode, CurtainQuoteStatus, NormalQuoteItem, PackageQuoteItem } from "../types/quote"
 
 const STORAGE_KEY = "thunder:miniapp:curtain-quotes:v1"
 
 type LegacyNormalQuoteItem = Omit<Partial<NormalQuoteItem>, "sheerUnitPrice"> & {
   /** 兼容历史本地数据：旧版本没有独立纱单价字段。 */
   sheerUnitPrice?: number
+}
+
+type LegacyPackageQuoteItem = Partial<PackageQuoteItem> & {
+  packageName?: string
+  fabricWidth?: number
+  sheerWidth?: number
 }
 
 /** 兼容旧版本普通报价明细：历史合并单价回填到布单价，纱单价默认留空。 */
@@ -36,7 +42,39 @@ function normalizeQuote(quote: CurtainQuote): CurtainQuote {
   return {
     ...quote,
     normalItems: Array.isArray(quote.normalItems) ? quote.normalItems.map((item) => normalizeNormalItem(item as LegacyNormalQuoteItem)) : [],
+    packageItems: Array.isArray(quote.packageItems) ? quote.packageItems.map((item) => normalizePackageItem(item as LegacyPackageQuoteItem)) : [],
   }
+}
+
+/** 统一修正套餐报价明细结构，旧字段不再保留语义，只保证页面读取稳定。 */
+function normalizePackageItem(item: LegacyPackageQuoteItem): PackageQuoteItem {
+  return {
+    id: item.id ?? "",
+    packageConfigId: item.packageConfigId ?? "",
+    packageNameSnapshot: item.packageNameSnapshot ?? item.packageName ?? "",
+    basePrice: item.basePrice ?? 0,
+    width: item.width ?? 0,
+    curtainMode: normalizeCurtainMode(item.curtainMode),
+    fabricUsage: item.fabricUsage ?? 0,
+    sheerUsage: item.sheerUsage ?? 0,
+    trackLength: item.trackLength ?? 0,
+    fabricDiff: item.fabricDiff ?? 0,
+    sheerDiff: item.sheerDiff ?? 0,
+    trackDiff: item.trackDiff ?? 0,
+    fabricAdjustment: item.fabricAdjustment ?? 0,
+    sheerAdjustment: item.sheerAdjustment ?? 0,
+    trackAdjustment: item.trackAdjustment ?? 0,
+    amount: item.amount ?? 0,
+  }
+}
+
+/** 规范化窗帘类型，缺省回退到“布和纱”。 */
+function normalizeCurtainMode(mode?: CurtainMode): CurtainMode {
+  if (mode === "fabric_only" || mode === "sheer_only") {
+    return mode
+  }
+
+  return "fabric_and_sheer"
 }
 
 /** 读取报价数组，兼容首次进入时没有本地数据的情况。 */

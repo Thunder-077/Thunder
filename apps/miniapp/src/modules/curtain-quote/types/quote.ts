@@ -4,6 +4,9 @@ export type CurtainQuoteMode = "normal" | "package"
 /** 报价状态：草稿用于未确认报价，已确认用于可分享报价。 */
 export type CurtainQuoteStatus = "draft" | "confirmed"
 
+/** 套餐窗帘类型：用于决定布/纱实际用量。 */
+export type CurtainMode = "fabric_and_sheer" | "fabric_only" | "sheer_only"
+
 /** 报价客户信息，P0 阶段仅保存到小程序本地存储。 */
 export interface CurtainCustomer {
   /** 客户姓名，创建报价必填。 */
@@ -50,35 +53,69 @@ export interface NormalQuoteItem {
   amount: number
 }
 
+/** 用户可维护的套餐配置，本地存储后供套餐报价页选择。 */
+export interface PackageConfig {
+  /** 本地生成的套餐配置 ID。 */
+  id: string
+  /** 套餐名称。 */
+  name: string
+  /** 套餐基础价格。 */
+  basePrice: number
+  /** 套餐包含布用量，单位 米。 */
+  includedFabric: number
+  /** 套餐包含纱用量，单位 米。 */
+  includedSheer: number
+  /** 套餐包含轨道长度，单位 米。 */
+  includedTrack: number
+  /** 超出套餐时的布单价，单位 元/米。 */
+  fabricAddPrice: number
+  /** 未使用完套餐时的布退还单价，单位 元/米。 */
+  fabricReducePrice: number
+  /** 超出套餐时的纱单价，单位 元/米。 */
+  sheerAddPrice: number
+  /** 未使用完套餐时的纱退还单价，单位 元/米。 */
+  sheerReducePrice: number
+  /** 超出套餐时的轨道单价，单位 元/米。 */
+  trackAddPrice: number
+  /** 未使用完套餐时的轨道退还单价，单位 元/米。 */
+  trackReducePrice: number
+  /** 创建时间 ISO 字符串。 */
+  createdAt: string
+  /** 更新时间 ISO 字符串。 */
+  updatedAt: string
+}
+
 /** 套餐报价的单个套餐测算明细。 */
 export interface PackageQuoteItem {
   /** 本地生成的套餐明细 ID。 */
   id: string
-  /** 套餐名称，例如 别丽美特1280套餐。 */
-  packageName: string
+  /** 所选套餐配置 ID。 */
+  packageConfigId: string
+  /** 报价保存时的套餐名称快照。 */
+  packageNameSnapshot: string
   /** 套餐基础价。 */
   basePrice: number
-  /** 布宽，单位 m。 */
-  fabricWidth: number
-  /** 纱宽，单位 m。 */
-  sheerWidth: number
-  /** 布实际用量，单位 m。 */
+  /** 实际测量宽度，单位 米。 */
+  width: number
+  /** 套餐窗帘类型，决定布/纱实际用量。 */
+  curtainMode: CurtainMode
+  /** 布实际用量，单位 米。 */
   fabricUsage: number
-  /** 纱实际用量，单位 m。 */
+  /** 纱实际用量，单位 米。 */
   sheerUsage: number
-  /** 轨道长度，单位 m。 */
+  /** 轨道长度，单位 米。 */
   trackLength: number
-  /** 布差额用量，单位 m。 */
+  /** 布差额用量，单位 米。 */
   fabricDiff: number
-  /** 纱差额用量，单位 m。 */
+  /** 纱差额用量，单位 米。 */
   sheerDiff: number
-  /** 轨道差额长度，单位 m。 */
+  /** 轨道差额长度，单位 米。 */
   trackDiff: number
-  /** 布费用调整，正数加价，负数减价。 */
+  /** 布费用调整，正数加价，负数退还。 */
   fabricAdjustment: number
-  /** 纱费用调整，正数加价，负数减价。 */
+  /** 纱费用调整，正数加价，负数退还。 */
   sheerAdjustment: number
-  /** 轨道费用调整，正数加价，负数减价。 */
+  /** 轨道费用调整，正数加价，负数退还。 */
   trackAdjustment: number
   /** 当前套餐预算金额。 */
   amount: number

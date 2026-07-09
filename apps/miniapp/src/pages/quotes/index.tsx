@@ -57,7 +57,11 @@ export default function QuotesPage() {
     setKeyword(event.detail.value)
   }
 
+  /** 跳转到新建报价页。 */
   const goCreate = () => Taro.navigateTo({ url: "/pages/quote-new/index" })
+
+  /** 在新建报价前进入套餐配置页维护套餐。 */
+  const goPackageConfigs = () => Taro.navigateTo({ url: "/pages/package-configs/index" })
 
   const openDetail = (quoteId: string) => {
     Taro.navigateTo({ url: `/pages/quote-detail/index?id=${quoteId}` })
@@ -66,6 +70,14 @@ export default function QuotesPage() {
   return (
     <PageShell title="报价记录" paddedBottom>
       <View className="quotes-page">
+        <View className="quotes-actions">
+          <View className="quotes-actions__primary">
+            <CurtainButton onClick={goCreate}>新建报价</CurtainButton>
+          </View>
+          <View className="quotes-actions__secondary">
+            <CurtainButton variant="outline" onClick={goPackageConfigs}>套餐配置</CurtainButton>
+          </View>
+        </View>
         <View className="quotes-search">
           <IconSymbol className="quotes-search__icon" name="search" />
           <Input
@@ -116,7 +128,6 @@ export default function QuotesPage() {
             <View className="quotes-empty cq-card">
               <Text className="quotes-empty__title">暂无报价记录</Text>
               <Text className="quotes-empty__desc">点击下方按钮创建第一份报价</Text>
-              <CurtainButton onClick={goCreate}>新建报价</CurtainButton>
             </View>
           ) : null}
         </View>

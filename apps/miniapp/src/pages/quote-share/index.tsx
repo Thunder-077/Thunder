@@ -5,7 +5,7 @@ import { CurtainButton, PageShell } from "@/modules/curtain-quote/components/pag
 import { IconSymbol } from "@/modules/curtain-quote/components/icon-symbol"
 import { DISCOUNT_OPTIONS } from "@/modules/curtain-quote/data/discounts"
 import { calculateQuoteTotals } from "@/modules/curtain-quote/services/quote-calculator"
-import { formatDate, formatMoney, maskPhone } from "@/modules/curtain-quote/services/format"
+import { formatCurtainMode, formatDate, formatMoney, maskPhone } from "@/modules/curtain-quote/services/format"
 import { getRoomThumb } from "@/modules/curtain-quote/services/room-thumb"
 import { getQuote } from "@/modules/curtain-quote/services/quote-storage"
 import type { CurtainQuote } from "@/modules/curtain-quote/types/quote"
@@ -14,7 +14,6 @@ import {
   buildPosterData,
   getPosterHeight,
   drawPoster,
-  createMockPosterData,
 } from "@/modules/curtain-quote/poster/builder"
 import thumbLiving from "@/assets/curtain/客厅.jpg"
 import "./index.css"
@@ -82,11 +81,8 @@ export default function QuoteSharePage() {
     }
   }, [quoteId])
 
-  const posterData = useMemo(
-    () => (quote ? buildPosterData(quote) : createMockPosterData()),
-    [quote],
-  )
-  const posterHeight = useMemo(() => getPosterHeight(posterData), [posterData])
+  const posterData = useMemo(() => (quote ? buildPosterData(quote) : null), [quote])
+  const posterHeight = useMemo(() => (posterData ? getPosterHeight(posterData) : 0), [posterData])
 
   useShareAppMessage(() => ({
     title: quote ? `${quote.customer.name}的窗帘报价单` : "窗帘报价单",
@@ -98,6 +94,10 @@ export default function QuoteSharePage() {
     setBusy(true)
     await Taro.showLoading({ title: "保存中", mask: true })
     try {
+      if (!posterData) {
+        await Taro.showToast({ title: "报价数据不存在", icon: "none" })
+        return
+      }
       const tempPath = await generatePosterImage(posterHeight, (ctx) =>
         drawPoster(ctx, posterData),
       )
@@ -171,8 +171,9 @@ export default function QuoteSharePage() {
                 <View className="summary-item cq-card" key={item.id}>
                   <Image className="summary-item__image" mode="aspectFill" src={thumbLiving} />
                   <View className="summary-item__content">
-                    <Text className="summary-item__title">{item.packageName}</Text>
-                    <Text className="summary-item__line">布宽： {item.fabricWidth.toFixed(2)}米</Text>
+                    <Text className="summary-item__title">{item.packageNameSnapshot}</Text>
+                    <Text className="summary-item__line">宽度： {item.width.toFixed(2)}米</Text>
+                    <Text className="summary-item__line">类型： {formatCurtainMode(item.curtainMode)}</Text>
                     <Text className="summary-item__line">预算： ¥{formatMoney(item.amount)}</Text>
                   </View>
                 </View>

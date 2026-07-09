@@ -5,7 +5,7 @@ import { CurtainButton, PageShell } from "@/modules/curtain-quote/components/pag
 import { IconSymbol } from "@/modules/curtain-quote/components/icon-symbol"
 import { DISCOUNT_OPTIONS } from "@/modules/curtain-quote/data/discounts"
 import { calculateQuoteTotals } from "@/modules/curtain-quote/services/quote-calculator"
-import { formatMoney, maskPhone } from "@/modules/curtain-quote/services/format"
+import { formatCurtainMode, formatMoney, maskPhone } from "@/modules/curtain-quote/services/format"
 import { getRoomThumb } from "@/modules/curtain-quote/services/room-thumb"
 import { getQuote, saveQuote, updateQuoteStatus } from "@/modules/curtain-quote/services/quote-storage"
 import type { CurtainQuote } from "@/modules/curtain-quote/types/quote"
@@ -61,6 +61,10 @@ export default function QuoteSummaryPage() {
     await Taro.navigateTo({ url: `/pages/quote-share/index?id=${calculatedQuote.id}` })
   }
 
+  const returnHome = async () => {
+    await Taro.reLaunch({ url: "/pages/home/index" })
+  }
+
   return (
     <PageShell title="报价汇总" showBack paddedBottom>
       {calculatedQuote && (
@@ -95,8 +99,9 @@ export default function QuoteSummaryPage() {
                 <View className="summary-item cq-card" key={item.id}>
                   <Image className="summary-item__image" mode="aspectFill" src={thumbLiving} />
                   <View className="summary-item__content">
-                    <Text className="summary-item__title">{item.packageName}</Text>
-                    <Text className="summary-item__line">布宽： {item.fabricWidth.toFixed(2)}米</Text>
+                    <Text className="summary-item__title">{item.packageNameSnapshot}</Text>
+                    <Text className="summary-item__line">宽度： {item.width.toFixed(2)}米</Text>
+                    <Text className="summary-item__line">类型： {formatCurtainMode(item.curtainMode)}</Text>
                     <Text className="summary-item__line">预算： ¥{formatMoney(item.amount)}</Text>
                   </View>
                 </View>
@@ -137,6 +142,9 @@ export default function QuoteSummaryPage() {
               保存报价
             </CurtainButton>
             <CurtainButton onClick={shareQuote}>分享报价</CurtainButton>
+            <Button className="summary-home-button" onClick={returnHome}>
+              返回首页
+            </Button>
           </View>
         </View>
       )}

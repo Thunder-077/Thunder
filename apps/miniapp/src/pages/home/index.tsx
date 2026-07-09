@@ -40,7 +40,11 @@ export default function HomePage() {
     setKeyword(event.detail.value)
   }
 
+  /** 跳转到新建报价页。 */
   const goCreate = () => Taro.navigateTo({ url: "/pages/quote-new/index" })
+
+  /** 在新建报价前进入套餐配置页维护套餐。 */
+  const goPackageConfigs = () => Taro.navigateTo({ url: "/pages/package-configs/index" })
 
   const openDetail = (quoteId: string) => {
     Taro.navigateTo({ url: `/pages/quote-detail/index?id=${quoteId}` })
@@ -57,7 +61,14 @@ export default function HomePage() {
         </View>
       </View>
       <View className="home-body">
-        <CurtainButton onClick={goCreate}>＋ 新建报价</CurtainButton>
+        <View className="home-actions">
+          <View className="home-actions__primary">
+            <CurtainButton onClick={goCreate}>＋ 新建报价</CurtainButton>
+          </View>
+          <View className="home-actions__secondary">
+            <CurtainButton variant="outline" onClick={goPackageConfigs}>套餐配置</CurtainButton>
+          </View>
+        </View>
         <View className="home-search">
           <IconSymbol className="home-search__icon" name="search" />
           <Input className="home-search__input" placeholder="搜索客户姓名 / 手机号" value={keyword} onInput={handleKeywordInput} />

@@ -64,8 +64,8 @@ export default function QuoteModePage() {
           <View className="mode-card__content">
             <View>
               <Text className="mode-card__title">套餐报价</Text>
-              <Text className="mode-card__desc">选择套餐后，根据布宽、纱宽</Text>
-              <Text className="mode-card__desc">自动计算差额费用</Text>
+              <Text className="mode-card__desc">选择套餐后，根据宽度</Text>
+              <Text className="mode-card__desc">和窗帘类型自动计算差额费用</Text>
             </View>
             <Image className="mode-card__image" mode="aspectFit" src={modePackage} />
           </View>

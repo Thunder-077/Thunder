@@ -1,0 +1,32 @@
+.package-config-item-page {
+  padding: 28px 38px 46px;
+}
+
+.package-config-item__card {
+  margin-top: 20px;
+  padding: 28px;
+}
+
+.package-config-item__field:not(:first-child) {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #ebe7df;
+}
+
+.package-config-item__label {
+  color: #666666;
+  display: block;
+  font-size: 26px;
+  line-height: 36px;
+}
+
+.package-config-item__input {
+  margin-top: 16px;
+  color: #111111;
+  font-size: 34px;
+  line-height: 44px;
+}
+
+.package-config-item__footer {
+  padding: 0 38px 34px;
+}

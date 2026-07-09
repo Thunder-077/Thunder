@@ -1,0 +1,99 @@
+.package-configs-page {
+  padding: 28px 38px 46px;
+}
+
+.package-configs-empty {
+  margin-top: 22px;
+  padding: 56px 28px;
+  text-align: center;
+}
+
+.package-configs-empty__title {
+  color: #40522e;
+  display: block;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 46px;
+}
+
+.package-configs-empty__desc {
+  display: block;
+  margin-top: 12px;
+  margin-bottom: 32px;
+  color: #8b8b8b;
+  font-size: 26px;
+  line-height: 36px;
+}
+
+.package-configs-list {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.package-configs-card {
+  padding: 28px;
+}
+
+.package-configs-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.package-configs-card__name {
+  color: #111111;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 44px;
+}
+
+.package-configs-card__price {
+  color: #40522e;
+  font-size: 38px;
+  font-weight: 900;
+}
+
+.package-configs-card__line {
+  display: block;
+  margin-top: 14px;
+  color: #666666;
+  font-size: 26px;
+  line-height: 38px;
+}
+
+.package-configs-card__actions {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.package-configs-card__action {
+  height: 72px;
+  padding: 0;
+  border-radius: 14px;
+  font-size: 28px;
+  line-height: 72px;
+}
+
+.package-configs-card__action::after {
+  border: 0;
+}
+
+.package-configs-card__action--edit {
+  border: 1px solid #ded9cf;
+  background: #fbfaf6;
+  color: #53653d;
+}
+
+.package-configs-card__action--delete {
+  background: #fff1ee;
+  color: #b85f52;
+}
+
+.package-configs-footer {
+  padding: 0 38px 34px;
+}
