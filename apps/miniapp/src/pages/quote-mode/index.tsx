@@ -37,10 +37,6 @@ export default function QuoteModePage() {
     await Taro.redirectTo({ url: mode === "normal" ? `/pages/quote-normal/index?id=${quoteId}` : `/pages/quote-package/index?id=${quoteId}` })
   }
 
-  const goPackageConfigs = () => {
-    void Taro.navigateTo({ url: "/pages/package-configs/index" })
-  }
-
   return (
     <PageShell title="选择报价方式" showBack paddedBottom>
       <View className="mode-page">
@@ -75,9 +71,6 @@ export default function QuoteModePage() {
           </View>
           <CurtainButton onClick={() => chooseMode("package")}>选择</CurtainButton>
         </View>
-        <CurtainButton variant="outline" onClick={goPackageConfigs}>
-          套餐配置
-        </CurtainButton>
       </View>
     </PageShell>
   )

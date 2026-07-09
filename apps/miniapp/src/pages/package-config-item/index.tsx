@@ -87,7 +87,8 @@ export default function PackageConfigItemPage() {
     await Taro.navigateBack()
   }
 
-  const renderMoneyField = (label: string, field: NumericField, placeholder = "0") => (
+  /** 渲染数字输入项，占位文案直接带上单位，减少理解成本。 */
+  const renderNumberField = (label: string, field: NumericField, placeholder: string) => (
     <View className="package-config-item__field">
       <Text className="package-config-item__label">{label}</Text>
       <Input
@@ -109,28 +110,28 @@ export default function PackageConfigItemPage() {
             <Text className="package-config-item__label">套餐名称</Text>
             <Input className="package-config-item__input" placeholder="请输入套餐名称" value={draft.name} onInput={updateText} />
           </View>
-          {renderMoneyField("套餐价格", "basePrice")}
+          {renderNumberField("套餐价格", "basePrice", "0元")}
         </View>
 
         <SectionTitle>套餐包含</SectionTitle>
         <View className="package-config-item__card cq-card">
-          {renderMoneyField("布米数", "includedFabric")}
-          {renderMoneyField("纱米数", "includedSheer")}
-          {renderMoneyField("轨道米数", "includedTrack")}
+          {renderNumberField("布", "includedFabric", "0米")}
+          {renderNumberField("纱", "includedSheer", "0米")}
+          {renderNumberField("轨道", "includedTrack", "0米")}
         </View>
 
         <SectionTitle>超出单价</SectionTitle>
         <View className="package-config-item__card cq-card">
-          {renderMoneyField("布单价", "fabricAddPrice")}
-          {renderMoneyField("纱单价", "sheerAddPrice")}
-          {renderMoneyField("轨道单价", "trackAddPrice")}
+          {renderNumberField("布", "fabricAddPrice", "0元/米")}
+          {renderNumberField("纱", "sheerAddPrice", "0元/米")}
+          {renderNumberField("轨道", "trackAddPrice", "0元/米")}
         </View>
 
         <SectionTitle>退还单价</SectionTitle>
         <View className="package-config-item__card cq-card">
-          {renderMoneyField("布单价", "fabricReducePrice")}
-          {renderMoneyField("纱单价", "sheerReducePrice")}
-          {renderMoneyField("轨道单价", "trackReducePrice")}
+          {renderNumberField("布", "fabricReducePrice", "0元/米")}
+          {renderNumberField("纱", "sheerReducePrice", "0元/米")}
+          {renderNumberField("轨道", "trackReducePrice", "0元/米")}
         </View>
       </View>
       <View className="package-config-item__footer">
